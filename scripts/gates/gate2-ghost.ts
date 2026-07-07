@@ -14,7 +14,25 @@
  */
 import { validateLevel, type GhostSolution, type Level } from '../../src/engine/level/LevelSchema';
 import { compareToRecorded, runScriptedAttempt, type ScriptedAttemptResult } from '../../src/engine/replay/GhostPlayer';
+import { World } from '../../src/engine/physics/World';
 import { parseCliOptions, resolveLevelFiles, runGate } from './lib';
+
+/**
+ * Two long-lived recycled worlds for the whole gate run (phaser-box2d never
+ * frees slots — 18 levels x 2 ghosts x 2 runs would exhaust the 32-slot cap
+ * with fresh worlds). Determinism check: a recycled slot drifts sub-mm between
+ * consecutive attempts, but an IDENTICAL attempt sequence yields bit-identical
+ * results across independent worlds (measured, see .fable/decisions.md) — so
+ * run 1 (world A) and run 2 (world B) at the same sequence position must match
+ * exactly.
+ */
+let worldA: World | undefined;
+let worldB: World | undefined;
+function gateWorlds(): { a: World; b: World } {
+  worldA ??= new World();
+  worldB ??= new World();
+  return { a: worldA, b: worldB };
+}
 
 function fnv1a(parts: readonly number[]): string {
   const buf = new ArrayBuffer(8);
@@ -44,18 +62,20 @@ function digest(result: ScriptedAttemptResult): string {
 function checkGhost(level: Level, ghost: GhostSolution, index: number): { errors: string[]; hash: string } {
   const errors: string[] = [];
   const strokePoints = ghost.stroke.map(([x, y]) => ({ x, y }));
-  const run1 = runScriptedAttempt(level, strokePoints);
-  const run2 = runScriptedAttempt(level, strokePoints);
+  const { a, b } = gateWorlds();
+  const run1 = runScriptedAttempt(level, strokePoints, { upgrades: { inkCapacityLv: 0, engineSpeedLv: 0 }, world: a });
+  const run2 = runScriptedAttempt(level, strokePoints, { upgrades: { inkCapacityLv: 0, engineSpeedLv: 0 }, world: b });
 
   if (!run1.committed) {
     return { errors: [`ghost[${index}]: stroke did not commit (${run1.reason})`], hash: 'uncommitted' };
   }
 
-  // In-process determinism: two runs must match exactly (bit-level finalPos).
+  // Cross-world determinism: the same attempt at the same sequence position in
+  // two independent recycled worlds must match bit-exactly (measured property).
   const hash1 = digest(run1);
   const hash2 = digest(run2);
   if (hash1 !== hash2) {
-    errors.push(`ghost[${index}]: in-process determinism violation (${hash1} != ${hash2})`);
+    errors.push(`ghost[${index}]: cross-world determinism violation (${hash1} != ${hash2})`);
   }
 
   // Tolerance band vs the recorded result.
