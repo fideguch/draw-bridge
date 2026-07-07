@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 1,
+  "id": "ch1-l01",
+  "terrain": [
+    [[-10, 0], [-2, 0], [-1.6, -5]],
+    [[1.6, -5], [2, 0], [14, 0]]
+  ],
+  "vehicleSpawn": { "x": -8, "y": 0.6 },
+  "goalFlag": { "x": 10, "y": 0, "width": 1.5, "height": 2.5 },
+  "killY": -7,
+  "inkBudget": 18,
+  "starThresholds": { "star2": 12, "star3": 8 },
+  "coins": [
+    { "x": -1, "y": 1.0 },
+    { "x": 0, "y": 1.4 },
+    { "x": 1, "y": 1.0 }
+  ],
+  "gimmickTags": [],
+  "ghostSolutions": [
+    {
+      "kind": "any",
+      "stroke": [[-2.4, 0.2], [-1.2, -0.1], [0, -0.25], [1.2, -0.1], [2.4, 0.2]],
+      "sampleEveryTicks": 10,
+      "samples": [
+        { "t": 0, "x": -8.0, "y": 0.6 },
+        { "t": 150, "x": -0.2, "y": 0.4 },
+        { "t": 300, "x": 10.4, "y": 0.9 }
+      ],
+      "result": {
+        "outcome": "clear",
+        "ticks": 300,
+        "finalPos": { "x": 10.4, "y": 0.9 },
+        "inkConsumed": 9.6,
+        "starRating": 2
+      }
+    }
+  ]
+}

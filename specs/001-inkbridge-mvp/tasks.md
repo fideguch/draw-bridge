@@ -18,14 +18,14 @@
 
 ## Phase 2: Engine Foundation — Phaser-free, TDD (FR-003, FR-005, FR-006, FR-007, FR-008, FR-015, FR-026 substrate)
 
-- [ ] T010 [P] Write failing tests for level schema validation in tests/unit/level-schema.spec.ts (valid minimal level from contracts/level-schema.md; missing ghostSolutions/killY/schemaVersion rejected; bonusMultiplier only on ch1-b*)
-- [ ] T011 [P] Implement src/engine/level/LevelSchema.ts + LevelLoader.ts to pass T010 (shared by game + Gate 0)
-- [ ] T012 [P] Write failing tests for stroke pipeline in tests/unit/stroke-pipeline.spec.ts (raw points → RDP → equal resample 0.5-0.8m; N cap 32; min-length discard + ink refund per FR-003)
-- [ ] T013 [P] Implement src/engine/physics/StrokePipeline.ts to pass T012
-- [ ] T014 Write failing tests for physics world lifecycle in tests/unit/world.spec.ts (fixed 1/60 step + accumulator; state hash stable across identical runs — S3 precursor; headless Node, no Phaser import)
-- [ ] T015 Implement src/engine/physics/World.ts (create/step/destroy/stateHash) to pass T014
-- [ ] T016 [P] Write failing tests for terrain in tests/unit/terrain.spec.ts (polylines → static chain shapes; killY plane)
-- [ ] T017 [P] Implement src/engine/physics/Terrain.ts to pass T016
+- [x] T010 [P] Write failing tests for level schema validation in tests/unit/level-schema.spec.ts (valid minimal level from contracts/level-schema.md; missing ghostSolutions/killY/schemaVersion rejected; bonusMultiplier only on ch1-b*)
+- [x] T011 [P] Implement src/engine/level/LevelSchema.ts + LevelLoader.ts to pass T010 (shared by game + Gate 0)
+- [x] T012 [P] Write failing tests for stroke pipeline in tests/unit/stroke-pipeline.spec.ts (raw points → RDP → equal resample 0.5-0.8m; N cap 32; min-length discard + ink refund per FR-003)
+- [x] T013 [P] Implement src/engine/physics/StrokePipeline.ts to pass T012
+- [x] T014 Write failing tests for physics world lifecycle in tests/unit/world.spec.ts (fixed 1/60 step + accumulator; state hash stable across identical runs — S3 precursor; headless Node, no Phaser import)
+- [x] T015 Implement src/engine/physics/World.ts (create/step/destroy/stateHash) to pass T014
+- [x] T016 [P] Write failing tests for terrain in tests/unit/terrain.spec.ts (polylines → static chain shapes; killY plane)
+- [x] T017 [P] Implement src/engine/physics/Terrain.ts to pass T016
 - [ ] T018 Write failing tests for bridge chain builder in tests/unit/bridge-chain.spec.ts (method C: capsule segments + revolute spring joints hertz 4-8/damping 0.6-0.8/limit ±0.2-0.4rad, collideConnected=false, same-stroke filter groupIndex; method A: single compound; both from same StrokePipeline output)
 - [ ] T019 Implement src/engine/physics/BridgeChainBuilder.ts (methods C + A behind PhysicsMethod flag) to pass T018 (FR-003)
 - [ ] T020 Write failing tests for stress/break in tests/unit/stress.spec.ts (per-joint raw=|F|/breakForce+|τ|/breakTorque, EMA 0.85/0.15; creak band 0.6-1.0 events; >1.0 → joint destroy + orphan fade timer 3.0s)
