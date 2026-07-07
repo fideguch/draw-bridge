@@ -8,3 +8,6 @@ build/
 ios/App/Pods/
 android/.gradle/
 android/build/
+
+# Claude Code (project-level settings may contain sensitive info)
+.claude/
