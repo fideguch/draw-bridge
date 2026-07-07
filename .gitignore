@@ -15,3 +15,5 @@ android/build/
 
 # Agent state (not for PRs)
 .fable/
+test-results/
+playwright-report/
