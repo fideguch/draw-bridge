@@ -1,5 +1,40 @@
+import { appendFileSync, mkdirSync } from 'node:fs';
 import { fileURLToPath, URL } from 'node:url';
-import { defineConfig } from 'vitest/config';
+import { defineConfig, type Plugin } from 'vitest/config';
+
+/**
+ * Dev-only device-stats sink (AC-9 gatekeeper evidence): SpikeScene on a real
+ * device (loaded via LAN dev server with ?spike=1&report=1) POSTs its HUD
+ * numbers here; they land in .fable/device-stats.jsonl for the orchestrator.
+ */
+function deviceStatsSink(): Plugin {
+  return {
+    name: 'inkbridge-device-stats-sink',
+    configureServer(server) {
+      server.middlewares.use('/__devicestats', (req, res) => {
+        if (req.method !== 'POST') {
+          res.statusCode = 405;
+          res.end();
+          return;
+        }
+        let body = '';
+        req.on('data', (chunk: Buffer) => {
+          body += chunk.toString();
+        });
+        req.on('end', () => {
+          try {
+            mkdirSync('.fable', { recursive: true });
+            appendFileSync('.fable/device-stats.jsonl', body.trim() + '\n');
+          } catch {
+            // evidence sink must never crash the dev server
+          }
+          res.statusCode = 204;
+          res.end();
+        });
+      });
+    },
+  };
+}
 
 // Path aliases MUST stay in sync with tsconfig.json "paths".
 const alias = {
@@ -18,6 +53,7 @@ const alias = {
 export default defineConfig({
   // Relative base so the bundle works from file:// inside the Capacitor WebView.
   base: './',
+  plugins: [deviceStatsSink()],
   resolve: { alias },
   server: {
     // Expose on LAN so real phones (portrait verification) can hit the dev server.

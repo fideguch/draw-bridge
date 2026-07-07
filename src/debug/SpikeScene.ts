@@ -380,6 +380,7 @@ export class SpikeScene extends Phaser.Scene {
     const scenario = SCENARIOS[this.scenarioIndex] as SpikeSceneScenario;
     const timing = summarizeStepDurations(this.stepDurationsMs);
     const segments = this.internals?.chain?.segments.length ?? 0;
+    this.maybeReportStats(scenario.label, timing, segments);
     this.hud.setText(
       [
         `SPIKE S2 — ${scenario.label}  [method ${this.method}, N=${segments}]`,
@@ -388,5 +389,38 @@ export class SpikeScene extends Phaser.Scene {
         `keys: 1-9 scenario | M method | R restart`,
       ].join('\n'),
     );
+  }
+
+  /**
+   * ?report=1 (dev builds only): POST the HUD numbers to the vite dev server's
+   * /__devicestats sink every ~2s — the AC-9 real-device 60fps evidence path
+   * (quickstart §8). Fire-and-forget; failures never disturb the scene.
+   */
+  private lastReportAt = 0;
+  private maybeReportStats(
+    scenarioLabel: string,
+    timing: { p50Ms: number; p95Ms: number; maxMs: number; samples: number },
+    segments: number,
+  ): void {
+    if (new URLSearchParams(window.location.search).get('report') !== '1') return;
+    const now = performance.now();
+    if (now - this.lastReportAt < 2000) return;
+    this.lastReportAt = now;
+    void fetch('/__devicestats', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        ua: navigator.userAgent,
+        scenario: scenarioLabel,
+        method: this.method,
+        segments,
+        fps: Number(this.game.loop.actualFps.toFixed(1)),
+        p50Ms: Number(timing.p50Ms.toFixed(3)),
+        p95Ms: Number(timing.p95Ms.toFixed(3)),
+        maxMs: Number(timing.maxMs.toFixed(3)),
+        samples: timing.samples,
+        outcome: this.outcomeLabel,
+      }),
+    }).catch(() => undefined);
   }
 }
