@@ -153,6 +153,10 @@ export class GoalSequence {
     this.data = null;
     setDevResultNextReady(false);
     this.clearTimers();
+    // Codex R2 HIGH-2: an early Replay (before the count-up finished) left the
+    // BGM ducked forever — every exit path must finish the count-up and unduck.
+    this.countUp.skip();
+    this.deps.juice.unduckBgm();
     this.skipCatcher?.destroy();
     this.skipCatcher = null;
     this.confetti?.destroy();

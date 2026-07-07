@@ -544,23 +544,28 @@ export class PlayScene extends Phaser.Scene {
     }
   }
 
-  /** T060 clear path: run the 5-beat celebration, then credit the attempt. */
+  /** T060 clear path: credit first (BR-003), celebrate with the REAL total. */
   private startGoalCelebration(outcome: Extract<AttemptOutcome, { outcome: 'clear' }>): void {
     const nextId = this.nextLevelId();
-    this.goalSequence.start({
-      stars: outcome.starRating,
-      coins: outcome.coinsCollected,
-      hasNext: nextId !== null,
-      onReplay: () => this.restartAttempt(),
-      onNext: () => this.goToNext(),
-    });
-    // Persist coins + bestStars (BR-003); a later LevelSelect visit reads fresh.
-    void this.services.creditLevelResult({
-      levelId: this.levelId,
-      starRating: outcome.starRating,
-      collectedCoins: outcome.coinsCollected,
-      ...(this.level?.bonusMultiplier !== undefined ? { bonusMultiplier: this.level.bonusMultiplier } : {}),
-    });
+    // Credit BEFORE the celebration so the count-up shows exactly what the
+    // player received (clear reward + first-clear pickups — Codex R2 HIGH-1):
+    // displaying raw pickups made rewards look duplicated on replays.
+    void this.services
+      .creditLevelResult({
+        levelId: this.levelId,
+        starRating: outcome.starRating,
+        collectedCoins: outcome.coinsCollected,
+        ...(this.level?.bonusMultiplier !== undefined ? { bonusMultiplier: this.level.bonusMultiplier } : {}),
+      })
+      .then((credit) => {
+        this.goalSequence.start({
+          stars: outcome.starRating,
+          coins: credit.totalCredited,
+          hasNext: nextId !== null,
+          onReplay: () => this.restartAttempt(),
+          onNext: () => this.goToNext(),
+        });
+      });
   }
 
   /**
