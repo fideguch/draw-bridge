@@ -106,3 +106,36 @@ Fail paths (research.md §R10): p95 > 4 ms on device → ship method A fallback 
 3. Watch fps / step-time p95 / body count in the overlay while tuning (the spring-chain swamp: too stiff = dull collapse, too soft = flailing).
 4. Copy final values back into `TuningConstants.ts` (panel values persist for the session only).
 5. If a physics constant moved, re-run `npm run gates` — ghosts may need re-recording via the editor if Gate 2 drifts beyond ε = 0.05 m / ±30 ticks.
+
+## 9. Android emulator verification (no physical device)
+
+Established 2026-07-08 (AC-9 evidence path). One-time setup on a fresh Mac:
+
+```bash
+brew install --cask android-commandlinetools
+brew install openjdk@21           # Gradle rejects newer JDKs ("class file major version 70")
+export JAVA_HOME=/opt/homebrew/opt/openjdk@21 ANDROID_HOME="$HOME/Library/Android/sdk"
+SDKM=/opt/homebrew/share/android-commandlinetools/cmdline-tools/latest/bin/sdkmanager
+yes | "$SDKM" --sdk_root="$ANDROID_HOME" --licenses
+"$SDKM" --sdk_root="$ANDROID_HOME" "platform-tools" "emulator" "platforms;android-35" \
+  "build-tools;35.0.0" "system-images;android-35;google_apis;arm64-v8a" "cmdline-tools;latest"
+# IMPORTANT: use the SDK's own avdmanager (the homebrew copy resolves the wrong SDK root):
+echo no | "$ANDROID_HOME/cmdline-tools/latest/bin/avdmanager" create avd -n inkbridge \
+  -k "system-images;android-35;google_apis;arm64-v8a" --device pixel_7
+echo "sdk.dir=$ANDROID_HOME" > android/local.properties
+```
+
+Build, boot headless, install, launch, screenshot:
+
+```bash
+npm run build && npx cap sync android
+(cd android && JAVA_HOME=/opt/homebrew/opt/openjdk@21 ./gradlew assembleDebug)
+"$ANDROID_HOME/emulator/emulator" -avd inkbridge -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect &
+"$ANDROID_HOME/platform-tools/adb" wait-for-device
+until [ "$("$ANDROID_HOME/platform-tools/adb" shell getprop sys.boot_completed | tr -d '\r')" = "1" ]; do sleep 3; done
+"$ANDROID_HOME/platform-tools/adb" install -r android/app/build/outputs/apk/debug/app-debug.apk
+"$ANDROID_HOME/platform-tools/adb" shell am start -n com.medicavice.inkbridge/.MainActivity
+sleep 12 && "$ANDROID_HOME/platform-tools/adb" exec-out screencap -p > evidence.png
+```
+
+Note: the first WebView paint takes ~15-30 s under swiftshader — a black early screenshot just means "too soon". Emulator fps is NOT representative of mid-tier hardware; the real-device §8 procedure remains the performance gate.
