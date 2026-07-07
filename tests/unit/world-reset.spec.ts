@@ -94,7 +94,9 @@ describe('World.reset — slot recycling primitives', () => {
 });
 
 describe('GameSimulation.reset — unbounded attempts on one world (C1)', () => {
-  it('serves 100 reset() attempts (>3x the 32-slot cap) with a deterministic outcome', () => {
+  // 100 full attempts is legitimately heavy (~2.5s isolated); under concurrent
+  // CPU load (parallel agents/CI neighbors) it exceeded the default 5s twice.
+  it('serves 100 reset() attempts (>3x the 32-slot cap) with a deterministic outcome', { timeout: 20_000 }, () => {
     const { ticks, finalPos } = resetSequence(100);
     expect(ticks).toHaveLength(100);
     // macroscopic determinism: identical tick count every attempt
