@@ -50,9 +50,9 @@
 
 ## Phase 4: Level Gate Pipeline (FR-026)
 
-- [ ] T040 Implement scripts/gates/gate0-schema.mjs + gate1-static.mjs per contracts/gate-pipeline.md (NDJSON output, exit codes 0/1/2)
-- [ ] T041 Implement scripts/gates/gate2-ghost.mjs (headless ghost replay at Lv0 upgrades, tolerance band, double-run hash check) + gate3-antidominant.mjs (straight-line bot: rim-to-rim strokes at heights {0,+0.5,+1.0}m must ALL fail on anti-dominant tagged levels)
-- [ ] T042 Wire `npm run gates` + CI job; add 2 fixture levels (one passing, one anti-dominant) in tests/fixtures/levels/
+- [x] T040 Implement scripts/gates/gate0-schema.mjs + gate1-static.mjs per contracts/gate-pipeline.md (NDJSON output, exit codes 0/1/2)
+- [x] T041 Implement scripts/gates/gate2-ghost.mjs (headless ghost replay at Lv0 upgrades, tolerance band, double-run hash check) + gate3-antidominant.mjs (straight-line bot: rim-to-rim strokes at heights {0,+0.5,+1.0}m must ALL fail on anti-dominant tagged levels)
+- [x] T042 Wire `npm run gates` + CI job; add 2 fixture levels (one passing, one anti-dominant) in tests/fixtures/levels/
 
 ## Phase 5: Render & Draw (FR-001, FR-002, FR-004 UI, FR-015 flow)
 
