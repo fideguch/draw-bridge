@@ -90,6 +90,11 @@ export class StarBurstView {
   private readonly viewOptions: StarBurstViewOptions;
   private readonly stars: Phaser.GameObjects.Graphics[] = [];
   private readonly rings: Phaser.GameObjects.Graphics[] = [];
+  // Each shockwave is driven by a proxy tween (targets a {r,a} object, NOT the
+  // ring), so killTweensOf(ring) cannot reach it — the handle is tracked here and
+  // stopped explicitly on clear() so a skip/replay leaves no orphan tween drawing
+  // into a destroyed ring.
+  private readonly ringTweens = new Map<Phaser.GameObjects.Graphics, Phaser.Tweens.Tween>();
   private readonly timers: Phaser.Time.TimerEvent[] = [];
   private onBeat?: (index: number) => void;
   private revealedCount = 0;
@@ -196,7 +201,7 @@ export class StarBurstView {
     this.rings.push(ring);
     const ringColor = this.viewOptions.shockwaveColor ?? this.viewOptions.filledColor;
     const proxy = { r: radius * 0.5, a: 0.6 };
-    this.scene.tweens.add({
+    const tween = this.scene.tweens.add({
       targets: proxy,
       r: SHOCKWAVE_MAX_RADIUS_PX,
       a: 0,
@@ -209,6 +214,7 @@ export class StarBurstView {
       },
       onComplete: () => this.removeRing(ring),
     });
+    this.ringTweens.set(ring, tween);
   }
 
   private removeRing(ring: Phaser.GameObjects.Graphics): void {
@@ -216,6 +222,7 @@ export class StarBurstView {
     if (index >= 0) {
       this.rings.splice(index, 1);
     }
+    this.ringTweens.delete(ring);
     ring.destroy();
   }
 
@@ -230,10 +237,12 @@ export class StarBurstView {
     }
     this.stars.length = 0;
     for (const ring of this.rings) {
+      this.ringTweens.get(ring)?.stop();
       this.scene.tweens.killTweensOf(ring);
       ring.destroy();
     }
     this.rings.length = 0;
+    this.ringTweens.clear();
     this.revealedCount = 0;
     this.totalCount = 0;
   }

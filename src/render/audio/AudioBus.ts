@@ -36,6 +36,7 @@ export class AudioBus {
   private readonly maxVoicesPerKey: number;
   private readonly voices = new Map<string, AudioBufferSourceNodeLike[]>();
   private hasResumed = false;
+  private resumePending: Promise<void> | null = null;
 
   constructor(contextFactory: () => AudioContextLike, options: AudioBusOptions = {}) {
     this.ctx = contextFactory();
@@ -67,26 +68,33 @@ export class AudioBus {
     return this.master;
   }
 
-  /** Whether resume() has already run (first-gesture unlock is idempotent). */
+  /** Whether the context is resumed OR a resume is in flight (unlock idempotent). */
   get isResumed(): boolean {
-    return this.hasResumed;
+    return this.hasResumed || this.resumePending !== null;
   }
 
   /**
-   * Resume the context on the first user gesture. Idempotent: only the first
-   * call reaches the underlying context (browsers require a gesture to unlock
-   * audio; calling once is enough). Failures are swallowed — audio never blocks
-   * gameplay.
+   * Resume the context on the first user gesture. Idempotent: only one attempt
+   * reaches the underlying context at a time (browsers require a gesture to
+   * unlock audio). The in-flight promise is tracked so `hasResumed` latches ONLY
+   * on fulfillment — a rejection (e.g. invoked outside a real gesture) clears the
+   * pending state so the NEXT gesture retries instead of being locked out.
+   * Failures are otherwise swallowed — audio never blocks gameplay.
    */
   resume(): void {
-    if (this.hasResumed) {
+    if (this.hasResumed || this.resumePending !== null) {
       return;
     }
-    this.hasResumed = true;
-    void Promise.resolve(this.ctx.resume()).catch(() => {
-      // resume() can reject if invoked outside a gesture; ignore — the next
-      // real gesture path (Phaser input) will have unlocked it anyway.
-    });
+    this.resumePending = Promise.resolve(this.ctx.resume())
+      .then(() => {
+        this.hasResumed = true;
+      })
+      .catch(() => {
+        // Leave hasResumed false so a later gesture path re-attempts the unlock.
+      })
+      .finally(() => {
+        this.resumePending = null;
+      });
   }
 
   /**

@@ -44,11 +44,21 @@ const DEFAULT_SIZE_MAX_PX = 6;
 const DEFAULT_SPEED_MIN_PX = 30;
 const DEFAULT_SPEED_MAX_PX = 120;
 
+/** A live particle plus the proxy tween that drives it (killed on teardown). */
+interface ActiveParticle {
+  readonly rect: Phaser.GameObjects.Rectangle;
+  readonly tween: Phaser.Tweens.Tween;
+}
+
 export class ParticleBurst {
   private readonly scene: Phaser.Scene;
   private readonly options: ParticleBurstOptions;
   private readonly rng: () => number;
-  private readonly particles: Phaser.GameObjects.Rectangle[] = [];
+  // Each particle is animated by a proxy tween (targets a {t} object, NOT the
+  // rect), so killTweensOf(rect) cannot reach it — the handle is tracked here and
+  // stopped explicitly so a teardown/replay leaves no orphan tween mutating a
+  // destroyed rect.
+  private readonly particles: ActiveParticle[] = [];
 
   constructor(scene: Phaser.Scene, options: ParticleBurstOptions = {}) {
     this.scene = scene;
@@ -82,9 +92,9 @@ export class ParticleBurst {
   }
 
   destroy(): void {
-    for (const particle of this.particles) {
-      this.scene.tweens.killTweensOf(particle);
-      particle.destroy();
+    for (const { rect, tween } of this.particles) {
+      tween.stop();
+      rect.destroy();
     }
     this.particles.length = 0;
   }
@@ -103,10 +113,9 @@ export class ParticleBurst {
     if (this.options.depth !== undefined) {
       rect.setDepth(this.options.depth);
     }
-    this.particles.push(rect);
     const proxy = { t: 0 };
     const totalSec = lifeMs / 1000;
-    this.scene.tweens.add({
+    const tween = this.scene.tweens.add({
       targets: proxy,
       t: totalSec,
       duration: lifeMs,
@@ -118,14 +127,14 @@ export class ParticleBurst {
       },
       onComplete: () => this.remove(rect),
     });
+    this.particles.push({ rect, tween });
   }
 
   private remove(rect: Phaser.GameObjects.Rectangle): void {
-    const index = this.particles.indexOf(rect);
+    const index = this.particles.findIndex((particle) => particle.rect === rect);
     if (index >= 0) {
       this.particles.splice(index, 1);
     }
-    this.scene.tweens.killTweensOf(rect);
     rect.destroy();
   }
 }

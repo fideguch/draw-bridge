@@ -248,10 +248,19 @@ export class TuningPanel {
 
     const label = document.createElement('div');
     const badge = field.apply === 'live' ? 'live' : 'restart';
-    label.innerHTML =
-      `<span>${field.label}</span> ` +
-      `<span style="opacity:0.5">[${field.min}..${field.max}]</span> ` +
-      `<span style="opacity:0.6;font-size:10px">(${badge})</span>`;
+
+    const nameSpan = document.createElement('span');
+    nameSpan.textContent = field.label;
+
+    const rangeSpan = document.createElement('span');
+    rangeSpan.style.opacity = '0.5';
+    rangeSpan.textContent = `[${field.min}..${field.max}]`;
+
+    const badgeSpan = document.createElement('span');
+    Object.assign(badgeSpan.style, { opacity: '0.6', fontSize: '10px' });
+    badgeSpan.textContent = `(${badge})`;
+
+    label.append(nameSpan, document.createTextNode(' '), rangeSpan, document.createTextNode(' '), badgeSpan);
     row.appendChild(label);
 
     const input = document.createElement('input');

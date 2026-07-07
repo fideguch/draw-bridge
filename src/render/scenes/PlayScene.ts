@@ -92,6 +92,27 @@ const DRAW_TIP_MAX_SPEED_PX = 1500;
 /** Fail-cause camera pan-and-mark hold before the Retry overlay (ms). */
 const FAIL_MARK_MS = 500;
 
+/*
+ * TODO(tuning): promote to TuningConstants. The mandatory pen/launch/debris
+ * ParticleBurst envelopes (life/size/gravity px) have no TuningConstants field
+ * yet; these local provisionals mirror the Confetti.ts precedent until the
+ * tuning panel (FR-025) covers them.
+ */
+const PEN_DUST_LIFE_MIN_MS = 200;
+const PEN_DUST_LIFE_MAX_MS = 450;
+const PEN_DUST_SIZE_MIN_PX = 2;
+const PEN_DUST_SIZE_MAX_PX = 6;
+const LAUNCH_DUST_GRAVITY_PX = 200;
+const LAUNCH_DUST_LIFE_MIN_MS = 300;
+const LAUNCH_DUST_LIFE_MAX_MS = 600;
+const LAUNCH_DUST_SIZE_MIN_PX = 3;
+const LAUNCH_DUST_SIZE_MAX_PX = 8;
+const DEBRIS_GRAVITY_PX = 900;
+const DEBRIS_LIFE_MIN_MS = 400;
+const DEBRIS_LIFE_MAX_MS = 800;
+const DEBRIS_SIZE_MIN_PX = 3;
+const DEBRIS_SIZE_MAX_PX = 7;
+
 type PlayStateTag = DevHookPlayState['state'];
 
 function levelPath(levelId: string): string {
@@ -136,6 +157,8 @@ export class PlayScene extends Phaser.Scene {
 
   private playState: PlayStateTag = null;
   private outcomeHandled = false;
+  /** Set in teardown() so deferred async work (dev-tool import) can no-op. */
+  private isTornDown = false;
   private accumulatorSec = 0;
   private lastAlpha = 0;
   private strokePoints: Point[] = [];
@@ -176,6 +199,12 @@ export class PlayScene extends Phaser.Scene {
     if (import.meta.env.DEV) {
       // eslint-disable-next-line boundaries/dependencies
       void import('../../debug/TuningPanel').then((m) => {
+        // The import resolves a frame or more later; if the scene has already
+        // shut down (fast navigation) skip the attach so we don't bind a torn-down
+        // scene's input/update.
+        if (this.isTornDown || this.scene?.isActive?.() === false) {
+          return;
+        }
         m.attach(this, {
           statsProvider: () => ({
             fps: this.game.loop.actualFps,
@@ -210,9 +239,29 @@ export class PlayScene extends Phaser.Scene {
       onScaleChange: (scale) => this.director.zoomTo(slowMoZoom(scale)),
     });
 
-    this.penDust = new ParticleBurst(this, { depth: DEPTH.stroke, lifeMsMin: 200, lifeMsMax: 450, sizePxMin: 2, sizePxMax: 6 });
-    this.launchDust = new ParticleBurst(this, { depth: DEPTH.vehicle - 1, gravityPx: 200, lifeMsMin: 300, lifeMsMax: 600, sizePxMin: 3, sizePxMax: 8 });
-    this.debris = new ParticleBurst(this, { depth: DEPTH.bridge + 1, gravityPx: 900, lifeMsMin: 400, lifeMsMax: 800, sizePxMin: 3, sizePxMax: 7 });
+    this.penDust = new ParticleBurst(this, {
+      depth: DEPTH.stroke,
+      lifeMsMin: PEN_DUST_LIFE_MIN_MS,
+      lifeMsMax: PEN_DUST_LIFE_MAX_MS,
+      sizePxMin: PEN_DUST_SIZE_MIN_PX,
+      sizePxMax: PEN_DUST_SIZE_MAX_PX,
+    });
+    this.launchDust = new ParticleBurst(this, {
+      depth: DEPTH.vehicle - 1,
+      gravityPx: LAUNCH_DUST_GRAVITY_PX,
+      lifeMsMin: LAUNCH_DUST_LIFE_MIN_MS,
+      lifeMsMax: LAUNCH_DUST_LIFE_MAX_MS,
+      sizePxMin: LAUNCH_DUST_SIZE_MIN_PX,
+      sizePxMax: LAUNCH_DUST_SIZE_MAX_PX,
+    });
+    this.debris = new ParticleBurst(this, {
+      depth: DEPTH.bridge + 1,
+      gravityPx: DEBRIS_GRAVITY_PX,
+      lifeMsMin: DEBRIS_LIFE_MIN_MS,
+      lifeMsMax: DEBRIS_LIFE_MAX_MS,
+      sizePxMin: DEBRIS_SIZE_MIN_PX,
+      sizePxMax: DEBRIS_SIZE_MAX_PX,
+    });
     this.speedLines = new SpeedLines(this, { widthPx: screen.width, heightPx: screen.height, color: color.inkLine, depth: DEPTH.hud - 1 });
 
     this.buildWorldRenderers();
@@ -255,6 +304,22 @@ export class PlayScene extends Phaser.Scene {
     return { x: level.goalFlag.x + level.goalFlag.width / 2, y: level.goalFlag.y + level.goalFlag.height / 2 };
   }
 
+  /** The running simulation. Throws if accessed with no active attempt. */
+  private get activeSim(): GameSimulation {
+    if (this.sim === null) {
+      throw new Error('PlayScene: no active simulation');
+    }
+    return this.sim;
+  }
+
+  /** The loaded level. Throws if accessed before a level is loaded. */
+  private get activeLevel(): Level {
+    if (this.level === null) {
+      throw new Error('PlayScene: no active level');
+    }
+    return this.level;
+  }
+
   update(_time: number, delta: number): void {
     if (this.sim === null) {
       return;
@@ -274,7 +339,7 @@ export class PlayScene extends Phaser.Scene {
 
   /** Anticipation rev + wheel smoke, running engine hum + speed lines (real dt). */
   private updateRunJuice(deltaMs: number): void {
-    const sim = this.sim as GameSimulation;
+    const sim = this.activeSim;
     const now = this.time.now;
     if (sim.phase === 'anticipation') {
       this.anticipationElapsedMs += deltaMs;
@@ -343,8 +408,8 @@ export class PlayScene extends Phaser.Scene {
     this.bridge?.destroy();
     this.bridge = null;
 
-    const level = this.level as Level;
-    const sim = this.sim as GameSimulation;
+    const level = this.activeLevel;
+    const sim = this.activeSim;
     this.terrain = new TerrainRenderer(this, level, this.transform, { depth: DEPTH.terrain });
     this.flag = new FlagRenderer(this, level.goalFlag, this.transform, { depth: DEPTH.flag });
     this.coins = new CoinRenderer(this, level.coins, this.transform, {
@@ -373,7 +438,7 @@ export class PlayScene extends Phaser.Scene {
   // ── drawing phase ────────────────────────────────────────────────────────
 
   private beginDrawing(): void {
-    const sim = this.sim as GameSimulation;
+    const sim = this.activeSim;
     this.outcomeHandled = false;
     this.accumulatorSec = 0;
     this.lastAlpha = 0;
@@ -446,7 +511,7 @@ export class PlayScene extends Phaser.Scene {
   }
 
   private redrawStroke(): void {
-    const sim = this.sim as GameSimulation;
+    const sim = this.activeSim;
     const consumed = rawPolylineLength(this.strokePoints);
     const remaining = Math.max(0, sim.inkState.remaining - consumed);
     const ratio = remaining / sim.inkState.effectiveBudget;
@@ -493,7 +558,7 @@ export class PlayScene extends Phaser.Scene {
   // ── run loop ───────────────────────────────────────────────────────────────
 
   private stepSimulation(deltaMs: number): void {
-    const sim = this.sim as GameSimulation;
+    const sim = this.activeSim;
     const phase = sim.phase;
     if (phase === 'drawing' || phase === 'ended') {
       return;
@@ -517,13 +582,13 @@ export class PlayScene extends Phaser.Scene {
     this.vehicle?.update(alpha);
     this.flag?.update(alpha);
     if (this.playState === 'anticipation' || this.playState === 'running') {
-      const sim = this.sim as GameSimulation;
+      const sim = this.activeSim;
       this.inkBar?.update(sim.inkState.ratio, sim.inkState.zone);
     }
   }
 
   private handleOutcome(): void {
-    const sim = this.sim as GameSimulation;
+    const sim = this.activeSim;
     const outcome = sim.outcome;
     if (outcome === null) {
       return;
@@ -634,7 +699,7 @@ export class PlayScene extends Phaser.Scene {
   // ── camera juice + dev hook ─────────────────────────────────────────────────
 
   private attachCameraJuice(): void {
-    const sim = this.sim as GameSimulation;
+    const sim = this.activeSim;
     this.cameraJuiceUnsubs.push(
       sim.events.on('launchReleased', () => {
         this.launchReleased = true;
@@ -657,7 +722,7 @@ export class PlayScene extends Phaser.Scene {
           return;
         }
         this.creakDustAtMs = now;
-        const ref = (this.sim as GameSimulation).referencePoint();
+        const ref = this.activeSim.referencePoint();
         const px = this.transform.point({ x: ref.x, y: ref.y });
         this.debris.emit(px.x, px.y, { count: 2, color: color.stressMid, speedPxMin: 15, speedPxMax: 45 });
       }),
@@ -666,7 +731,7 @@ export class PlayScene extends Phaser.Scene {
 
   /** Wheel-spin smoke behind the car during the anticipation rev (§4.2 2-1). */
   private emitWheelSmoke(count: number): void {
-    const ref = (this.sim as GameSimulation).referencePoint();
+    const ref = this.activeSim.referencePoint();
     const px = this.transform.point({ x: ref.x, y: ref.y });
     this.launchDust.emit(px.x, px.y, {
       count,
@@ -680,7 +745,7 @@ export class PlayScene extends Phaser.Scene {
 
   /** 10-20 dust burst kicked back at the launch release (§4.2 2-2). */
   private emitLaunchDust(): void {
-    const ref = (this.sim as GameSimulation).referencePoint();
+    const ref = this.activeSim.referencePoint();
     const px = this.transform.point({ x: ref.x, y: ref.y });
     this.launchDust.emit(px.x, px.y, {
       count: launch.dustCount,
@@ -706,7 +771,7 @@ export class PlayScene extends Phaser.Scene {
   private publishDevState(): void {
     // Follow the sim's phase while playing; explicit states own drawing/result.
     if (this.playState === 'anticipation' || this.playState === 'running') {
-      const phase = (this.sim as GameSimulation).phase;
+      const phase = this.activeSim.phase;
       if (phase === 'running') {
         this.playState = 'running';
       } else if (phase === 'anticipation') {
@@ -745,6 +810,7 @@ export class PlayScene extends Phaser.Scene {
   }
 
   private teardown(): void {
+    this.isTornDown = true;
     setWorldToGame(null);
     setDevResultNextReady(false);
     setDevStrokePointCount(0);

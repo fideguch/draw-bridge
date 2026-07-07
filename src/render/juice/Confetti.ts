@@ -155,6 +155,11 @@ export class ConfettiCelebration {
   private readonly rng: Rng;
   private readonly palette: readonly number[];
   private readonly pieces: Phaser.GameObjects.Rectangle[] = [];
+  // The ballistic path is driven by a proxy tween (targets a {t} object, NOT the
+  // rect), so killTweensOf(piece) cannot reach it — each handle is tracked here
+  // and stopped explicitly on stop()/destroy() so a tap-skip/replay leaves no
+  // orphan tween mutating a destroyed piece.
+  private readonly ballisticTweens = new Map<Phaser.GameObjects.Rectangle, Phaser.Tweens.Tween>();
   private isStopped = false;
 
   constructor(scene: Phaser.Scene, options: ConfettiCelebrationOptions) {
@@ -179,7 +184,13 @@ export class ConfettiCelebration {
     // Pop SFX ×2, left then right, 50 ms apart (§4.3): audio via the callback.
     this.options.onCannonFire?.(0);
     if (positions.length > 1) {
-      this.scene.time.delayedCall(CONFETTI_CANNON_POP_STAGGER_MS, () => this.options.onCannonFire?.(1));
+      this.scene.time.delayedCall(CONFETTI_CANNON_POP_STAGGER_MS, () => {
+        // A fast tap-skip between the two pops must not fire a late pop SFX.
+        if (this.isStopped) {
+          return;
+        }
+        this.options.onCannonFire?.(1);
+      });
     }
   }
 
@@ -203,18 +214,22 @@ export class ConfettiCelebration {
   stop(): void {
     this.isStopped = true;
     for (const piece of this.pieces) {
+      this.ballisticTweens.get(piece)?.stop();
       this.scene.tweens.killTweensOf(piece);
       this.scene.tweens.add({ targets: piece, alpha: 0, duration: 150, onComplete: () => piece.destroy() });
     }
+    this.ballisticTweens.clear();
     this.pieces.length = 0;
   }
 
   destroy(): void {
     this.isStopped = true;
     for (const piece of this.pieces) {
+      this.ballisticTweens.get(piece)?.stop();
       this.scene.tweens.killTweensOf(piece);
       piece.destroy();
     }
+    this.ballisticTweens.clear();
     this.pieces.length = 0;
   }
 
@@ -265,7 +280,7 @@ export class ConfettiCelebration {
     // the origin; x adds a gentle sway. A proxy tween carries the elapsed time.
     const proxy = { t: 0 };
     const totalT = Math.max(0.2, (vy + Math.sqrt(vy * vy + 2 * gravity * fallPx)) / gravity);
-    this.scene.tweens.add({
+    const tween = this.scene.tweens.add({
       targets: proxy,
       t: totalT,
       duration: totalT * 1000,
@@ -278,6 +293,7 @@ export class ConfettiCelebration {
       },
       onComplete: () => this.removePiece(rect),
     });
+    this.ballisticTweens.set(rect, tween);
   }
 
   private addRect(x: number, y: number, size: number, fill: number): Phaser.GameObjects.Rectangle {
@@ -294,6 +310,7 @@ export class ConfettiCelebration {
     if (index >= 0) {
       this.pieces.splice(index, 1);
     }
+    this.ballisticTweens.delete(rect);
     this.scene.tweens.killTweensOf(rect);
     rect.destroy();
   }

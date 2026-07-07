@@ -113,6 +113,8 @@ export class EditorScene extends Phaser.Scene {
   private econLabelEl: HTMLElement | null = null;
   private saveButton: HTMLButtonElement | null = null;
   private gimmickCheckbox: HTMLInputElement | null = null;
+  /** Aborted on scene shutdown so an open import overlay tears its backdrop down. */
+  private importAbort: AbortController | null = null;
 
   constructor() {
     super('Editor');
@@ -365,7 +367,10 @@ export class EditorScene extends Phaser.Scene {
   }
 
   private async importLevel(): Promise<void> {
-    const text = await showImportOverlay();
+    this.importAbort?.abort();
+    this.importAbort = new AbortController();
+    const text = await showImportOverlay({ signal: this.importAbort.signal });
+    this.importAbort = null;
     if (text === null) {
       return;
     }
@@ -672,6 +677,8 @@ export class EditorScene extends Phaser.Scene {
   // ── teardown ─────────────────────────────────────────────────────────────────────────
 
   private teardown(): void {
+    this.importAbort?.abort();
+    this.importAbort = null;
     this.strokeInput?.destroy();
     this.strokeInput = null;
     this.testWorld?.destroy();

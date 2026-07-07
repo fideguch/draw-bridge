@@ -45,12 +45,28 @@ export async function exportLevelJson(id: string, json: Record<string, unknown>)
   return copyToClipboard(serializeLevel(json));
 }
 
+export interface ImportOverlayOptions {
+  /**
+   * Aborts the overlay (removes the backdrop, resolves null). Pass the editor
+   * scene's shutdown signal so a scene teardown while the overlay is open never
+   * leaks a floating backdrop into the DOM.
+   */
+  readonly signal?: AbortSignal;
+}
+
 /**
  * Show a modal textarea overlay and resolve with the pasted text, or null if the
- * author cancels. The caller validates via editorState.draftFromJson.
+ * author cancels (Cancel button, Escape key, or an aborted `signal`). The caller
+ * validates via editorState.draftFromJson.
  */
-export function showImportOverlay(): Promise<string | null> {
+export function showImportOverlay(options: ImportOverlayOptions = {}): Promise<string | null> {
   return new Promise((resolve) => {
+    const { signal } = options;
+    if (signal?.aborted === true) {
+      resolve(null);
+      return;
+    }
+
     const backdrop = document.createElement('div');
     Object.assign(backdrop.style, {
       position: 'fixed',
@@ -88,10 +104,23 @@ export function showImportOverlay(): Promise<string | null> {
       boxSizing: 'border-box',
     } satisfies Partial<CSSStyleDeclaration>);
 
+    const onKeydown = (event: KeyboardEvent): void => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        finish(null);
+      }
+    };
+    const onAbort = (): void => finish(null);
+
     const finish = (value: string | null): void => {
+      document.removeEventListener('keydown', onKeydown, true);
+      signal?.removeEventListener('abort', onAbort);
       backdrop.remove();
       resolve(value);
     };
+
+    document.addEventListener('keydown', onKeydown, true);
+    signal?.addEventListener('abort', onAbort);
 
     const buttonRow = document.createElement('div');
     Object.assign(buttonRow.style, { marginTop: '8px', display: 'flex', gap: '8px', justifyContent: 'flex-end' });
