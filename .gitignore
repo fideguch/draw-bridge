@@ -12,3 +12,6 @@ android/build/
 
 # Claude Code (project-level settings may contain sensitive info)
 .claude/
+
+# Agent state (not for PRs)
+.fable/

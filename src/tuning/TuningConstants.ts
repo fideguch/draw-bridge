@@ -15,30 +15,48 @@ export const physics = {
   fixedDt: 1 / 60,
   /** Box2D sub-step count. Range 4-8. */
   subStepCount: 4,
-  /** Capsule segment length in meters. Range 0.5-0.8. */
-  segmentLength: 0.65,
+  /**
+   * Capsule segment length in meters. Range 0.5-0.8.
+   * spike-calibrated 2026-07-07 (S1): 0.65 -> 0.8 — fewer joints per span
+   * bound the sag (angle limits are the load-bearing structure; joint springs
+   * are cosmetic at chain mass scale). 6m gap uncrossable below 0.8.
+   */
+  segmentLength: 0.8,
   /** Segment count at start. Range 8-24. */
   segmentCountStart: 12,
   /** Hard cap on segments per stroke. Fixed. */
   segmentCountMax: 32,
   /** Solver divergence failsafe: speed ceiling in m/s. Range 50-150. */
   divergenceSpeedMax: 80,
-  /** World gravity Y (y-up). Box2D default. */
-  gravityY: -10, // TBD (spike/tuning)
+  /** World gravity Y (y-up). Box2D default. spike-calibrated 2026-07-07 (kept). */
+  gravityY: -10,
 };
 
 /** Bridge chain (game_design §8.1) */
 export const bridge = {
-  /** Capsule segment radius in meters (game_design §3.2 "radius TBD spike S1"). */
-  capsuleRadius: 0.12, // TBD (spike S1) — provisional
+  /** Capsule segment radius in meters. spike-calibrated 2026-07-07 (S1, kept). */
+  capsuleRadius: 0.12,
   /** Revolute spring joint stiffness. Range 4-8. */
   jointHertz: 6,
   /** Joint spring damping ratio. Range 0.6-0.8. */
   jointDampingRatio: 0.7,
-  /** Joint angle limit in radians (+/-). Range 0.2-0.4. */
-  jointAngleLimitRad: 0.3,
-  /** Break threshold = factor x vehicle static load. Range 2-3. */
-  breakForceFactor: 2.5,
+  /**
+   * Joint angle limit in radians (+/-). Range 0.2-0.4.
+   * spike-calibrated 2026-07-07 (S1): 0.3 -> 0.2 — the angle limits ARE the
+   * bridge structure; 0.2 arrests the sag-V early enough for the car to
+   * cross. At 0.3 a 6m-gap chain collapses through its own bend budget.
+   */
+  jointAngleLimitRad: 0.2,
+  /**
+   * Break threshold = factor x vehicle static load.
+   * spike-calibrated 2026-07-07 (S1): 2.5 -> 10, SUPERSEDES the paper range
+   * 2-3 (game_design §8.1): measured dynamic force share on a 4m crossing is
+   * ~2.6x static load (EMA share 1.04 at factor 2.5 — the Phase 2C
+   * "uncrossable gap" defect), 6m worst case ~8.2x. Factor 10 puts the 6m
+   * scenario at stress 0.82 (creak band, no break); factor 7.5 still breaks.
+   * breakTorque derives from this x segmentLength (StressTracker).
+   */
+  breakForceFactor: 10,
   /** Stress EMA: keep weight. Fixed pair with stressEmaNew. */
   stressEmaKeep: 0.85,
   /** Stress EMA: new-sample weight. Fixed pair with stressEmaKeep. */
@@ -53,22 +71,34 @@ export const bridge = {
 
 /** Vehicle (game_design §8.1; geometry §3.4 "dimensions TBD spike S1") */
 export const car = {
-  /** Chassis rounded-box half width in meters. */
-  chassisHalfWidth: 0.75, // TBD (spike S1) — provisional
-  /** Chassis rounded-box half height in meters. */
-  chassisHalfHeight: 0.25, // TBD (spike S1) — provisional
-  /** Chassis rounded-box corner radius in meters. */
-  chassisCornerRadius: 0.08, // TBD (spike S1) — provisional
-  /** Chassis shape density (kg/m^2). */
-  chassisDensity: 1.0, // TBD (spike S1) — provisional
-  /** Wheel circle radius in meters. */
-  wheelRadius: 0.3, // TBD (spike S1) — provisional
-  /** Wheel shape density (kg/m^2). */
-  wheelDensity: 1.0, // TBD (spike S1) — provisional
-  /** Wheel anchor X offset from chassis center (+front / -rear), meters. */
-  wheelOffsetX: 0.45, // TBD (spike S1) — provisional
-  /** Wheel anchor Y offset from chassis center (below), meters. */
-  wheelOffsetY: -0.25, // TBD (spike S1) — provisional
+  /** Chassis rounded-box half width in meters. spike-calibrated 2026-07-07 (kept). */
+  chassisHalfWidth: 0.75,
+  /** Chassis rounded-box half height in meters. spike-calibrated 2026-07-07 (kept). */
+  chassisHalfHeight: 0.25,
+  /** Chassis rounded-box corner radius in meters. spike-calibrated 2026-07-07 (kept). */
+  chassisCornerRadius: 0.08,
+  /**
+   * Chassis shape density (kg/m^2). spike-calibrated 2026-07-07 (S1, kept):
+   * density sweep x0.5/x1/x2 is outcome-invariant — stress is a force SHARE
+   * of the mass-scaled break threshold, so car mass cancels out.
+   */
+  chassisDensity: 1.0,
+  /**
+   * Wheel circle radius in meters. spike-calibrated 2026-07-07 (S1, kept):
+   * 0.38 was tried against the 6m sag-V and made tip-over WORSE.
+   */
+  wheelRadius: 0.3,
+  /** Wheel shape density (kg/m^2). spike-calibrated 2026-07-07 (S1, kept — see chassisDensity). */
+  wheelDensity: 1.0,
+  /**
+   * Wheel anchor X offset from chassis center (+front / -rear), meters.
+   * spike-calibrated 2026-07-07 (S1): 0.45 -> 0.6 — the wider wheelbase
+   * resists pitch-flip while descending into the bridge sag-V; it is what
+   * turns the 6m crossing from tip-over into a clear at default bow.
+   */
+  wheelOffsetX: 0.6,
+  /** Wheel anchor Y offset from chassis center (below), meters. spike-calibrated 2026-07-07 (kept). */
+  wheelOffsetY: -0.25,
   /** Wheel joint suspension stiffness. Range 3-6. */
   suspensionHertz: 4,
   /** Wheel joint suspension damping. Range 0.5-0.9. */
@@ -79,10 +109,17 @@ export const car = {
   surfaceFriction: 0.75,
   /** Chassis restitution. Fixed. */
   restitution: 0,
-  /** Rear-wheel motor angular speed base in rad/s (Lv0). */
-  motorSpeedBase: 15, // TBD (spike/tuning) — provisional until spike S1
-  /** Max motor torque in N*m. */
-  maxMotorTorque: 50, // TBD (spike/tuning) — provisional until spike S1
+  /**
+   * Rear-wheel motor angular speed base in rad/s (Lv0).
+   * spike-calibrated 2026-07-07 (S1, kept): 12 cannot climb out of a 6m
+   * sag-V (timeout); 15 clears every calibrated scenario.
+   */
+  motorSpeedBase: 15,
+  /**
+   * Max motor torque in N*m. spike-calibrated 2026-07-07 (S1, kept):
+   * 200 wheelies the car into a self-flip before the bridge; 50 clears.
+   */
+  maxMotorTorque: 50,
 };
 
 /** Fail judgement (game_design §8.1) */

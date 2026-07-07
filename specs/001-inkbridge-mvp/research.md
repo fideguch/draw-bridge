@@ -59,4 +59,41 @@ All items below consolidate the project deep research (`research/00_local_exampl
 | S2 capsule×wheel contact | Drive car across capsule chain; watch for manifold popping (unmerged PR #24) | No visible contact popping at 60fps | Fork + apply PR, or rounded-box segments |
 | S3 determinism | Same level+stroke × 1000 headless runs, hash states | 100% hash equality on pinned Node | Investigate FP nondeterminism source; if unresolvable, Gate 2 uses tolerance band only (already designed) |
 
-Spike results are recorded back into this file and gate the physics implementation tasks.
+### R10 Results (2026-07-07, T035-T037 — headless Mac, Node v20.19.4; device WebView measurement pending, see below)
+
+**Decision: method C ("chain") is the default.** Headless p95 ≤ 0.6 ms per step at every N ≤ 32 (criterion ≤ 4 ms) with visible load sag (0.4–2.2 m) and credible partial breaks. Method A ("compound") stays behind the existing `PhysicsMethod` flag as the perf fallback (4–10× cheaper, zero sag/break by design).
+
+**S1 headless bench** — `npm run spike:bench` (scenario: two platforms + gap, fixed arc stroke bow 0.35 m / overlap 3 m, full attempt via GameSimulation at Lv0; forced N via effective segment length; p50/p95/max over every step of the attempt):
+
+| method | N | gap | outcome | p50 ms | p95 ms | max ms | sag m |
+|---|---|---|---|---|---|---|---|
+| chain | 8 | 2/4/6 m | clear/clear/clear | 0.07–0.11 | 0.27–0.51 | 2.8 | 0.41/0.64/0.90 |
+| chain | 16 | 2/4/6 m | clear/clear/tipOver | 0.09–0.11 | 0.23–0.54 | 4.7 | 0.56/1.22/2.59 |
+| chain | 24 | 2/4/6 m | clear/fall/fall | 0.12–0.15 | 0.44–0.57 | 1.9 | chain slides into gap at N ≥ 24 |
+| chain | 32 | 2/4/6 m | clear/fall/fall | 0.15–0.18 | 0.43–0.56 | 1.6 | idem |
+| compound | 8–32 | all | clear (rigid) | 0.02–0.03 | 0.04–0.25 | 2.8 | 0.03 (no sag by design) |
+
+**Calibrated tuning (breakForce calibration + chain stability — fixes the Phase 2C "4 m gap physically uncrossable" defect).** Sweep: breakForce ×1/×2/×3/×5 × car-density ×0.5/×1/×2 (`npm run spike:bench -- --calibrate`) plus structural-constant experiments. Applied to TuningConstants (`spike-calibrated 2026-07-07`):
+
+| Constant | Old (provisional) | New (calibrated) | Why |
+|---|---|---|---|
+| `bridge.breakForceFactor` | 2.5 (paper range 2–3) | **10** (supersedes range) | Measured dynamic force share on a 4 m crossing ≈ 2.6× static load (EMA 1.04 at factor 2.5); 6 m worst case ≈ 8.2×. At 10 the 6 m scenario peaks at stress 0.82 — creak band without break; 7.5 still breaks. |
+| `bridge.jointAngleLimitRad` | 0.3 | **0.2** (range floor) | The angle limits ARE the load-bearing structure (joint springs are ~10× too weak vs gravity torque at chain mass scale). 0.2 arrests the sag-V early enough to cross. |
+| `physics.segmentLength` | 0.65 | **0.8** (range ceiling) | Sag budget ≈ joint count × angle limit: fewer joints per span bound the sag. 6 m gap is uncrossable below 0.8. |
+| `car.wheelOffsetX` | 0.45 | **0.6** | Wider wheelbase resists the pitch-flip while descending into the sag-V — turns the 6 m crossing from tipOver into clear. |
+| `car.chassisDensity` / `car.wheelDensity` | 1.0 (TBD) | **1.0 (kept)** | Density sweep ×0.5/×1/×2 is outcome-invariant: stress is a force share of the mass-scaled threshold, so car mass cancels. |
+| `bridge.capsuleRadius`, `car.motorSpeedBase` (15), `car.maxMotorTorque` (50), `physics.gravityY` | TBD | **kept** | Validated by the sweep (motor 12 → timeout in the sag-V; torque 200 → self-wheelie flip; wheelRadius 0.38 → worse tip-over). |
+
+Success evidence at the calibrated values (natural N): **4 m gap N=13 clear (maxStress 0.25), 6 m gap N=15 clear (maxStress 0.82)** — the requested chain N=12–16 region; 2 m clears at every N. Re-recorded `tests/fixtures/levels/example-valid.json` ghost (ticks 312 → 300) and widened its chasm walls to diverge (the wider wheelbase otherwise wedges above killY, breaking the fall-cause tests).
+
+**Physics findings for level/ghost authoring** (the chain is unanchored — it only rests on the rims):
+
+- Sagging pulls the stroke tails inward; below ~3 m of platform overlap a 6 m span slides off the rims entirely (2 m overlap → fall). Author wide-gap ghosts with generous overlaps.
+- Joint count is the structural budget: N ≥ 24 across a 4–6 m span behaves like a rope and slides into the gap regardless of break thresholds. The N=32 cap only suits strokes that mostly rest on terrain.
+- Unsupported spans ≥ ~6 m sit at the edge of viability (N=15 clears, N=16 tips over) — consistent with game_design §6 introducing mid supports (中間支点) from L4 for wide gaps.
+
+**S2 capsule×wheel contact (visual check — SpikeScene).** Browser: `npm run dev` → `http://localhost:5173/?spike=1`. Keys 1–9 select gap/N scenarios, M toggles chain/compound, R restarts; HUD shows fps + step p50/p95/max; segments tint white→yellow→red with live joint stress. Watch for: load sag credibility, break separation without explosion, and wheel-over-capsule contact popping (upstream PR #24). Device procedure: quickstart.md §8. Headless proxy signal: no divergence failsafes or contact explosions in any of the 24 matrix runs.
+
+**S3 determinism: PASS — 1000/1000 runs bit-identical** on Node v20.19.4 (`npm run spike:determinism`, 41.2 s): state hash `1e090a5c`, outcome clear @ tick 194, identical across 40 separate child processes (25 runs each — phaser-box2d leaks world slots, max 32 per process), which also proves independence from process-lifetime state. CI gate: `tests/unit/determinism.spec.ts` (25 in-process runs, exact-float-bits hash + tick + final-position equality).
+
+**Remaining manual gate (gatekeeper):** S1/S2 on-device numbers (mid-tier Android WebView, p95 ≤ 4 ms @ 60 fps) via the Capacitor live-reload procedure in quickstart.md §8. Headless margin is ~8× under the budget, so the device check gates Phase 6 juice tuning, not Phases 4–5 (tasks.md dependency note).

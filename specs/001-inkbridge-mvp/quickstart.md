@@ -65,7 +65,41 @@ On-device verification target (week-1 spike + KPI-001): mid-tier Android (Snapdr
 | `tests/` | `unit/` (Vitest), `contract/` (schema + platform conformance), `e2e/` (Playwright) |
 | `ios/`, `android/` | generated Capacitor shells (committed) |
 
-## 7. Tuning Workflow
+## 7. Spike Bench & SpikeScene (research.md §R10)
+
+Headless (this machine, results recorded in research.md §R10):
+
+```bash
+npm run spike:bench                  # S1 matrix: chain|compound × N=8/16/24/32 × gap 2/4/6m (p50/p95/max step ms)
+npm run spike:bench -- --json        # NDJSON output
+npm run spike:bench -- --calibrate   # breakForceFactor × car-density sweep + recommendation
+npm run spike:determinism            # S3: 1000 full runs, 100% stateHash equality required
+```
+
+Browser visual check (S2): `npm run dev` → open `http://localhost:5173/?spike=1`.
+Controls: **1–9** scenario (gap 2/4/6m × N), **M** chain/compound toggle, **R** restart. HUD shows fps, physics step p50/p95/max, outcome, break count. Watch: load sag credibility, break separation, wheel-over-capsule contact popping (S2 criterion). The page auto-reloads after ~30 restarts (phaser-box2d world-slot leak — expected).
+
+## 8. Device Measurement Procedure (S1/S2 on Android — manual gatekeeper step)
+
+SpikeScene is dev-only (`import.meta.env.DEV`), so a production `npm run build` strips it. On device it runs via Capacitor **live reload** against the Mac dev server:
+
+1. Mac and the Android device on the same Wi-Fi. Start the dev server (it already listens on LAN): `npm run dev` — note the `Network:` URL (e.g. `http://192.168.x.x:5173`).
+2. Temporarily add a `server` block to `capacitor.config.ts` (do NOT commit):
+
+   ```ts
+   server: { url: 'http://192.168.x.x:5173/?spike=1', cleartext: true },
+   ```
+
+3. `npx cap sync android && npx cap open android` → run on the device (mid-tier target: Snapdragon 6xx / Helio G class, API 29+).
+4. The app boots straight into SpikeScene. For each scenario 1–9 (tap has no scenario keys on device — set the start scenario via the URL, e.g. `...?spike=1&s=6&m=chain`), let the attempt finish and read the HUD:
+   - **fps** — must hold 60,
+   - **step p95** — must be ≤ 4 ms (S1 pass criterion),
+   - visual: sag credibility, break separation, **no contact popping** while wheels cross capsules (S2).
+5. Record the per-scenario numbers in research.md §R10 (device row) and remove the `server` block again (`npx cap sync android` to restore the bundled build).
+
+Fail paths (research.md §R10): p95 > 4 ms on device → ship method A fallback (`m=compound` compares side-by-side); contact popping → fork phaser-box2d + apply upstream PR #24 or switch segments to rounded boxes.
+
+## 9. Tuning Workflow
 
 1. All tunables live in `src/tuning/TuningConstants.ts`, grouped `physics` / `bridge` / `car` / `camera` / `draw` / `launch` / `coin` / `goal` / `audio` / `haptic` / `economy` / `ads` — initial values transcribed from designs/game_design.md §8 (see data-model.md §1.8). Level-specific values (inkBudget, star thresholds, maxTicks) live in level JSON, not here.
 2. Run the game, open the debug panel (`` ` ``), move sliders mid-run — changes propagate immediately to every consumer (single source; magic numbers elsewhere are defects, grep-verifiable per NFR-010).

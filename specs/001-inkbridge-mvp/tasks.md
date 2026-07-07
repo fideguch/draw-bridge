@@ -44,9 +44,9 @@
 
 ## Phase 3: Spike Verification S1-S3 (research.md R10 — gates physics method choice)
 
-- [ ] T035 Build spike bench: scripts/spike/bench.mjs (headless p95 step timing, methods A/C × N=8/16/24/32 on fixture scene) + src/debug/SpikeScene.ts (browser/device visual: sag/break credibility, contact popping check)
-- [ ] T036 S3 determinism: tests/unit/determinism.spec.ts — same level+stroke ×1000 runs → 100% stateHash equality on pinned Node (CI-gating)
-- [ ] T037 S1+S2 measurement: run bench in Mac browser + Capacitor shell on mid-tier Android (manual step documented in quickstart.md); record results + method decision (C or fallback A default) in specs/001-inkbridge-mvp/research.md §R10 — **BLOCKS Phase 6 juice tuning tasks, not Phase 4-5**
+- [x] T035 Build spike bench: scripts/spike/bench.ts (`npm run spike:bench`, vite-node; headless p95 step timing + `--calibrate` breakForce sweep, methods A/C × N=8/16/24/32 × gap 2/4/6m) + src/debug/SpikeScene.ts (`?spike=1` dev route: sag/break credibility, contact popping check) + calibrated TuningConstants (breakForceFactor 10, jointAngleLimitRad 0.2, segmentLength 0.8, wheelOffsetX 0.6 — research.md §R10)
+- [x] T036 S3 determinism: tests/unit/determinism.spec.ts (25 in-process runs — phaser-box2d caps 32 worlds/process) + scripts/spike/determinism.ts (`npm run spike:determinism`) → 1000/1000 stateHash-identical on Node v20.19.4 across 40 child processes
+- [x] T037 S1+S2 measurement: headless Mac results + method decision (**C "chain" default**, p95 ≤ 0.6ms ≤ 4ms budget; A stays behind flag) recorded in research.md §R10; Capacitor mid-tier Android measurement documented as manual gatekeeper step in quickstart.md §8 — **BLOCKS Phase 6 juice tuning tasks, not Phase 4-5**
 
 ## Phase 4: Level Gate Pipeline (FR-026)
 

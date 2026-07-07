@@ -19,6 +19,11 @@ class BlankScene extends Phaser.Scene {
   }
 }
 
+// Dev-only spike route (?spike=1): S2 visual check scene (research R10, T035).
+// The dynamic import keeps src/debug/ tree-shaken out of release builds.
+const shouldBootSpike =
+  import.meta.env.DEV && new URLSearchParams(window.location.search).get('spike') === '1';
+
 const game = new Phaser.Game({
   type: Phaser.AUTO,
   parent: 'app',
@@ -32,7 +37,13 @@ const game = new Phaser.Game({
   fps: {
     target: TARGET_FPS,
   },
-  scene: [BlankScene],
+  scene: shouldBootSpike ? [] : [BlankScene],
 });
+
+if (shouldBootSpike) {
+  void import('./debug/SpikeScene').then((module) => {
+    game.scene.add('Spike', module.SpikeScene, true);
+  });
+}
 
 export default game;
