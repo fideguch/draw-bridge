@@ -14,6 +14,7 @@
  */
 
 import Phaser from 'phaser';
+import type { EngineEvents } from '@engine/EngineEvents';
 
 /** Registry key holding the injected GameServices (set by main.ts). */
 export const SERVICES_KEY = 'services';
@@ -35,6 +36,23 @@ export type PurchaseOutcome =
 export interface SaveNotice {
   readonly fullReset: boolean;
   readonly progressReset: boolean;
+}
+
+/** A cleared attempt handed to the economy for crediting (BR-003), port-shaped. */
+export interface LevelResultInputView {
+  readonly levelId: string;
+  readonly starRating: 1 | 2 | 3;
+  /** Coins picked up during the run (credited on first clear only — BR-003). */
+  readonly collectedCoins: number;
+  /** Present for bonus levels (level JSON `bonusMultiplier`, 5–10). */
+  readonly bonusMultiplier?: number;
+}
+
+/** What the economy credited for the attempt (Result overlay reads newBalance). */
+export interface LevelResultCreditView {
+  readonly totalCredited: number;
+  readonly newBalance: number;
+  readonly firstClear: boolean;
 }
 
 /**
@@ -76,6 +94,24 @@ export interface GameServices {
   setHapticsEnabled(enabled: boolean): Promise<void>;
   /** Wipe progress + coins + upgrades, retain settings, persist (FR-020). */
   resetProgress(): Promise<void>;
+
+  /**
+   * Persist a cleared attempt: credit coins (clear reward + first-clear coins,
+   * BR-003) and update bestStars progress (monotonic, V10). PlayScene calls this
+   * on clear; a later LevelSelect visit reads the refreshed progress/unlock.
+   */
+  creditLevelResult(input: LevelResultInputView): Promise<LevelResultCreditView>;
+
+  /**
+   * Wire engine-event juice (SFX + haptics) for ONE attempt's event bus and
+   * return a detach() for teardown. The composition root owns the concrete
+   * SfxPlayer/HapticsRouter — `render → meta` and `render → platform-impl` are
+   * forbidden (constitution IV / conventions §1) — so PlayScene hands it the
+   * sim's events rather than constructing those itself. Camera/renderer juice
+   * (kick, trauma, stress tint, coin pop) stays in PlayScene where the scene
+   * objects live.
+   */
+  attachEngineJuice(events: EngineEvents): () => void;
 }
 
 /** Read the injected services from a scene registry (throws if BootScene skipped). */

@@ -254,6 +254,27 @@ export class GameSimulation {
     return this.vehicle.referencePoint();
   }
 
+  // ── Render-observation surface (constitution IV) ────────────────────────────
+  // Read-only handles the render layer OBSERVES to draw the live attempt (T045).
+  // These never let a consumer mutate engine state; they exist so PlayScene can
+  // construct VehicleRenderer/BridgeRenderer against the current attempt's bodies
+  // and re-bind them after reset() rebuilds everything.
+
+  /** The live vehicle (VehicleRenderer reads its body poses; never written). */
+  get renderVehicle(): Vehicle {
+    return this.vehicle;
+  }
+
+  /** The built bridge chain, or null before commit / after reset (read-only). */
+  get renderChain(): BridgeChain | null {
+    return this.chain;
+  }
+
+  /** The stress tracker for the current chain, or null (compound/pre-commit). */
+  get renderStressTracker(): StressTracker | null {
+    return this.stressTracker;
+  }
+
   /**
    * Solidify the drawn stroke: drawing -> anticipation in the same frame
    * (state machine: Drawing -> Solidify -> Anticipation, data-model §2).

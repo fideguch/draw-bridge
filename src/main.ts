@@ -5,7 +5,9 @@ import { SaveManager } from '@meta/SaveManager';
 import { WebHaptics, WebStorage } from '@platform/web';
 import { AudioBus } from '@render/audio/AudioBus';
 import { SfxPlayer } from '@render/audio/SfxPlayer';
+import type { PlayOptions } from '@render/audio/SfxPlayer';
 import { SFX, buildSfxLibrary } from '@render/audio/SfxSynth';
+import type { SfxKey } from '@render/audio/SfxSynth';
 import type { AudioContextLike } from '@render/audio/WebAudioTypes';
 import { HapticsRouter } from '@render/juice/HapticsRouter';
 import { BootScene } from '@render/scenes/BootScene';
@@ -106,6 +108,73 @@ function createGameServices(): GameServices {
     resetProgress: async () => {
       saveManager.resetProgress();
       await saveManager.save('reset');
+    },
+    creditLevelResult: async (input) => {
+      const credit = await economy.creditLevelResult({
+        levelId: input.levelId,
+        outcome: 'clear',
+        starRating: input.starRating,
+        collectedCoins: input.collectedCoins,
+        ...(input.bonusMultiplier !== undefined ? { bonusMultiplier: input.bonusMultiplier } : {}),
+      });
+      return {
+        totalCredited: credit.totalCredited,
+        newBalance: credit.newBalance,
+        firstClear: credit.firstClear,
+      };
+    },
+    attachEngineJuice: (events) => {
+      const isSoundOn = (): boolean => saveManager.getData().settings.sound;
+      // SFX failures must never propagate back through EngineEvents into the
+      // sim step (EngineEvents forwards listener throws) — isolate every play.
+      const playIf = (key: SfxKey, options?: PlayOptions): void => {
+        if (!isSoundOn()) {
+          return;
+        }
+        try {
+          sfxPlayer.play(key, options);
+        } catch {
+          // audio never blocks gameplay (NFR-014)
+        }
+      };
+      const clamp01 = (value: number): number => Math.min(1, Math.max(0, value));
+      const unsubscribes = [
+        events.on('strokeCommitted', () => playIf(SFX.commitPop)),
+        // No dedicated rev buffer yet: a quiet, pitched-down launch thud stands in
+        // for the anticipation rev (Phase 6 replaces it with the goal sequence).
+        events.on('launchStarted', () => playIf(SFX.launchBurst, { volume: 0.3, pitchSemitones: -5 })),
+        events.on('launchReleased', () => playIf(SFX.launchBurst)),
+        events.on('creak', (payload) =>
+          playIf(SFX.creak, {
+            volume: clamp01(0.3 + payload.stress * 0.7),
+            pitchSemitones: Math.round(payload.stress * 5),
+          }),
+        ),
+        events.on('break', () => playIf(SFX.crack)),
+        events.on('coinCollected', () => playIf(SFX.coinChime, { pitchSemitones: sfxPlayer.nextCoinPitch() })),
+        events.on('cleared', () => {
+          // Interim 3-note win arpeggio; the star-count-driven 5-beat is Phase 6.
+          playIf(SFX.starC);
+          window.setTimeout(() => playIf(SFX.starE), 120);
+          window.setTimeout(() => playIf(SFX.starG), 240);
+        }),
+        events.on('failed', (payload) => {
+          // divergence is the silent solver failsafe — no fail SFX (Judge header).
+          if (payload.cause !== 'divergence') {
+            playIf(SFX.sadFail);
+          }
+        }),
+      ];
+      const attemptHaptics = new HapticsRouter(webHaptics, events, {
+        enabled: saveManager.getData().settings.haptics,
+      });
+      attemptHaptics.attach();
+      return (): void => {
+        for (const unsubscribe of unsubscribes) {
+          unsubscribe();
+        }
+        attemptHaptics.detach();
+      };
     },
   };
 }
