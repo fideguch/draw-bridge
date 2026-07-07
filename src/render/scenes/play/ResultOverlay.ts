@@ -88,7 +88,7 @@ export class ResultOverlay {
     const replay = this.makeButton({
       x: cx - 92,
       y: panelY + 128,
-      label: 'リプレイ',
+      label: 'Replay',
       variant: 'secondary',
       devId: 'result-replay',
       onClick: data.onReplay,
@@ -126,7 +126,7 @@ export class ResultOverlay {
       this.makeButton({
         x: cx,
         y: panelY + 84,
-        label: 'もういちど',
+        label: 'Retry',
         variant: 'primary',
         devId: 'result-retry',
         onClick: data.onRetry,
