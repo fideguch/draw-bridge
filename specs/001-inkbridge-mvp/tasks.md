@@ -113,7 +113,7 @@
 - [x] T092 Playwright E2E tests/e2e/l1-clear.spec.ts: real pointer-draw L1 → clear ≤25s; retry ≤1s; input→visual ≤100ms probe (NFR-002, NFR-003)
 - [x] T093 [P] Tempo contract test suite tests/e2e/tempo.spec.ts (first 3 levels 60-90s via scripted strokes, Next active 1.5-2.5s, celebration skippable)
 - [x] T094 [P] Bundle audit: web ≤5MB gzip, dev-only modules absent from prod build (NFR-013); cold start ≤3s device / ≤5s web (NFR-006)
-- [ ] T095 [P] Accessibility pass: touch targets ≥44pt, stress double-coding (color+particles+vibration), 12pt min text (NFR-009)
+- [x] T095 [P] Accessibility pass: touch targets ≥44pt, stress double-coding (color+particles+vibration), 12pt min text (NFR-009)
 - [ ] T096 juice checklist audit vs game_design §4 mandatory items = 100% (KPI-005) + ux_protocol.md full-screen device walkthrough (gatekeeper HG evidence)
 
 ## Dependencies
