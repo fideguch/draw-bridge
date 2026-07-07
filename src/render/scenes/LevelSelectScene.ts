@@ -6,6 +6,7 @@
  */
 
 import Phaser from 'phaser';
+import { registerDevButton } from '@render/devhook';
 import { Button } from '@render/ui/Button';
 import { CoinCounter } from '@render/ui/CoinCounter';
 import { CHAPTER1_TILES, CHAPTER1_TITLE, findNextLevelId, isLevelUnlocked } from '@render/ui/levelCatalog';
@@ -96,6 +97,14 @@ export class LevelSelectScene extends Phaser.Scene {
         new Phaser.Geom.Rectangle(-TILE_SIZE / 2, -TILE_SIZE / 2, TILE_SIZE, TILE_SIZE),
         Phaser.Geom.Rectangle.Contains,
       );
+      if (import.meta.env.DEV) {
+        registerDevButton(`level-${tile.id}`, this, () => ({
+          x: cx - TILE_SIZE / 2,
+          y: cy - TILE_SIZE / 2,
+          width: TILE_SIZE,
+          height: TILE_SIZE,
+        }));
+      }
       container.on('pointerup', () => {
         this.services.resumeAudio();
         this.services.playTap();

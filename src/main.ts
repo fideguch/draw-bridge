@@ -143,4 +143,11 @@ if (shouldBootSpike) {
   game.registry.set(SERVICES_KEY, createGameServices());
 }
 
+// Dev-only E2E/gatekeeper hook (window.__inkbridge) — tree-shaken from release.
+if (import.meta.env.DEV) {
+  void import('./render/devhook').then((module) => {
+    module.installDevHook(game);
+  });
+}
+
 export default game;

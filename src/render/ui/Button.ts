@@ -9,6 +9,7 @@
  */
 
 import Phaser from 'phaser';
+import { registerDevButton } from '../devhook';
 import type { GameServices } from './services';
 import { color, makeTextStyle, minTouchTarget, radius, shadowOffsetY, stroke, type } from './theme';
 
@@ -25,6 +26,8 @@ export interface ButtonOptions {
   readonly variant?: ButtonVariant;
   readonly fontSize?: number;
   readonly cornerRadius?: number;
+  /** Stable E2E tap-target id (dev builds only — see src/render/devhook.ts). */
+  readonly devId?: string;
 }
 
 interface VariantStyle {
@@ -88,6 +91,15 @@ export class Button extends Phaser.GameObjects.Container {
 
     this.redraw();
     scene.add.existing(this);
+
+    if (import.meta.env.DEV && options.devId) {
+      registerDevButton(options.devId, scene, () => ({
+        x: this.x - hitWidth / 2,
+        y: this.y - hitHeight / 2,
+        width: hitWidth,
+        height: hitHeight,
+      }));
+    }
   }
 
   setEnabled(enabled: boolean): this {

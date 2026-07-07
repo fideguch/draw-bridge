@@ -13,6 +13,10 @@ export default defineConfig({
   },
   use: {
     baseURL: 'http://localhost:5173',
+    // iPhone 14 metrics on chromium (mobile emulation): webkit != real Safari
+    // anyway — real-device verification is the gatekeeper manual step.
     ...devices['iPhone 14'],
+    defaultBrowserType: 'chromium',
+    browserName: 'chromium',
   },
 });

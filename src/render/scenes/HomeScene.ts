@@ -54,6 +54,7 @@ export class HomeScene extends Phaser.Scene {
       label: '▶ あそぶ',
       variant: 'primary',
       services,
+      devId: 'home-play',
       onClick: () => this.scene.start('LevelSelect'),
     });
 
