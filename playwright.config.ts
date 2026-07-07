@@ -6,6 +6,9 @@ import { defineConfig, devices } from '@playwright/test';
  */
 export default defineConfig({
   testDir: './tests/e2e',
+  // Tempo-contract tests measure real wall-clock (retry <=1s etc.) — parallel
+  // workers contend for CPU with the physics loop and flake the timings.
+  workers: 1,
   webServer: {
     command: 'npm run dev',
     url: 'http://localhost:5173',
