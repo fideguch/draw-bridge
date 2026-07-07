@@ -1,5 +1,13 @@
 name: CI
 
+# Coherent CI split (no duplicated jobs):
+#   - ci.yml (this file)      -> fast `lint` gate only (naming + layer boundaries).
+#   - eval-on-change.yml      -> deterministic gate: npm ci -> gates -> vitest -> build
+#                                + specs-evals run/report (eval baseline regression gate).
+# The former commented `gates`/`e2e` placeholders here are RESOLVED by relocation into
+# eval-on-change.yml (gates now live + gated). e2e stays deferred there (PENDING) until the
+# PlayScene composition lands — see .evals/specs/tempo-contracts.eval.md.
+
 on:
   pull_request:
     branches: [main, develop]
@@ -19,60 +27,3 @@ jobs:
         run: npm ci
       - name: Lint (naming + layer boundaries)
         run: npm run lint
-
-  unit:
-    needs: lint
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20.x'
-          cache: 'npm'
-      - name: Install dependencies
-        run: npm ci
-      - name: Unit tests (Vitest)
-        run: npx vitest run
-
-  # gates: enabled in Phase 4 (T040-T042) once scripts/gates/* and fixture levels exist.
-  # gates:
-  #   needs: unit
-  #   runs-on: ubuntu-latest
-  #   steps:
-  #     - uses: actions/checkout@v4
-  #     - uses: actions/setup-node@v4
-  #       with:
-  #         node-version: '20.x'
-  #         cache: 'npm'
-  #     - run: npm ci
-  #     - name: Level gates 0-3 (pinned Node determinism)
-  #       run: npm run gates
-
-  build:
-    needs: unit
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20.x'
-          cache: 'npm'
-      - name: Install dependencies
-        run: npm ci
-      - name: Build (tsc + vite)
-        run: npm run build
-
-  # e2e: enabled in Phase 11 (T092-T093) once Playwright specs exist.
-  # e2e:
-  #   needs: build
-  #   runs-on: ubuntu-latest
-  #   steps:
-  #     - uses: actions/checkout@v4
-  #     - uses: actions/setup-node@v4
-  #       with:
-  #         node-version: '20.x'
-  #         cache: 'npm'
-  #     - run: npm ci
-  #     - run: npx playwright install --with-deps chromium
-  #     - name: E2E (L1 clear + tempo contract)
-  #       run: npm run e2e

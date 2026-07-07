@@ -1,0 +1,60 @@
+# Deterministic eval + verification PR gate (specs-evals, Track A).
+# Owns the project's deterministic checks (gates -> vitest -> build) AND the eval
+# regression gate (specs-evals run/report). NO secrets -> safe on forked PRs.
+# Coherence: ci.yml keeps only the fast `lint` job; this workflow is the single home of
+# gates/vitest/build + eval baseline (the resolved successor to ci.yml's old gates placeholder).
+# e2e (tempo contracts) is intentionally excluded — PENDING/UNVALIDATED until PlayScene
+# composition lands (see .evals/specs/tempo-contracts.eval.md).
+name: evals (deterministic gate)
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: evals-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  deterministic-evals:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout project
+        uses: actions/checkout@v4
+
+      - name: Checkout specs-evals skill
+        uses: actions/checkout@v4
+        with:
+          repository: fideguch/specs-evals
+          path: .specs-evals-skill
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      # --- Deterministic SUT checks (the regression suite; no secrets, no network model calls) ---
+      - name: Level gates 0-3 (pinned Node determinism)
+        run: npm run gates
+
+      - name: Unit + contract tests (Vitest; incl. determinism + gate3 negative control)
+        run: npx vitest run
+
+      - name: Build (tsc + vite; bundle budget <= 5MB gzip)
+        run: npm run build
+
+      # --- specs-evals layer: record check-matrix run + regression-gate vs git-tracked baseline ---
+      - name: Record eval run (deterministic check-matrix health)
+        run: bash .specs-evals-skill/scripts/specs-evals.sh run --deterministic-only --root "$GITHUB_WORKSPACE"
+
+      # Exit codes: 0 pass / 1 regression / 2 no-baseline (warn) / 3 runner fail.
+      - name: Regression gate vs baseline
+        run: bash .specs-evals-skill/scripts/specs-evals.sh report --root "$GITHUB_WORKSPACE"

@@ -60,4 +60,8 @@ TypeScript 5.x strict. Classes/types PascalCase (no I-prefix), variables camelCa
 - 001-inkbridge-mvp: Added TypeScript 5.x (strict), Node 20 (pinned for CI determinism) + Phaser 4.2.x (WebGL renderer), phaser-box2d 1.1.x (Box2D v3 JS port, MIT), Vite 6.x, Capacitor 8 (@capacitor/core, @capacitor/haptics), Vitest (unit), Playwright (E2E)
 
 <!-- MANUAL ADDITIONS START -->
+
+<!-- specs-evals: load distilled eval learnings (Reflexion). File is .gitignore'd (session-local). -->
+@.evals/feedback/learnings.md
+
 <!-- MANUAL ADDITIONS END -->
