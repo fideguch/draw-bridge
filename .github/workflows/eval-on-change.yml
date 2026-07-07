@@ -52,6 +52,10 @@ jobs:
         run: npm run build
 
       # --- specs-evals layer: record check-matrix run + regression-gate vs git-tracked baseline ---
+      # .evals/history/ is gitignored (session-local by skill design) — the
+      # runner starts without it, and the skill's mktemp needs it to exist.
+      - name: Prepare evals history dir
+        run: mkdir -p "$GITHUB_WORKSPACE/.evals/history"
       - name: Record eval run (deterministic check-matrix health)
         run: bash .specs-evals-skill/scripts/specs-evals.sh run --deterministic-only --root "$GITHUB_WORKSPACE"
 
