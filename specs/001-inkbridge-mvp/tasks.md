@@ -57,17 +57,17 @@
 ## Phase 5: Render & Draw (FR-001, FR-002, FR-004 UI, FR-015 flow)
 
 - [ ] T045 Phaser boot + scene routing in src/render/scenes/BootScene.ts + PlayScene.ts skeleton: loads level JSON, builds Engine world, fixed-step accumulator drive + render interpolation
-- [ ] T046 Stroke input + live rendering in src/render/draw/StrokeInput.ts + StrokeRenderer.ts: raw tip same-frame, past-points smoothing only, min vertex distance 4-8px, width 2-3% screen, round caps + dark border (FR-001); ink bar UI with 50%/20% color states + empty feedback (FR-002)
-- [ ] T047 Bridge/vehicle/terrain rendering in src/render/BridgeRenderer.ts (Catmull-Rom spline over segment positions, break-point path split + jagged ends), VehicleRenderer.ts (wheel rotation synced to real velocity, suspension bounce), TerrainRenderer.ts
-- [ ] T048 CameraDirector in src/render/juice/CameraDirector.ts: lerp follow 0.08-0.15, look-ahead 1-2 car lengths speed-proportional, launch kick 8-16px, trauma² shake (Perlin, maxOffset 16-30px, maxAngle 5-10°, freq 15-25Hz)
+- [x] T046 Stroke input + live rendering in src/render/draw/StrokeInput.ts + StrokeRenderer.ts: raw tip same-frame, past-points smoothing only, min vertex distance 4-8px, width 2-3% screen, round caps + dark border (FR-001); ink bar UI with 50%/20% color states + empty feedback (FR-002)
+- [x] T047 Bridge/vehicle/terrain rendering in src/render/BridgeRenderer.ts (Catmull-Rom spline over segment positions, break-point path split + jagged ends), VehicleRenderer.ts (wheel rotation synced to real velocity, suspension bounce), TerrainRenderer.ts
+- [x] T048 CameraDirector in src/render/juice/CameraDirector.ts: lerp follow 0.08-0.15, look-ahead 1-2 car lengths speed-proportional, launch kick 8-16px, trauma² shake (Perlin, maxOffset 16-30px, maxAngle 5-10°, freq 15-25Hz)
 - [ ] T049 Restart flow: HUD restart button both phases, ≤1s reset without full scene reload (FR-004, NFR-003); fail overlay with cause highlight hook (FR-008)
 
 **Checkpoint**: playable in browser — draw, launch, cross or fail, restart. No juice yet.
 
 ## Phase 6: Juice — the three dopamine scenes (FR-010, FR-011, FR-012, FR-013, FR-014; game_design §4 checklists are the spec)
 
-- [ ] T055 [P] Audio foundation in src/render/audio/: SfxPlayer (pre-decode, first-touch resume, ±5% pitch random, ≤3 instances/type), coin pitch ladder (+1 semitone, cap +12, reset 1-1.5s), BGM ducking -6..-9dB (NFR-014)
-- [ ] T056 [P] HapticsInterface mapping in src/platform/: commit=light/TICK(0.6), launch=medium/THUD(0.8), landing=heavy, break=weak burst, stars=light→medium→heavy, ink-empty=warning; Android areAllPrimitivesSupported() + amplitude fallback; settings toggle (FR-014)
+- [x] T055 [P] Audio foundation in src/render/audio/: SfxPlayer (pre-decode, first-touch resume, ±5% pitch random, ≤3 instances/type), coin pitch ladder (+1 semitone, cap +12, reset 1-1.5s), BGM ducking -6..-9dB (NFR-014)
+- [x] T056 [P] HapticsInterface mapping in src/platform/: commit=light/TICK(0.6), launch=medium/THUD(0.8), landing=heavy, break=weak burst, stars=light→medium→heavy, ink-empty=warning; Android areAllPrimitivesSupported() + amplitude fallback; settings toggle (FR-014)
 - [ ] T057 Draw-scene juice: draw loop sound (speed→volume 0.3-1.0/pitch 1.0-1.2, stops with finger, 30-50ms fades), pen dust particles, commit pop scale 1.0→1.06→1.0/120ms + commit sound + haptic (FR-010)
 - [ ] T058 Launch juice: anticipation (rev pitch 1.0→1.4, rear squash 5-8°, wheel-spin smoke) → release (10-20 dust burst, front stretch 1.15/0.9→100ms, bass burst SFX, haptic); engine hum speed→pitch 1.0-1.5 with 0.25 gear steps (FR-011)
 - [ ] T059 Creak/stress feedback: joint stress 0.6-1.0 → segment tint white→yellow→red + creak SFX volume/pitch + dust particles + weak haptic pulses; break: crack SFX + debris + trauma+=0.5 + broken-joint highlight (FR-006 render side, FR-008 cause highlight)
@@ -79,21 +79,21 @@
 
 ## Phase 7: Meta, Persistence & Screens (FR-016, FR-017, FR-018, FR-019, FR-020, FR-021)
 
-- [ ] T065 [P] Write failing tests for save system in tests/unit/save.spec.ts (atomic tmp-swap, schemaVersion forward migration, corruption partial-restore priority upgrades+coins>progress>settings per contracts/save-data.md)
-- [ ] T066 [P] Implement src/meta/SaveManager.ts to pass T065; save on level end/purchase/settings change (FR-021)
-- [ ] T067 [P] Write failing tests for economy in tests/unit/economy.spec.ts (clear reward 20-30, bonus ×5-10, upgrade prices 50-100 start ×1.15-1.25/Lv cap 5, insufficient-balance rejection)
-- [ ] T068 [P] Implement src/meta/Economy.ts + UpgradeState.ts to pass T067 (FR-018, FR-019)
-- [ ] T069 Home scene SC-001 (Play, coin balance, settings/shop entries — 2 taps to gameplay) in src/render/scenes/HomeScene.ts
-- [ ] T070 Level select SC-002 (chapter map, stars/lock states, bonus distinction, replay unlocked) in src/render/scenes/LevelSelectScene.ts (FR-016)
-- [ ] T071 Shop SC-007 (2 upgrade axes, price/current/next effect, disabled state + shortfall display) in src/render/scenes/ShopScene.ts (FR-019, P5 friction)
-- [ ] T072 Settings SC-008 (sound/haptics toggles immediate+persisted, progress reset double-confirm typing "リセット", credits/version) in src/render/scenes/SettingsScene.ts (FR-020)
+- [x] T065 [P] Write failing tests for save system in tests/unit/save.spec.ts (atomic tmp-swap, schemaVersion forward migration, corruption partial-restore priority upgrades+coins>progress>settings per contracts/save-data.md)
+- [x] T066 [P] Implement src/meta/SaveManager.ts to pass T065; save on level end/purchase/settings change (FR-021)
+- [x] T067 [P] Write failing tests for economy in tests/unit/economy.spec.ts (clear reward 20-30, bonus ×5-10, upgrade prices 50-100 start ×1.15-1.25/Lv cap 5, insufficient-balance rejection)
+- [x] T068 [P] Implement src/meta/Economy.ts + UpgradeState.ts to pass T067 (FR-018, FR-019)
+- [x] T069 Home scene SC-001 (Play, coin balance, settings/shop entries — 2 taps to gameplay) in src/render/scenes/HomeScene.ts
+- [x] T070 Level select SC-002 (chapter map, stars/lock states, bonus distinction, replay unlocked) in src/render/scenes/LevelSelectScene.ts (FR-016)
+- [x] T071 Shop SC-007 (2 upgrade axes, price/current/next effect, disabled state + shortfall display) in src/render/scenes/ShopScene.ts (FR-019, P5 friction)
+- [x] T072 Settings SC-008 (sound/haptics toggles immediate+persisted, progress reset double-confirm typing "リセット", credits/version) in src/render/scenes/SettingsScene.ts (FR-020)
 - [ ] T073 Results overlays SC-005/SC-006 wiring into PlayScene (clear: 5-beat + Next/Replay; fail: Retry) per ui_design_brief.md labels (Restart/Retry/Replay rule)
 - [ ] T074 FTUE: L1-L3 finger-trace hint (no text), 45s-to-full-joy instrumentation hooks (FR-017)
 
 ## Phase 8: Platform Layer & Native Shell (FR-022, FR-023)
 
-- [ ] T077 [P] src/platform/interfaces.ts (frozen names) + noop/ implementations + placement constants (rv_coin_multiplier, rv_continue_hint, interstitial_level_complete) + hidden ad UI hooks behind flags per contracts/platform-interfaces.md
-- [ ] T078 [P] web/ + capacitor/ implementations (Storage: localStorage/Preferences; Haptics: vibrate/Capacitor Haptics; Analytics: console-dev/Noop)
+- [x] T077 [P] src/platform/interfaces.ts (frozen names) + noop/ implementations + placement constants (rv_coin_multiplier, rv_continue_hint, interstitial_level_complete) + hidden ad UI hooks behind flags per contracts/platform-interfaces.md
+- [x] T078 [P] web/ + capacitor/ implementations (Storage: localStorage/Preferences; Haptics: vibrate/Capacitor Haptics; Analytics: console-dev/Noop)
 - [ ] T079 Device builds verified: `npm run build && npx cap sync`, iOS + Android launch, portrait, safe area, 60fps WebView settings; record device fps/step in research.md (FR-023)
 
 ## Phase 9: Dev Tools (FR-024, FR-025 — dev builds only, tree-shaken from prod)

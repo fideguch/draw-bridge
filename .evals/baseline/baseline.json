@@ -1,0 +1,42 @@
+{
+  "accepted_run": "02635d4_20260707T160713Z",
+  "accepted_at": "2026-07-07T16:09:13Z",
+  "source_sha": "02635d4",
+  "assertions": [
+    {
+      "id": "gates-exit-0",
+      "pass_rate": 1,
+      "stddev": 0
+    },
+    {
+      "id": "gate3-negative-control",
+      "pass_rate": 1,
+      "stddev": 0
+    },
+    {
+      "id": "determinism-1000",
+      "pass_rate": 1,
+      "stddev": 0
+    },
+    {
+      "id": "vitest-suite",
+      "pass_rate": 1,
+      "stddev": 0
+    },
+    {
+      "id": "vitest-determinism-spec",
+      "pass_rate": 1,
+      "stddev": 0
+    },
+    {
+      "id": "tempo-contracts-e2e",
+      "pass_rate": 1,
+      "stddev": 0
+    },
+    {
+      "id": "bundle-budget",
+      "pass_rate": 1,
+      "stddev": 0
+    }
+  ]
+}
