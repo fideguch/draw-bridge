@@ -60,7 +60,7 @@ Within a Gate 2 run, each level is simulated **twice in-process**; the end-state
 For each level tagged `anti-dominant`:
 
 1. **Anchor detection**: A = launch-pad edge — the terrain vertex marking the end of continuous terrain in the travel direction from `vehicleSpawn` (the spawn-side rim of the main gap; rim = vertex with no terrain within Δx = 0.2 m on its +x side, initial value). B = goal-side terrain edge — the symmetric rim vertex on the goalFlag side.
-2. **Candidate strokes**: the single straight segment A→B, plus height variants with both endpoints raised by offsets `{0, +0.5, +1.0}` m (initial set, calibratable).
+2. **Candidate strokes**: straight segments A→B with height offsets `{0, +0.5, +1.0}` m **× overlap extensions `{0, +1.0, +2.0}` m beyond each rim along x** (9 candidates; calibrated 2026-07-08 — exact rim-to-rim strokes have zero platform overlap and slide into every gap, making the original 3-candidate bot vacuously pass; real players draw straights through the rims. Regression-guarded by `tests/contract/gate3.spec.ts`).
 3. **Ink clamp**: candidates whose length exceeds the Lv0 `inkBudget` are recorded as `infeasible(budget)` — they count as failed attempts (the economy layer of the anti-dominant defense).
 4. **Verdict**: every feasible candidate is simulated headlessly at Lv0; the gate passes for the level iff **every candidate fails** (break / fall / tip-over / timeout). Any candidate clearing ⇒ gate failure ⇒ CI failure ⇒ merge blocked.
 

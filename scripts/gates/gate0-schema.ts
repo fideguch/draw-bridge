@@ -27,5 +27,7 @@ export function runGate0(argv: string[]): number {
 }
 
 // vite-node strips the script path from argv, so entry detection is impossible;
-// this file is a CLI (top-level execution). The runner invokes it as a child process.
-process.exit(runGate0(process.argv.slice(2)));
+// this file is a CLI (top-level execution, skipped under vitest for importability).
+if (!process.env['VITEST']) {
+  process.exit(runGate0(process.argv.slice(2)));
+}

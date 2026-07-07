@@ -78,4 +78,6 @@ export function runGate1(argv: string[]): number {
 }
 
 // vite-node strips the script path from argv — top-level CLI execution (see gate0).
-process.exit(runGate1(process.argv.slice(2)));
+if (!process.env['VITEST']) {
+  process.exit(runGate1(process.argv.slice(2)));
+}
