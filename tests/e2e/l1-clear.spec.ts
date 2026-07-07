@@ -104,9 +104,9 @@ async function drawStroke(page: Page, worldPoints: ReadonlyArray<[number, number
 
 async function navigateToL1Drawing(page: Page): Promise<void> {
   await page.goto('/');
-  await expect.poll(async () => (await hook(page)).scene, { timeout: 15_000 }).toBe('HomeScene');
+  await expect.poll(async () => (await hook(page)).scene, { timeout: 15_000 }).toBe('Home');
   await tapButton(page, 'home-play');
-  await expect.poll(async () => (await hook(page)).scene, { timeout: 5_000 }).toBe('LevelSelectScene');
+  await expect.poll(async () => (await hook(page)).scene, { timeout: 5_000 }).toBe('LevelSelect');
   await tapButton(page, 'level-ch1-l01');
   await expect.poll(async () => (await hook(page)).state, { timeout: 10_000 }).toBe('drawing');
 }
