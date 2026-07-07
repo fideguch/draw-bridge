@@ -74,7 +74,18 @@ export interface GameSimulationOptions {
   readonly upgrades?: UpgradeLevels;
   /** Bridge physics method (research R10 spike decides the default). */
   readonly method?: PhysicsMethod;
+  /**
+   * Reuse an existing physics World instead of allocating a fresh slot. The
+   * simulation resets the shared world on construction and leaves it intact on
+   * destroy() (the caller owns its lifecycle) — this is how sequential attempts
+   * (e.g. GhostPlayer batches) dodge the phaser-box2d 32-slot cap (World
+   * header). Omit for a private, owned world.
+   */
+  readonly world?: World;
 }
+
+/** Why commitStroke rejected the stroke before a bridge was built. */
+export type CommitDiscardReason = StrokeDiscardReason | 'insufficientInk' | 'invalidPoints';
 
 export type CommitStrokeResult =
   | {
@@ -86,7 +97,7 @@ export type CommitStrokeResult =
       /** Committed simplified polyline (GhostSolution.stroke source). */
       readonly stroke: readonly Point[];
     }
-  | { readonly committed: false; readonly reason: StrokeDiscardReason | 'insufficientInk' };
+  | { readonly committed: false; readonly reason: CommitDiscardReason };
 
 export type AttemptOutcome =
   | {
@@ -122,17 +133,25 @@ function rawPolylineLength(points: readonly Point[]): number {
   return total;
 }
 
+/** True when any point carries a non-finite coordinate (NaN/±Infinity). */
+function hasNonFinitePoint(points: readonly Point[]): boolean {
+  return points.some((p) => !Number.isFinite(p.x) || !Number.isFinite(p.y));
+}
+
 export class GameSimulation {
   /** One-way Engine -> observers event bus (constitution IV). */
   readonly events = new EngineEvents();
 
-  private readonly level: Level;
-  private readonly method: PhysicsMethod;
   private readonly world: World;
-  private readonly vehicle: Vehicle;
-  private readonly inkBudget: InkBudget;
-  private readonly coinTracker: CoinTracker;
-  private readonly judge: Judge;
+  /** True when this simulation allocated its own world (destroy frees it). */
+  private readonly ownsWorld: boolean;
+  private method: PhysicsMethod;
+  private upgrades: UpgradeLevels;
+  private level!: Level;
+  private vehicle!: Vehicle;
+  private inkBudget!: InkBudget;
+  private coinTracker!: CoinTracker;
+  private judge!: Judge;
 
   private chain: BridgeChain | null = null;
   private stressTracker: StressTracker | null = null;
@@ -143,16 +162,34 @@ export class GameSimulation {
   private isDestroyed = false;
 
   constructor(level: Level, options?: GameSimulationOptions) {
-    this.level = level;
     this.method = options?.method ?? 'chain';
-    this.world = new World();
+    this.upgrades = options?.upgrades ?? {};
+    if (options?.world !== undefined) {
+      this.world = options.world;
+      this.ownsWorld = false;
+      this.world.reset(); // start the shared slot from a clean slate
+    } else {
+      this.world = new World();
+      this.ownsWorld = true;
+    }
+    this.build(level);
+  }
+
+  /**
+   * (Re)build terrain + vehicle + rule trackers on the current world and settle
+   * the vehicle, then reset all run state to a fresh 'drawing' attempt. Shared
+   * by the constructor and reset(). Terrain is created for its side effect
+   * (static bodies registered on the world), so it needs no field.
+   */
+  private build(level: Level): void {
+    this.level = level;
     new Terrain(this.world, level);
     this.vehicle = new Vehicle(this.world, level.vehicleSpawn, {
-      engineSpeedLv: options?.upgrades?.engineSpeedLv ?? 0,
+      engineSpeedLv: this.upgrades.engineSpeedLv ?? 0,
     });
     this.inkBudget = new InkBudget({
       levelInkBudget: level.inkBudget,
-      inkCapacityLv: options?.upgrades?.inkCapacityLv ?? 0,
+      inkCapacityLv: this.upgrades.inkCapacityLv ?? 0,
     });
     this.coinTracker = new CoinTracker(level.coins);
     this.judge = new Judge({
@@ -160,9 +197,32 @@ export class GameSimulation {
       killY: level.killY,
       ...(level.maxTicks !== undefined ? { maxTicks: level.maxTicks } : {}),
     });
+    this.chain = null;
+    this.stressTracker = null;
+    this.currentPhase = 'drawing';
+    this.attemptOutcome = null;
+    this.lastEvaluatedTick = -1;
+    this.nextTick = 0;
     for (let i = 0; i < ATTEMPT_SETTLE_TICKS; i++) {
       this.world.step();
     }
+  }
+
+  /**
+   * Recycle this simulation for another attempt on the SAME physics world:
+   * reset the world slot, rebuild everything, and re-settle. Unlimited attempts
+   * without consuming new phaser-box2d slots (World header). `level`/`upgrades`
+   * default to the current ones, so an argument-free reset() reproduces the
+   * identical attempt.
+   */
+  reset(level?: Level, upgrades?: UpgradeLevels): void {
+    this.assertAlive();
+    if (upgrades !== undefined) {
+      this.upgrades = upgrades;
+    }
+    this.stressTracker?.destroy(); // stop the old tracker touching freed joints
+    this.world.reset();
+    this.build(level ?? this.level);
   }
 
   get phase(): SimulationPhase {
@@ -205,6 +265,13 @@ export class GameSimulation {
       throw new Error(
         `GameSimulation.commitStroke: exactly one stroke per attempt (phase: ${this.currentPhase})`,
       );
+    }
+
+    // Reject non-finite input up front, before any ink is touched: a NaN/Inf
+    // vertex would poison rawPolylineLength (and the whole world) — discard it
+    // as 'invalidPoints' with the ink budget untouched, attempt still drawable.
+    if (hasNonFinitePoint(rawPoints)) {
+      return { committed: false, reason: 'invalidPoints' };
     }
 
     const rawLength = rawPolylineLength(rawPoints);
@@ -260,22 +327,27 @@ export class GameSimulation {
       throw new Error('GameSimulation.step: commit a stroke first (nothing to simulate while drawing)');
     }
 
-    this.vehicle.tick();
-    this.world.step();
-    this.stressTracker?.update(physics.fixedDt);
+    // Fix the tick being processed up front so currentTick is authoritative for
+    // every event fired this step (launchReleased/coinCollected observers).
+    const tick = this.nextTick;
+    this.lastEvaluatedTick = tick;
 
+    this.vehicle.tick(); // engages the motor exactly at the anticipation countdown zero
+    // launchReleased fires at the anticipation->running transition BEFORE the
+    // first motor-driven world.step, so the event tick equals that first
+    // motorized tick (emission is inert to physics — determinism unchanged).
     if (this.currentPhase === 'anticipation' && this.vehicle.phase === 'running') {
       this.currentPhase = 'running';
       this.events.emit('launchReleased');
     }
+    this.world.step();
+    this.stressTracker?.update(physics.fixedDt);
 
     const referencePoint = this.vehicle.referencePoint();
     for (const index of this.coinTracker.update(referencePoint)) {
       this.events.emit('coinCollected', { index, position: this.level.coins[index] as Point });
     }
 
-    const tick = this.nextTick;
-    this.lastEvaluatedTick = tick;
     const judged = this.judge.evaluate(tick, this.vehicle, this.chain);
     if (judged === null) {
       this.nextTick++;
@@ -309,13 +381,19 @@ export class GameSimulation {
     return this.attemptOutcome;
   }
 
-  /** Tear down the physics world. Idempotent. */
+  /**
+   * Tear down the attempt. Idempotent. Frees the underlying world only when this
+   * simulation owns it; an injected (shared) world belongs to the caller and is
+   * left intact — the next GameSimulation(level, { world }) resets it for reuse.
+   */
   destroy(): void {
     if (this.isDestroyed) {
       return;
     }
     this.stressTracker?.destroy();
-    this.world.destroy(); // frees every body incl. terrain/vehicle/chain
+    if (this.ownsWorld) {
+      this.world.destroy(); // frees every body incl. terrain/vehicle/chain
+    }
     this.isDestroyed = true;
   }
 

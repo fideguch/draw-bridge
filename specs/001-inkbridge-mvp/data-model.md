@@ -83,12 +83,12 @@ Terrain/stroke surface friction: `car.surfaceFriction` 0.75 (0.6–0.9).
 ```
 JudgeOutcome =
   | { outcome: 'clear'; ticks; inkConsumed; starRating: 1|2|3; coinsCollected }
-  | { outcome: 'fail';  cause: 'fall' | 'tipOver' | 'timeout';
-      causeLocation: Point;         // fall point / overturned chassis / retained fracture highlight
+  | { outcome: 'fail';  cause: 'fall' | 'tipOver' | 'timeout' | 'divergence';
+      causeLocation: Point;         // fall point / overturned chassis / retained fracture highlight / divergence spot
       ticks }
 ```
 
-Rules: clear on the tick referencePoint ∈ goalFlag rect; fail on ① referencePoint.y < killY, ② vehicle inverted (|tilt| > `fail.tipOverAngleRad` 2.1 rad, deterministic headless-friendly proxy for roof contact — see .fable/decisions.md) sustained `fail.tipOverTimeSec` (0.5 s), ③ ticks > maxTicks (1800). **Same-tick clear+fail resolves as clear (BR-009).** Partial collapse with the car still reaching the flag = clear. Solver divergence (NaN, or speed > `physics.divergenceSpeedMax` 80 m/s) triggers the failsafe reset path (≤ 1 s), not a fail result.
+Rules: clear on the tick referencePoint ∈ goalFlag rect; fail on ① referencePoint.y < killY, ② vehicle inverted (|tilt| > `fail.tipOverAngleRad` 2.1 rad, deterministic headless-friendly proxy for roof contact — see .fable/decisions.md) sustained `fail.tipOverTimeSec` (0.5 s), ③ ticks > maxTicks (1800). **Same-tick clear+fail resolves as clear (BR-009).** Partial collapse with the car still reaching the flag = clear. Solver divergence (NaN reference point, or speed > `physics.divergenceSpeedMax` 80 m/s) is represented **inside** the fail union as `cause: 'divergence'` (uniform engine shape), but it is a FAILSAFE, not a real loss: Render/Meta detect it with `isFailsafeReset(outcome)` and route it to the silent ≤ 1 s reset path — **no** fail UI, **no** `level_end` fail analytics, **no** attempt persistence — instead of the normal fall/tipOver/timeout fail flow.
 
 ### 1.6 StarRating (derived)
 
@@ -277,4 +277,4 @@ Side effects on Result: clear → credit `economy.clearReward` (+ collected coin
 | V9 | `coins >= 0` balance invariant; purchases rejected/disabled when balance < price; exactly-once purchase under rapid taps | Meta layer + unit tests |
 | V10 | `bestStars` monotonic non-decreasing; `bestStars > 0 ⇒ cleared` | Meta layer + unit tests |
 | V11 | Save writes atomic + schemaVersion attached; unknown fields preserved on migration | SaveManager contract tests ([save-data.md](./contracts/save-data.md)) |
-| V12 | Segment count N clamped to [8, 32]; stroke < 2 vertices or < 1 segment length discarded with refund | BridgeChainBuilder unit tests |
+| V12 | Segment count N clamped to [2, 32] (floor of 2 guarantees ≥ 1 revolute joint so chain sag/creak/break physics exist — a 1-segment bridge has none; natural bridge strokes resample to 8+, so the floor only bites the shortest kept strokes); stroke < 2 vertices or < 1 segment length discarded with refund | StrokePipeline + BridgeChainBuilder unit tests |

@@ -36,11 +36,14 @@ import {
   b2DefaultBodyDef,
   b2DefaultWorldDef,
   b2DestroyBody,
+  b2DestroyJoint,
   b2DestroyWorld,
+  b2Joint_IsValid,
   b2Vec2,
+  b2World_IsValid,
   b2World_Step,
 } from 'phaser-box2d';
-import type { b2BodyId, b2WorldId } from 'phaser-box2d';
+import type { b2BodyId, b2JointId, b2WorldId } from 'phaser-box2d';
 import type { Point } from '../level/LevelSchema';
 import { physics } from '@tuning/TuningConstants';
 
@@ -68,6 +71,8 @@ export interface AdvanceResult {
 export class World {
   private readonly worldId: b2WorldId;
   private readonly bodies: b2BodyId[] = [];
+  /** Joints created against this world (registerJoint) — freed by reset(). */
+  private readonly joints: b2JointId[] = [];
   private accumulatorSec = 0;
   private destroyed = false;
 
@@ -81,6 +86,15 @@ export class World {
     const def = b2DefaultWorldDef();
     def.gravity = new b2Vec2(0, physics.gravityY);
     this.worldId = b2CreateWorld(def);
+    // LIB-QUIRK guard (module header): b2CreateWorld returns b2WorldId(0,0)
+    // silently once all 32 process slots are in use (b2DestroyWorld never frees
+    // one). An invalid id would fail deep inside the vendor with an opaque
+    // TypeError on first use — fail loudly here, and point at reset() reuse.
+    if (!b2World_IsValid(this.worldId)) {
+      throw new Error(
+        'phaser-box2d world slot limit (32/process) exhausted — reuse World via reset(), see .fable/decisions.md',
+      );
+    }
   }
 
   /** Underlying world id for joint/query APIs that need it (BridgeChainBuilder). */
@@ -121,6 +135,50 @@ export class World {
     this.bodies.splice(index, 1);
   }
 
+  /**
+   * Register a joint for lifecycle tracking so reset() can free it (bodies auto-
+   * destroy their joints, but tracking lets reset() tear the world down joint-
+   * first, independent of which wrapper built it). Returns the id for chaining:
+   * `world.registerJoint(b2CreateRevoluteJoint(world.id, def))`.
+   */
+  registerJoint(jointId: b2JointId): b2JointId {
+    this.assertAlive();
+    this.joints.push(jointId);
+    return jointId;
+  }
+
+  /**
+   * Recycle this world's slot for a fresh attempt: destroy every tracked joint
+   * (guarded — StressTracker/BridgeChain may have broken some already) and body,
+   * then clear the fixed-step accumulator. The SAME phaser-box2d slot then
+   * serves unlimited attempts, dodging the 32-slot cap (module header). Attempt
+   * recyclers (GameSimulation.reset, GhostPlayer batches) build on top of this.
+   *
+   * DETERMINISM (measured): a recycled slot carries over Box2D's internal
+   * solver-set / id-pool ordering, so the exact-float stateHash of a recycled
+   * attempt is NOT bit-identical to a fresh slot's — but the effect is bounded
+   * and reproducible, not chaotic: tick counts stay identical and final
+   * positions drift < 2 mm across 60+ recycled attempts (well inside the Gate 2
+   * ±30 tick / 0.05 m band), and an identical attempt SEQUENCE yields an
+   * identical hash sequence across independent worlds. Fresh-slot determinism
+   * (the 1000-run S3 proof, which never calls reset) is therefore untouched.
+   * See .fable/decisions.md.
+   */
+  reset(): void {
+    this.assertAlive();
+    for (const jointId of this.joints) {
+      if (b2Joint_IsValid(jointId)) {
+        b2DestroyJoint(jointId); // free joints before bodies so nothing dangles
+      }
+    }
+    this.joints.length = 0;
+    for (const bodyId of this.bodies) {
+      b2DestroyBody(bodyId);
+    }
+    this.bodies.length = 0;
+    this.accumulatorSec = 0;
+  }
+
   /** One fixed physics step (physics.fixedDt, physics.subStepCount). */
   step(): void {
     this.assertAlive();
@@ -150,6 +208,11 @@ export class World {
    * Stable hash over all tracked bodies' position + rotation (cos/sin) +
    * linear velocity + angular velocity. Exact float bits, no quantization —
    * see module header for the rationale.
+   *
+   * SCOPE: this hash covers physical body STATE only, never the tick count.
+   * Gate 2 composes the tick count externally (per contracts/gate-pipeline.md
+   * §3, tick delta is a separate ±30 tolerance axis), so stateHash stays a pure
+   * function of the world's bodies and needs no lifecycle/tick input.
    */
   stateHash(): string {
     this.assertAlive();
@@ -181,6 +244,7 @@ export class World {
     }
     b2DestroyWorld(this.worldId);
     this.bodies.length = 0;
+    this.joints.length = 0;
     this.destroyed = true;
   }
 

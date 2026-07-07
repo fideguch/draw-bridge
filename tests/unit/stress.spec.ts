@@ -150,6 +150,28 @@ describe('StressTracker — creak and break on a loaded chain', () => {
     expect(() => new StressTracker(compound, { breakForce: 1, breakTorque: 1 })).toThrow();
     world.destroy();
   });
+
+  it('rejects non-finite or non-positive break thresholds (L7)', () => {
+    const world = new World();
+    const chain = buildBridge(world, resampleLine(-2, 2, 1), {
+      method: 'chain',
+      strokeId: 1,
+      vehicleMass: VEHICLE_MASS,
+    });
+    const badThresholds = [
+      { breakForce: Number.NaN, breakTorque: 1 },
+      { breakForce: 1, breakTorque: Number.POSITIVE_INFINITY },
+      { breakForce: Number.NEGATIVE_INFINITY, breakTorque: 1 },
+      { breakForce: 0, breakTorque: 1 },
+      { breakForce: 1, breakTorque: -1 },
+    ];
+    for (const thresholds of badThresholds) {
+      expect(() => new StressTracker(chain, thresholds)).toThrow(/finite|> 0/);
+    }
+    // a valid finite positive pair is still accepted
+    expect(() => new StressTracker(chain, { breakForce: 1, breakTorque: 1 })).not.toThrow();
+    world.destroy();
+  });
 });
 
 describe('StressTracker — orphan fragments (FR-006 debris rule)', () => {

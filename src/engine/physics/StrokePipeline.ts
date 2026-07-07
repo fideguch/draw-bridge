@@ -13,7 +13,11 @@
  * (FR-003; refund equals the raw stroke's decremented ink).
  *
  * Segment count: N = round(totalLength / segmentLength), clamped to
- * [1, physics.segmentCountMax]. Strokes longer than cap x segmentLength are
+ * [SEGMENT_COUNT_MIN, physics.segmentCountMax]. The floor of 2 guarantees at
+ * least one revolute joint exists (a 1-segment "chain" has zero joints, so no
+ * sag/creak/break physics — V12 contract intent). Natural bridge strokes
+ * resample to 8+ segments; the floor only ever bites the shortest kept strokes
+ * (down to one segmentLength). Strokes longer than cap x segmentLength are
  * clamped by increasing the EFFECTIVE segment length (totalLength / N) rather
  * than truncating the stroke.
  */
@@ -28,6 +32,12 @@ export interface StrokeSegment {
 }
 
 export type StrokeDiscardReason = 'tooFewPoints' | 'tooShort';
+
+/**
+ * Minimum capsule segment count of a built bridge (V12: [2, segmentCountMax]).
+ * Floor of 2 keeps >= 1 revolute joint so chain sag/creak/break physics exist.
+ */
+export const SEGMENT_COUNT_MIN = 2;
 
 export type StrokePipelineResult =
   | { readonly discarded: true; readonly reason: StrokeDiscardReason }
@@ -151,7 +161,7 @@ export function processStroke(rawPoints: readonly Point[]): StrokePipelineResult
 
   const segmentCount = Math.min(
     physics.segmentCountMax,
-    Math.max(1, Math.round(totalLength / physics.segmentLength)),
+    Math.max(SEGMENT_COUNT_MIN, Math.round(totalLength / physics.segmentLength)),
   );
   const resampled = resampleStroke(simplified, segmentCount);
 

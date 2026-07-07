@@ -209,7 +209,7 @@ export class Vehicle {
     def.enableMotor = false;
     def.maxMotorTorque = car.maxMotorTorque;
     def.collideConnected = false;
-    return b2CreateWheelJoint(this.world.id, def);
+    return this.world.registerJoint(b2CreateWheelJoint(this.world.id, def));
   }
 
   /** Anticipation -> Running: rear motor on at the effective speed. */

@@ -27,9 +27,9 @@
 import type { GhostResult, GhostSolution, Level, Point } from '../level/LevelSchema';
 import type { FailCause } from '../rules/Judge';
 import type { StarCount } from '../rules/StarRating';
-import type { StrokeDiscardReason } from '../physics/StrokePipeline';
-import type { UpgradeLevels } from '../GameSimulation';
+import type { CommitDiscardReason, UpgradeLevels } from '../GameSimulation';
 import { GameSimulation } from '../GameSimulation';
+import { World } from '../physics/World';
 
 /** Gate 2 final-position tolerance in meters (CONTRACT-FROZEN, see header). */
 export const GHOST_FINAL_POS_EPSILON_M = 0.05;
@@ -64,7 +64,7 @@ export interface GhostReplayResult {
 }
 
 export type ScriptedAttemptResult =
-  | { readonly committed: false; readonly reason: StrokeDiscardReason | 'insufficientInk' }
+  | { readonly committed: false; readonly reason: CommitDiscardReason }
   | {
       readonly committed: true;
       readonly outcome: 'clear' | 'fail';
@@ -86,6 +86,13 @@ export interface ScriptedAttemptOptions {
   readonly upgrades?: UpgradeLevels;
   /** Called after every fixed step with (tick, VehicleReferencePoint). */
   readonly onTick?: (tick: number, referencePoint: Point) => void;
+  /**
+   * Reuse a caller-owned World (reset per attempt) instead of a fresh slot —
+   * lets one process run unbounded sequential attempts past the phaser-box2d
+   * 32-slot cap (World header). The attempt leaves the world intact for the
+   * next caller; the owner destroys it. Omit for a private, owned world.
+   */
+  readonly world?: World;
 }
 
 /**
@@ -99,7 +106,10 @@ export function runScriptedAttempt(
   strokePoints: readonly Point[],
   options?: ScriptedAttemptOptions,
 ): ScriptedAttemptResult {
-  const simulation = new GameSimulation(level, { upgrades: options?.upgrades ?? {} });
+  const simulation = new GameSimulation(level, {
+    upgrades: options?.upgrades ?? {},
+    ...(options?.world !== undefined ? { world: options.world } : {}),
+  });
   try {
     const commit = simulation.commitStroke(strokePoints);
     if (!commit.committed) {
@@ -167,11 +177,16 @@ export function compareToRecorded(recorded: GhostResult, replayed: ReplayedOutco
 /**
  * Replay one ghost solution against its level at Lv0 and verify the band.
  * This is Gate 2's engine (gate2-ghost.mjs iterates it over ghostSolutions[]).
+ *
+ * Pass a shared `world` to replay on a recycled slot (Gate 2 runs >32 replays
+ * per process); the recycled-slot outcome stays inside the Gate 2 band —
+ * tick-identical, sub-mm final-position drift — see replayGhostSuite.
  */
-export function replayGhost(level: Level, ghost: GhostSolution): GhostReplayResult {
+export function replayGhost(level: Level, ghost: GhostSolution, world?: World): GhostReplayResult {
   const strokePoints: Point[] = ghost.stroke.map(([x, y]) => ({ x, y }));
   const attempt = runScriptedAttempt(level, strokePoints, {
     upgrades: { inkCapacityLv: 0, engineSpeedLv: 0 },
+    ...(world !== undefined ? { world } : {}),
   });
 
   if (!attempt.committed) {
@@ -189,4 +204,30 @@ export function replayGhost(level: Level, ghost: GhostSolution): GhostReplayResu
     pass: comparison.pass,
     details: { replayed, comparison, errors: comparison.errors },
   };
+}
+
+/** One (level, ghost) pair for replayGhostSuite. */
+export interface GhostReplayItem {
+  readonly level: Level;
+  readonly ghost: GhostSolution;
+}
+
+/**
+ * Replay a whole batch of ghosts through ONE recycled World — the Gate 2 path
+ * (contracts/gate-pipeline.md §3 replays Ch1 = 18 levels x up to 2 ghosts = >32
+ * per process, which the old fresh-world-per-replay pattern could not survive:
+ * phaser-box2d never frees world slots, hard-capping at 32, see World header).
+ *
+ * Determinism: the recycled slot is macroscopically deterministic (identical
+ * tick counts, sub-mm final-position drift vs a fresh slot — comfortably inside
+ * the Gate 2 ±30 tick / 0.05 m band) and reproducible (an identical replay
+ * sequence yields an identical hash sequence). See .fable/decisions.md.
+ */
+export function replayGhostSuite(items: readonly GhostReplayItem[]): GhostReplayResult[] {
+  const world = new World();
+  try {
+    return items.map((item) => replayGhost(item.level, item.ghost, world));
+  } finally {
+    world.destroy();
+  }
 }

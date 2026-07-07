@@ -18,6 +18,17 @@ export const LEVEL_ID_PATTERN = /^ch1-(l(0[1-9]|1[0-5])|b[1-3])$/;
 /** Bonus levels require `bonusMultiplier`; normal levels forbid it. */
 export const BONUS_LEVEL_ID_PATTERN = /^ch1-b[1-3]$/;
 
+/** maxTicks floor: 1 s at the fixed 60 Hz step — below this a level cannot be played. */
+export const MIN_MAX_TICKS = 60;
+
+/**
+ * Minimum polyline segment length (world meters): consecutive vertices closer
+ * than this (incl. exact duplicates) are a degenerate authoring error — they
+ * add no geometry and can produce zero-length terrain chain / ghost stroke
+ * segments. 0.01 m = 1 cm, far below any intentional level feature.
+ */
+export const POLYLINE_MIN_SEGMENT_M = 0.01;
+
 export interface Point {
   readonly x: number;
   readonly y: number;
@@ -182,7 +193,18 @@ function parsePolyline(value: unknown, path: string, errors: string[]): Polyline
       errors.push(`${path}[${i}]: expected an [x, y] pair of finite numbers`);
       return undefined;
     }
-    points.push([entry[0], entry[1]]);
+    const point: PolylinePoint = [entry[0], entry[1]];
+    const previous = points[points.length - 1];
+    if (previous !== undefined) {
+      const segmentLength = Math.hypot(point[0] - previous[0], point[1] - previous[1]);
+      if (segmentLength < POLYLINE_MIN_SEGMENT_M) {
+        errors.push(
+          `${path}[${i}]: degenerate segment (${segmentLength.toFixed(4)} m < ${POLYLINE_MIN_SEGMENT_M} m) — consecutive points must not duplicate or near-coincide`,
+        );
+        return undefined;
+      }
+    }
+    points.push(point);
   }
   return points;
 }
@@ -284,30 +306,55 @@ function parseGhostResult(value: unknown, path: string, errors: string[]): Ghost
   };
 }
 
-/**
- * Validate arbitrary parsed JSON against the level contract.
- * Never throws; collects every detectable error into `errors`.
- */
-export function validateLevel(json: unknown, options?: ValidateLevelOptions): LevelValidation {
-  const errors: string[] = [];
+// -- validateLevel section helpers -----------------------------------------------
+// validateLevel is a thin orchestrator over these; each helper owns one field
+// group, pushes its own errors, and returns the parsed bundle (or undefined when
+// a required member is missing). Call order preserves the original error order.
 
-  if (!isRecord(json)) {
-    return { ok: false, errors: ['level: expected a JSON object'] };
-  }
-  checkUnknownKeys(json, LEVEL_KEYS, 'level', errors);
+interface GeometryParts {
+  readonly terrain: readonly Polyline[];
+  readonly vehicleSpawn: Point;
+  readonly goalFlag: Rect;
+  readonly killY: number;
+}
 
-  // -- schemaVersion / id ----------------------------------------------------
+interface EconomyParts {
+  readonly inkBudget: number;
+  readonly starThresholds: StarThresholds;
+}
+
+interface CollectibleParts {
+  readonly coins: readonly Point[];
+  readonly gimmickTags: readonly GimmickTag[];
+}
+
+interface OptionalParts {
+  readonly maxTicks?: number;
+  readonly bonusMultiplier?: number;
+}
+
+/** schemaVersion const + id pattern + optional filename match. Returns the id. */
+function validateIdentity(
+  json: Record<string, unknown>,
+  options: ValidateLevelOptions | undefined,
+  errors: string[],
+): string | undefined {
   if (json['schemaVersion'] !== CURRENT_LEVEL_SCHEMA_VERSION) {
     errors.push(`schemaVersion: expected const ${CURRENT_LEVEL_SCHEMA_VERSION}`);
   }
   const id = json['id'];
   if (typeof id !== 'string' || !LEVEL_ID_PATTERN.test(id)) {
     errors.push('id: expected pattern ch1-l01..ch1-l15 / ch1-b1..ch1-b3');
-  } else if (options?.filenameStem !== undefined && options.filenameStem !== id) {
+    return undefined;
+  }
+  if (options?.filenameStem !== undefined && options.filenameStem !== id) {
     errors.push(`id: "${id}" does not match filename stem "${options.filenameStem}"`);
   }
+  return id;
+}
 
-  // -- geometry ---------------------------------------------------------------
+/** terrain polylines + vehicleSpawn + goalFlag + killY (below lowest terrain y). */
+function validateGeometry(json: Record<string, unknown>, errors: string[]): GeometryParts | undefined {
   const rawTerrain = json['terrain'];
   let terrain: Polyline[] | undefined;
   if (!Array.isArray(rawTerrain) || rawTerrain.length < 1) {
@@ -328,18 +375,30 @@ export function validateLevel(json: unknown, options?: ValidateLevelOptions): Le
   const goalFlag = parseRect(json['goalFlag'], 'goalFlag', errors);
 
   const killY = json['killY'];
+  let killYValue: number | undefined;
   if (!isFiniteNumber(killY)) {
     errors.push('killY: expected a finite number');
-  } else if (terrain !== undefined) {
-    const minTerrainY = Math.min(...terrain.flatMap((line) => line.map(([, y]) => y)));
-    if (killY >= minTerrainY) {
-      errors.push(`killY: ${killY} must be strictly below the lowest terrain vertex y (${minTerrainY})`);
+  } else {
+    killYValue = killY;
+    if (terrain !== undefined) {
+      const minTerrainY = Math.min(...terrain.flatMap((line) => line.map(([, y]) => y)));
+      if (killY >= minTerrainY) {
+        errors.push(`killY: ${killY} must be strictly below the lowest terrain vertex y (${minTerrainY})`);
+      }
     }
   }
 
-  // -- economy / thresholds ----------------------------------------------------
+  if (terrain === undefined || vehicleSpawn === undefined || goalFlag === undefined || killYValue === undefined) {
+    return undefined;
+  }
+  return { terrain, vehicleSpawn, goalFlag, killY: killYValue };
+}
+
+/** inkBudget > 0 + starThresholds (0 < star3 < star2 <= inkBudget). */
+function validateEconomy(json: Record<string, unknown>, errors: string[]): EconomyParts | undefined {
   const inkBudget = json['inkBudget'];
-  if (!isFiniteNumber(inkBudget) || inkBudget <= 0) {
+  const hasValidInk = isFiniteNumber(inkBudget) && inkBudget > 0;
+  if (!hasValidInk) {
     errors.push('inkBudget: expected a number > 0');
   }
 
@@ -361,7 +420,14 @@ export function validateLevel(json: unknown, options?: ValidateLevelOptions): Le
     }
   }
 
-  // -- coins / gimmickTags -----------------------------------------------------
+  if (!hasValidInk || starThresholds === undefined) {
+    return undefined;
+  }
+  return { inkBudget, starThresholds };
+}
+
+/** coins (may be empty) + gimmickTags (vocabulary, unique). */
+function validateCoinsAndTags(json: Record<string, unknown>, errors: string[]): CollectibleParts | undefined {
   const rawCoins = json['coins'];
   let coins: Point[] | undefined;
   if (!Array.isArray(rawCoins)) {
@@ -393,45 +459,80 @@ export function validateLevel(json: unknown, options?: ValidateLevelOptions): Le
     }
   }
 
-  // -- ghostSolutions -----------------------------------------------------------
+  if (coins === undefined || gimmickTags === undefined) {
+    return undefined;
+  }
+  return { coins, gimmickTags };
+}
+
+/** ghostSolutions (>= 1 recorded clear, FR-024). */
+function validateGhosts(json: Record<string, unknown>, errors: string[]): GhostSolution[] | undefined {
   const rawGhosts = json['ghostSolutions'];
-  let ghostSolutions: GhostSolution[] | undefined;
   if (!Array.isArray(rawGhosts) || rawGhosts.length < 1) {
     errors.push('ghostSolutions: expected an array of >= 1 ghost solutions (FR-024: no level without a recorded clear)');
-  } else {
-    ghostSolutions = [];
-    for (const [i, ghost] of rawGhosts.entries()) {
-      const parsed = parseGhostSolution(ghost, `ghostSolutions[${i}]`, errors);
-      if (parsed !== undefined) {
-        ghostSolutions.push(parsed);
-      }
+    return undefined;
+  }
+  const ghostSolutions: GhostSolution[] = [];
+  for (const [i, ghost] of rawGhosts.entries()) {
+    const parsed = parseGhostSolution(ghost, `ghostSolutions[${i}]`, errors);
+    if (parsed !== undefined) {
+      ghostSolutions.push(parsed);
     }
   }
+  return ghostSolutions;
+}
 
-  // -- optional fields ------------------------------------------------------------
+/** Optional maxTicks (>= MIN_MAX_TICKS) + bonusMultiplier (iff bonus id, 5-10). */
+function validateOptionalFields(json: Record<string, unknown>, rawId: unknown, errors: string[]): OptionalParts {
+  const parts: { maxTicks?: number; bonusMultiplier?: number } = {};
+
   const maxTicks = json['maxTicks'];
-  if (maxTicks !== undefined && (!isInt(maxTicks) || maxTicks < 60)) {
-    errors.push('maxTicks: expected an integer >= 60');
+  if (maxTicks !== undefined && (!isInt(maxTicks) || maxTicks < MIN_MAX_TICKS)) {
+    errors.push(`maxTicks: expected an integer >= ${MIN_MAX_TICKS}`);
+  } else if (isInt(maxTicks)) {
+    parts.maxTicks = maxTicks;
   }
 
   const bonusMultiplier = json['bonusMultiplier'];
-  const isBonusLevel = typeof id === 'string' && BONUS_LEVEL_ID_PATTERN.test(id);
+  const isBonusLevel = typeof rawId === 'string' && BONUS_LEVEL_ID_PATTERN.test(rawId);
   if (isBonusLevel) {
     if (!isFiniteNumber(bonusMultiplier) || bonusMultiplier < 5 || bonusMultiplier > 10) {
       errors.push('bonusMultiplier: required on bonus levels (ch1-b*), range 5-10');
+    } else {
+      parts.bonusMultiplier = bonusMultiplier;
     }
   } else if (bonusMultiplier !== undefined) {
     errors.push('bonusMultiplier: forbidden on non-bonus levels');
   }
 
+  return parts;
+}
+
+/**
+ * Validate arbitrary parsed JSON against the level contract.
+ * Never throws; collects every detectable error into `errors`. Thin orchestrator
+ * over the field-group helpers above (each owns one section of the contract).
+ */
+export function validateLevel(json: unknown, options?: ValidateLevelOptions): LevelValidation {
+  const errors: string[] = [];
+  if (!isRecord(json)) {
+    return { ok: false, errors: ['level: expected a JSON object'] };
+  }
+  checkUnknownKeys(json, LEVEL_KEYS, 'level', errors);
+
+  const id = validateIdentity(json, options, errors);
+  const geometry = validateGeometry(json, errors);
+  const economy = validateEconomy(json, errors);
+  const collectibles = validateCoinsAndTags(json, errors);
+  const ghostSolutions = validateGhosts(json, errors);
+  const optionals = validateOptionalFields(json, json['id'], errors);
+
   if (
     errors.length > 0 ||
-    terrain === undefined ||
-    vehicleSpawn === undefined ||
-    goalFlag === undefined ||
-    starThresholds === undefined ||
-    coins === undefined ||
-    gimmickTags === undefined ||
+    id === undefined ||
+    geometry === undefined ||
+    economy === undefined ||
+    collectibles === undefined ||
     ghostSolutions === undefined
   ) {
     return { ok: false, errors };
@@ -439,18 +540,17 @@ export function validateLevel(json: unknown, options?: ValidateLevelOptions): Le
 
   const level: Level = {
     schemaVersion: CURRENT_LEVEL_SCHEMA_VERSION,
-    id: id as string,
-    terrain,
-    vehicleSpawn,
-    goalFlag,
-    killY: killY as number,
-    inkBudget: inkBudget as number,
-    starThresholds,
-    coins,
-    gimmickTags,
+    id,
+    terrain: geometry.terrain,
+    vehicleSpawn: geometry.vehicleSpawn,
+    goalFlag: geometry.goalFlag,
+    killY: geometry.killY,
+    inkBudget: economy.inkBudget,
+    starThresholds: economy.starThresholds,
+    coins: collectibles.coins,
+    gimmickTags: collectibles.gimmickTags,
     ghostSolutions,
-    ...(maxTicks !== undefined ? { maxTicks: maxTicks as number } : {}),
-    ...(bonusMultiplier !== undefined ? { bonusMultiplier: bonusMultiplier as number } : {}),
+    ...optionals,
   };
   return { ok: true, level };
 }

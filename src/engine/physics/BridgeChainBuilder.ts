@@ -153,7 +153,7 @@ function linkChainJoints(
     def.lowerAngle = -bridge.jointAngleLimitRad;
     def.upperAngle = bridge.jointAngleLimitRad;
     def.collideConnected = false;
-    joints.push(b2CreateRevoluteJoint(world.id, def));
+    joints.push(world.registerJoint(b2CreateRevoluteJoint(world.id, def)));
   }
   return joints;
 }

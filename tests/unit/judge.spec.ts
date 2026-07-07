@@ -7,7 +7,7 @@ import { processStroke } from '@engine/physics/StrokePipeline';
 import { Terrain } from '@engine/physics/Terrain';
 import { Vehicle } from '@engine/physics/Vehicle';
 import { World } from '@engine/physics/World';
-import { Judge } from '@engine/rules/Judge';
+import { Judge, isFailsafeReset } from '@engine/rules/Judge';
 import type { JudgeOutcome } from '@engine/rules/Judge';
 import { car, fail, physics } from '@tuning/TuningConstants';
 
@@ -234,6 +234,35 @@ describe('Judge — same-tick precedence (BR-009)', () => {
 
     const outcome = judge.evaluate(0, vehicle);
     expect(outcome?.outcome).toBe('clear');
+    world.destroy();
+  });
+});
+
+describe('isFailsafeReset — divergence routing helper (L5)', () => {
+  it('is true only for a divergence fail (routes to the silent <= 1 s reset)', () => {
+    expect(isFailsafeReset({ outcome: 'fail', cause: 'divergence' })).toBe(true);
+  });
+
+  it('is false for real fails (fall / tipOver / timeout) and for clears', () => {
+    expect(isFailsafeReset({ outcome: 'fail', cause: 'fall' })).toBe(false);
+    expect(isFailsafeReset({ outcome: 'fail', cause: 'tipOver' })).toBe(false);
+    expect(isFailsafeReset({ outcome: 'fail', cause: 'timeout' })).toBe(false);
+    expect(isFailsafeReset({ outcome: 'clear' })).toBe(false);
+  });
+
+  it('classifies a real Judge divergence outcome as a failsafe reset', () => {
+    const world = new World();
+    const vehicle = new Vehicle(world, SPAWN);
+    const judge = new Judge({ goalFlag: { x: 100, y: 100, width: 1, height: 1 }, killY: -50 });
+    // runaway chassis speed > physics.divergenceSpeedMax triggers the failsafe
+    b2Body_SetLinearVelocity(vehicle.chassisId, new b2Vec2(physics.divergenceSpeedMax + 10, 0));
+
+    const outcome = judge.evaluate(5, vehicle);
+    expect(outcome?.outcome).toBe('fail');
+    if (outcome?.outcome === 'fail') {
+      expect(outcome.cause).toBe('divergence');
+      expect(isFailsafeReset(outcome)).toBe(true);
+    }
     world.destroy();
   });
 });

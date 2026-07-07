@@ -97,8 +97,13 @@ export class StressTracker {
     if (chain.method !== 'chain') {
       throw new Error('StressTracker: only method C ("chain") bridges break; compound fallback has no stress');
     }
-    if (!(options.breakForce > 0) || !(options.breakTorque > 0)) {
-      throw new Error('StressTracker: breakForce and breakTorque must be > 0');
+    if (
+      !Number.isFinite(options.breakForce) ||
+      !Number.isFinite(options.breakTorque) ||
+      options.breakForce <= 0 ||
+      options.breakTorque <= 0
+    ) {
+      throw new Error('StressTracker: breakForce and breakTorque must be finite numbers > 0');
     }
     this.chain = chain;
     this.breakForce = options.breakForce;

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Point } from '@engine/level/LevelSchema';
 import type { StrokePipelineResult } from '@engine/physics/StrokePipeline';
-import { processStroke, simplifyStroke } from '@engine/physics/StrokePipeline';
+import { SEGMENT_COUNT_MIN, processStroke, simplifyStroke } from '@engine/physics/StrokePipeline';
 import { physics } from '@tuning/TuningConstants';
 
 /**
@@ -64,14 +64,32 @@ describe('processStroke — discard rules (FR-003, ink refund handled by caller)
     }
   });
 
-  it('keeps a stroke of exactly one segment length (single segment)', () => {
+  it('keeps a stroke of exactly one segment length but clamps up to the floor (V12: N in [2, 32])', () => {
+    // one segmentLength rounds to N=1, which the pipeline floors to
+    // SEGMENT_COUNT_MIN so at least one revolute joint always exists.
     const result = expectKept(
       processStroke([
         { x: 0, y: 0 },
         { x: physics.segmentLength, y: 0 },
       ]),
     );
-    expect(result.segments).toHaveLength(1);
+    expect(SEGMENT_COUNT_MIN).toBe(2);
+    expect(result.segments).toHaveLength(SEGMENT_COUNT_MIN);
+  });
+
+  it('never produces fewer than SEGMENT_COUNT_MIN segments (>= 1 joint guaranteed)', () => {
+    // any kept stroke, from one segmentLength up to ~1.4x, would round to N=1
+    for (const factor of [1, 1.1, 1.25, 1.4]) {
+      const result = expectKept(
+        processStroke([
+          { x: 0, y: 0 },
+          { x: physics.segmentLength * factor, y: 0 },
+        ]),
+      );
+      expect(result.segments.length).toBeGreaterThanOrEqual(SEGMENT_COUNT_MIN);
+      // segments[i].b === segments[i+1].a chaining still holds at the floor
+      expect(result.resampled).toHaveLength(result.segments.length + 1);
+    }
   });
 });
 

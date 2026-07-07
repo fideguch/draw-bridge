@@ -145,6 +145,94 @@ describe('GameSimulation — ink refund and rejection (FR-002, FR-003)', () => {
   });
 });
 
+describe('GameSimulation — invalid stroke coordinates (L1)', () => {
+  it('rejects non-finite points up front as "invalidPoints" with ink untouched', () => {
+    const badStrokes: readonly (readonly Point[])[] = [
+      [
+        { x: Number.NaN, y: 0.15 },
+        { x: 2, y: 0.15 },
+      ],
+      [
+        { x: -2, y: 0.15 },
+        { x: Number.POSITIVE_INFINITY, y: 0.15 },
+      ],
+      [
+        { x: -2, y: 0.15 },
+        { x: 2, y: Number.NEGATIVE_INFINITY },
+      ],
+    ];
+    for (const bad of badStrokes) {
+      const level = fixtureLevel();
+      const simulation = new GameSimulation(level);
+      const commit = simulation.commitStroke(bad);
+      expect(commit.committed).toBe(false);
+      if (commit.committed) {
+        return;
+      }
+      expect(commit.reason).toBe('invalidPoints');
+      expect(simulation.phase).toBe('drawing'); // still drawable
+      expect(simulation.inkState.remaining).toBe(level.inkBudget); // ink untouched
+      expect(simulation.inkState.consumed).toBe(0);
+      simulation.destroy();
+    }
+  });
+});
+
+describe('GameSimulation — launchReleased timing (M3)', () => {
+  it('fires at the first motorized tick: currentTick inside the handler is the step tick, not one behind', () => {
+    const simulation = new GameSimulation(fixtureLevel());
+    let releasedAtTick = -999;
+    let hasReleased = false;
+    simulation.events.on('launchReleased', () => {
+      releasedAtTick = simulation.currentTick;
+      hasReleased = true;
+    });
+    simulation.commitStroke(SCRIPTED_STROKE);
+
+    // step one tick at a time; capture the step tick in which the event fired
+    let firedDuringTick = -1;
+    while (simulation.outcome === null) {
+      const hasReleasedBefore = hasReleased;
+      simulation.step();
+      if (!hasReleasedBefore && hasReleased) {
+        firedDuringTick = simulation.currentTick;
+        break;
+      }
+    }
+
+    expect(hasReleased).toBe(true);
+    expect(releasedAtTick).toBeGreaterThanOrEqual(0);
+    // the handler observed the step's OWN tick — pre-fix it read the prior tick
+    expect(releasedAtTick).toBe(firedDuringTick);
+    simulation.destroy();
+  });
+});
+
+describe('GameSimulation — reset recycles the attempt on one world (C1)', () => {
+  it('reset() re-runs the fixture level to the same clear outcome without a new slot', () => {
+    const level = fixtureLevel();
+    const simulation = new GameSimulation(level);
+    const tickOutcomes: number[] = [];
+    for (let i = 0; i < 3; i++) {
+      if (i > 0) {
+        simulation.reset();
+      }
+      expect(simulation.phase).toBe('drawing');
+      expect(simulation.inkState.remaining).toBe(level.inkBudget); // fresh budget each attempt
+      const commit = simulation.commitStroke(SCRIPTED_STROKE);
+      expect(commit.committed).toBe(true);
+      const outcome = simulation.runToOutcome();
+      expect(outcome.outcome).toBe('clear');
+      if (outcome.outcome === 'clear') {
+        tickOutcomes.push(outcome.ticks);
+      }
+      expect(simulation.phase).toBe('ended');
+    }
+    expect(new Set(tickOutcomes).size).toBe(1); // deterministic tick outcome per recycle
+    simulation.destroy();
+  });
+});
+
 describe('GameSimulation — phase guards (one stroke per attempt)', () => {
   it('step() before a committed stroke throws', () => {
     const simulation = new GameSimulation(fixtureLevel());

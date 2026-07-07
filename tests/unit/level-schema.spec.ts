@@ -168,6 +168,54 @@ describe('validateLevel — geometry and numbers', () => {
     expectErrors(validateLevel(json));
   });
 
+  it('rejects a terrain polyline with consecutive duplicate points (M4)', () => {
+    const json = cloneFixture();
+    json['terrain'] = [
+      [
+        [-10, 0],
+        [-10, 0], // exact duplicate — degenerate zero-length segment
+        [-1, 0],
+      ],
+    ];
+    const errors = expectErrors(validateLevel(json));
+    expect(errors.join('\n')).toMatch(/degenerate/i);
+  });
+
+  it('rejects a terrain segment shorter than the 0.01 m epsilon (M4)', () => {
+    const json = cloneFixture();
+    json['terrain'] = [
+      [
+        [0, 0],
+        [0.005, 0], // 5 mm < 0.01 m epsilon
+        [5, 0],
+      ],
+    ];
+    expectErrors(validateLevel(json));
+  });
+
+  it('accepts a terrain segment exactly at the 0.01 m epsilon (inclusive boundary, M4)', () => {
+    const json = cloneFixture();
+    json['terrain'] = [
+      [
+        [0, 0],
+        [0.01, 0], // exactly the epsilon — allowed
+        [5, 0],
+      ],
+    ];
+    expectOk(validateLevel(json)); // killY -7 stays below the flat terrain (min y 0)
+  });
+
+  it('rejects a ghost stroke with a degenerate (near-duplicate) segment (M4)', () => {
+    const json = cloneFixture();
+    const ghosts = json['ghostSolutions'] as MutableLevelJson[];
+    (ghosts[0] as MutableLevelJson)['stroke'] = [
+      [-2, 0.15],
+      [-2, 0.15], // duplicate stroke vertex
+      [2, 0.15],
+    ];
+    expectErrors(validateLevel(json));
+  });
+
   it('rejects killY not strictly below the lowest terrain vertex', () => {
     const json = cloneFixture();
     json['killY'] = -5; // fixture terrain min y is -5 → must be strictly below

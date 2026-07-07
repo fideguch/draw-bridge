@@ -39,6 +39,22 @@ export type JudgeOutcome =
       readonly ticks: number;
     };
 
+/**
+ * A `cause: 'divergence'` fail is a solver FAILSAFE, not a real loss (FR-005
+ * exception, data-model §1.5): it is represented inside the fail union so the
+ * engine stays uniform, but Render/Meta MUST route it to the silent <= 1 s
+ * reset path — NO fail UI, NO `level_end` fail analytics, NO attempt
+ * persistence — rather than the normal fall/tipOver/timeout fail flow. This
+ * helper is the single predicate for that routing decision; it accepts any
+ * outcome carrying `{ outcome, cause? }` (JudgeOutcome or AttemptOutcome).
+ */
+export function isFailsafeReset(outcome: {
+  readonly outcome: 'clear' | 'fail';
+  readonly cause?: FailCause;
+}): boolean {
+  return outcome.outcome === 'fail' && outcome.cause === 'divergence';
+}
+
 export interface JudgeLevelParams {
   readonly goalFlag: Rect;
   readonly killY: number;
