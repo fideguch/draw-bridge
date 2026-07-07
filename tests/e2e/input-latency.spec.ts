@@ -66,40 +66,39 @@ test('input -> stroke-state reflection median <= 100ms (NFR-002 probe)', async (
   await page.mouse.move(start.x, start.y);
   await page.mouse.down();
 
-  // In-page measurement: dispatch a real pointermove per sample and await the
-  // point-count increment via rAF polling — no protocol round-trip in the
-  // measured window.
-  const samples = await page.evaluate(async ({ x, y }) => {
-    // eslint-disable-next-line @typescript-eslint/naming-convention
-    const h = (window as unknown as { __inkbridge?: LatencyHook }).__inkbridge!;
-    const canvas = document.querySelector('canvas')!;
-    const results: number[] = [];
-    let px = x;
-    for (let i = 0; i < 8; i++) {
-      px += 14; // > min vertex distance, stays on the L1 platform span
+  // Measurement: t0 = the trusted pointermove's own event.timeStamp captured by
+  // a window capture-phase listener (page clock, before Phaser handles it);
+  // t1 = rAF tick where strokePointCount has incremented. Playwright protocol
+  // latency stays outside the measured window.
+  const samples: number[] = [];
+  for (let i = 0; i < 8; i++) {
+    await page.evaluate(() => {
+      // eslint-disable-next-line @typescript-eslint/naming-convention
+      const h = (window as unknown as { __inkbridge?: LatencyHook }).__inkbridge!;
+      // eslint-disable-next-line @typescript-eslint/naming-convention
+      const w = window as unknown as { __latencyArm?: Promise<number> };
       const before = h.strokePointCount;
-      const t0 = performance.now();
-      canvas.dispatchEvent(
-        new PointerEvent('pointermove', {
-          pointerId: 1,
-          clientX: px,
-          clientY: y,
-          bubbles: true,
-          isPrimary: true,
-          pointerType: 'touch',
-        }),
-      );
-      const t1 = await new Promise<number>((resolve) => {
-        const poll = (): void => {
-          if (h.strokePointCount > before) resolve(performance.now());
-          else requestAnimationFrame(poll);
+      w.__latencyArm = new Promise<number>((resolve) => {
+        const onMove = (ev: PointerEvent): void => {
+          window.removeEventListener('pointermove', onMove, true);
+          const t0 = ev.timeStamp;
+          const poll = (): void => {
+            if (h.strokePointCount > before) resolve(performance.now() - t0);
+            else requestAnimationFrame(poll);
+          };
+          poll();
         };
-        poll();
+        window.addEventListener('pointermove', onMove, true);
       });
-      results.push(t1 - t0);
-    }
-    return results;
-  }, { x: start.x, y: start.y });
+    });
+    await page.mouse.move(start.x + 14 * (i + 1), start.y);
+    const sample = await page.evaluate(() => {
+      // eslint-disable-next-line @typescript-eslint/naming-convention
+      const w = window as unknown as { __latencyArm?: Promise<number> };
+      return w.__latencyArm!;
+    });
+    samples.push(sample);
+  }
 
   await page.mouse.up();
 

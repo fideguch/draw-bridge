@@ -247,6 +247,13 @@ if (shouldBootSpike) {
   game.registry.set(SERVICES_KEY, createGameServices());
 }
 
+// Dev-only in-game level editor (?editor=1) — tree-shaken from release (FR-024).
+if (import.meta.env.DEV && new URLSearchParams(window.location.search).get('editor') === '1') {
+  void import('./editor/EditorScene').then((m) => {
+    game.scene.add('Editor', m.EditorScene, true);
+  });
+}
+
 // Dev-only E2E/gatekeeper hook (window.__inkbridge) — tree-shaken from release.
 if (import.meta.env.DEV) {
   void import('./render/devhook').then((module) => {

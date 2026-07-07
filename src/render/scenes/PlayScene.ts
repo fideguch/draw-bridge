@@ -162,10 +162,29 @@ export class PlayScene extends Phaser.Scene {
     this.levelId = data.levelId ?? 'ch1-l01';
   }
 
+  /** Wall time of the latest stepSimulation call (TuningPanel FR-025 readout). */
+  private lastStepMs = 0;
+
   create(): void {
     this.services = getServices(this);
     this.cameras.main.setBackgroundColor(color.sky);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.teardown());
+
+    // Dev-only tuning panel (FR-025) — tree-shaken from release builds.
+    // boundaries exception: render->debug is forbidden for production code; this
+    // is a DEV-guarded dynamic import of a dev tool overlay (.fable/decisions.md).
+    if (import.meta.env.DEV) {
+      // eslint-disable-next-line boundaries/dependencies
+      void import('../../debug/TuningPanel').then((m) => {
+        m.attach(this, {
+          statsProvider: () => ({
+            fps: this.game.loop.actualFps,
+            stepTimeMs: this.lastStepMs,
+            bodyCount: this.sim?.renderChain?.bodies.length ?? 0,
+          }),
+        });
+      });
+    }
 
     const level = this.loadLevel(this.levelId);
     if (level === null) {
@@ -243,7 +262,9 @@ export class PlayScene extends Phaser.Scene {
     const clamped = Math.min(delta, MAX_FRAME_MS);
     // Feed the scaled delta to the fixed-step sim; onScaleChange drives the zoom.
     const scaledMs = this.timeScale.update(clamped);
+    const stepStarted = performance.now();
     this.stepSimulation(scaledMs);
+    this.lastStepMs = performance.now() - stepStarted;
     this.renderFrame();
     this.updateRunJuice(clamped);
     this.goalSequence.update(clamped);
