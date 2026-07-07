@@ -8,7 +8,20 @@
  */
 import { validateLevel, type Level, type Point, type Polyline } from '../../src/engine/level/LevelSchema';
 import { runScriptedAttempt } from '../../src/engine/replay/GhostPlayer';
+import { World } from '../../src/engine/physics/World';
 import { parseCliOptions, resolveLevelFiles, runGate } from './lib';
+
+/**
+ * One recycled world for ALL bot candidates across the run — a fresh world per
+ * candidate exhausts the 32-slot cap at ~6 anti-dominant levels x 6+ simulated
+ * candidates (levels agent hit this empirically). Bot verdicts only need the
+ * outcome (fail/clear), well within recycled-slot macroscopic determinism.
+ */
+let botWorld: World | undefined;
+function getBotWorld(): World {
+  botWorld ??= new World();
+  return botWorld;
+}
 
 /** Rim detection Δx (contract §5 initial value). */
 const RIM_PROBE_DX = 0.2;
@@ -93,7 +106,7 @@ export function gate3Check(loaded: { json: unknown }): { errors: string[] } {
       }
       // Two interior points keep the resampler direction stable on long segments.
       const stroke: Point[] = [a, lerpPoint(a, b, 1 / 3), lerpPoint(a, b, 2 / 3), b];
-      const result = runScriptedAttempt(level, stroke);
+      const result = runScriptedAttempt(level, stroke, { world: getBotWorld() });
       if (result.committed && result.outcome === 'clear') {
         errors.push(
           `straight-line bot CLEARED at offset +${offset}m overlap ${overlap}m (ticks ${result.ticks}) — anti-dominant contract violated`,
