@@ -1,0 +1,32 @@
+skill:
+  - changed-files:
+      - any-glob-to-any-file: ['SKILL.md']
+
+scripts:
+  - changed-files:
+      - any-glob-to-any-file: ['scripts/**']
+
+templates:
+  - changed-files:
+      - any-glob-to-any-file: ['templates/**']
+
+skills:
+  - changed-files:
+      - any-glob-to-any-file: ['skills/**']
+
+docs:
+  - changed-files:
+      - any-glob-to-any-file: ['**/*.md', '!SKILL.md']
+
+test:
+  - changed-files:
+      - any-glob-to-any-file: ['tests/**', 'playwright.config.ts']
+
+infra:
+  - changed-files:
+      - any-glob-to-any-file:
+          - '.github/**'
+          - 'package.json'
+          - 'tsconfig.json'
+          - '.prettierrc'
+          - 'eslint.config.mjs'

@@ -1,0 +1,48 @@
+name: Stale Issue Detection
+on:
+  schedule:
+    - cron: '0 0 * * 1' # 毎週月曜 00:00 UTC (日本時間 09:00)
+
+jobs:
+  detect-stale:
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - name: Check stale items
+        uses: actions/github-script@v7
+        with:
+          script: |
+            // 同一ステータスで5日以上滞留しているIssueを検出
+            const issues = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              sort: 'updated',
+              direction: 'asc',
+              per_page: 100
+            });
+
+            const fiveDaysAgo = new Date();
+            fiveDaysAgo.setDate(fiveDaysAgo.getDate() - 5);
+
+            const staleIssues = issues.data.filter(issue => {
+              const updatedAt = new Date(issue.updated_at);
+              return updatedAt < fiveDaysAgo && !issue.pull_request;
+            });
+
+            if (staleIssues.length > 0) {
+              console.log(`Found ${staleIssues.length} stale issues:`);
+              for (const issue of staleIssues) {
+                console.log(`  #${issue.number}: ${issue.title} (last updated: ${issue.updated_at})`);
+                // オプション: Issueにコメントで通知
+                // await github.rest.issues.createComment({
+                //   owner: context.repo.owner,
+                //   repo: context.repo.repo,
+                //   issue_number: issue.number,
+                //   body: `⚠️ このIssueは5日以上更新されていません。ステータスを確認してください。`
+                // });
+              }
+            } else {
+              console.log('No stale issues found.');
+            }

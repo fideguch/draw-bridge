@@ -1,0 +1,222 @@
+name: Project Automation
+on:
+  pull_request:
+    types: [opened, closed]
+  pull_request_review:
+    types: [submitted]
+
+env:
+  PROJECT_ID: 'PVT_kwHOAtlXXM4Bcr3b'
+  STATUS_FIELD_ID: '__STATUS_FIELD_ID__'
+
+jobs:
+  update-project:
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      pull-requests: write
+    steps:
+      - name: PR作成時 → 関連Issueを「コードレビュー」へ
+        if: github.event_name == 'pull_request' && github.event.action == 'opened'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.PROJECT_TOKEN }}
+          script: |
+            const body = context.payload.pull_request.body || '';
+            const issueMatch = body.match(/(?:closes|fixes|resolves)\s+#(\d+)/i);
+            if (!issueMatch) {
+              console.log('No related issue found in PR body');
+              return;
+            }
+            const issueNumber = parseInt(issueMatch[1]);
+            console.log(`Related issue: #${issueNumber}`);
+
+            // Get issue node ID
+            const issue = await github.rest.issues.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issueNumber,
+            });
+            const contentId = issue.data.node_id;
+
+            // Add issue to project (if not already added)
+            const addResult = await github.graphql(`
+              mutation($projectId: ID!, $contentId: ID!) {
+                addProjectV2ItemById(input: { projectId: $projectId, contentId: $contentId }) {
+                  item { id }
+                }
+              }`, {
+              projectId: process.env.PROJECT_ID,
+              contentId: contentId,
+            });
+            const itemId = addResult.addProjectV2ItemById.item.id;
+            console.log(`Project item ID: ${itemId}`);
+
+            // Find the 'コードレビュー' option ID
+            const fieldInfo = await github.graphql(`
+              query($projectId: ID!) {
+                node(id: $projectId) {
+                  ... on ProjectV2 {
+                    fields(first: 50) {
+                      nodes {
+                        ... on ProjectV2SingleSelectField {
+                          id
+                          name
+                          options { id name }
+                        }
+                      }
+                    }
+                  }
+                }
+              }`, { projectId: process.env.PROJECT_ID });
+
+            const statusField = fieldInfo.node.fields.nodes.find(f => f.id === process.env.STATUS_FIELD_ID);
+            if (!statusField) {
+              console.log('Status field not found');
+              return;
+            }
+
+            const option = statusField.options.find(o => o.name === 'コードレビュー');
+            if (!option) {
+              console.log('Status option "コードレビュー" not found');
+              return;
+            }
+
+            // Update status
+            await github.graphql(`
+              mutation($projectId: ID!, $itemId: ID!, $fieldId: ID!, $optionId: String!) {
+                updateProjectV2ItemFieldValue(input: {
+                  projectId: $projectId,
+                  itemId: $itemId,
+                  fieldId: $fieldId,
+                  value: { singleSelectOptionId: $optionId }
+                }) {
+                  projectV2Item { id }
+                }
+              }`, {
+              projectId: process.env.PROJECT_ID,
+              itemId: itemId,
+              fieldId: process.env.STATUS_FIELD_ID,
+              optionId: option.id,
+            });
+            console.log(`Issue #${issueNumber} → コードレビュー`);
+
+      - name: レビュー承認時 → 関連Issueを「テスト中」へ
+        if: github.event_name == 'pull_request_review' && github.event.review.state == 'approved'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.PROJECT_TOKEN }}
+          script: |
+            const body = context.payload.pull_request.body || '';
+            const issueMatch = body.match(/(?:closes|fixes|resolves)\s+#(\d+)/i);
+            if (!issueMatch) return;
+            const issueNumber = parseInt(issueMatch[1]);
+
+            const issue = await github.rest.issues.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issueNumber,
+            });
+
+            const addResult = await github.graphql(`
+              mutation($projectId: ID!, $contentId: ID!) {
+                addProjectV2ItemById(input: { projectId: $projectId, contentId: $contentId }) {
+                  item { id }
+                }
+              }`, {
+              projectId: process.env.PROJECT_ID,
+              contentId: issue.data.node_id,
+            });
+
+            const fieldInfo = await github.graphql(`
+              query($projectId: ID!) {
+                node(id: $projectId) {
+                  ... on ProjectV2 {
+                    fields(first: 50) {
+                      nodes {
+                        ... on ProjectV2SingleSelectField {
+                          id name options { id name }
+                        }
+                      }
+                    }
+                  }
+                }
+              }`, { projectId: process.env.PROJECT_ID });
+
+            const statusField = fieldInfo.node.fields.nodes.find(f => f.id === process.env.STATUS_FIELD_ID);
+            const option = statusField?.options.find(o => o.name === 'テスト中');
+            if (!option) return;
+
+            await github.graphql(`
+              mutation($projectId: ID!, $itemId: ID!, $fieldId: ID!, $optionId: String!) {
+                updateProjectV2ItemFieldValue(input: {
+                  projectId: $projectId, itemId: $itemId, fieldId: $fieldId,
+                  value: { singleSelectOptionId: $optionId }
+                }) { projectV2Item { id } }
+              }`, {
+              projectId: process.env.PROJECT_ID,
+              itemId: addResult.addProjectV2ItemById.item.id,
+              fieldId: process.env.STATUS_FIELD_ID,
+              optionId: option.id,
+            });
+            console.log(`Issue #${issueNumber} → テスト中`);
+
+      - name: PRマージ時 → 関連Issueを「Done」へ
+        if: github.event_name == 'pull_request' && github.event.action == 'closed' && github.event.pull_request.merged
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.PROJECT_TOKEN }}
+          script: |
+            const body = context.payload.pull_request.body || '';
+            const issueMatch = body.match(/(?:closes|fixes|resolves)\s+#(\d+)/i);
+            if (!issueMatch) return;
+            const issueNumber = parseInt(issueMatch[1]);
+
+            const issue = await github.rest.issues.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issueNumber,
+            });
+
+            const addResult = await github.graphql(`
+              mutation($projectId: ID!, $contentId: ID!) {
+                addProjectV2ItemById(input: { projectId: $projectId, contentId: $contentId }) {
+                  item { id }
+                }
+              }`, {
+              projectId: process.env.PROJECT_ID,
+              contentId: issue.data.node_id,
+            });
+
+            const fieldInfo = await github.graphql(`
+              query($projectId: ID!) {
+                node(id: $projectId) {
+                  ... on ProjectV2 {
+                    fields(first: 50) {
+                      nodes {
+                        ... on ProjectV2SingleSelectField {
+                          id name options { id name }
+                        }
+                      }
+                    }
+                  }
+                }
+              }`, { projectId: process.env.PROJECT_ID });
+
+            const statusField = fieldInfo.node.fields.nodes.find(f => f.id === process.env.STATUS_FIELD_ID);
+            const option = statusField?.options.find(o => o.name === 'Done');
+            if (!option) return;
+
+            await github.graphql(`
+              mutation($projectId: ID!, $itemId: ID!, $fieldId: ID!, $optionId: String!) {
+                updateProjectV2ItemFieldValue(input: {
+                  projectId: $projectId, itemId: $itemId, fieldId: $fieldId,
+                  value: { singleSelectOptionId: $optionId }
+                }) { projectV2Item { id } }
+              }`, {
+              projectId: process.env.PROJECT_ID,
+              itemId: addResult.addProjectV2ItemById.item.id,
+              fieldId: process.env.STATUS_FIELD_ID,
+              optionId: option.id,
+            });
+            console.log(`Issue #${issueNumber} → Done`);

@@ -1,0 +1,203 @@
+name: Roadmap Date Sync
+
+# Sprint (Iteration) field dates are displayed on the Roadmap view timeline.
+# This workflow reads Sprint iterations and logs start/end dates for verification.
+
+on:
+  # Manual execution (bulk sync all items)
+  workflow_dispatch:
+  # Daily schedule (9:00 UTC)
+  schedule:
+    - cron: '0 9 * * *'
+  # Issue/PR events
+  issues:
+    types: [opened, edited, labeled, assigned]
+  pull_request:
+    types: [opened, edited, labeled]
+
+env:
+  PROJECT_ID: 'PVT_kwHOAtlXXM4Bcr3b'
+  PROJECT_NUMBER: 6
+  OWNER: 'fideguch'
+
+jobs:
+  sync-roadmap-dates:
+    runs-on: ubuntu-latest
+    permissions:
+      issues: read
+      pull-requests: read
+    steps:
+      - name: Sync Sprint dates to Roadmap
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.PROJECT_TOKEN }}
+          script: |
+            // 1. Fetch project fields to identify the Sprint (Iteration) field
+            const fieldsQuery = `query($projectId: ID!) {
+              node(id: $projectId) {
+                ... on ProjectV2 {
+                  fields(first: 50) {
+                    nodes {
+                      ... on ProjectV2IterationField {
+                        id
+                        name
+                        configuration {
+                          iterations {
+                            id
+                            title
+                            startDate
+                            duration
+                          }
+                          completedIterations {
+                            id
+                            title
+                            startDate
+                            duration
+                          }
+                        }
+                      }
+                      ... on ProjectV2Field {
+                        id
+                        name
+                        dataType
+                      }
+                      ... on ProjectV2SingleSelectField {
+                        id
+                        name
+                      }
+                    }
+                  }
+                }
+              }
+            }`;
+
+            const fieldsResult = await github.graphql(fieldsQuery, {
+              projectId: process.env.PROJECT_ID
+            });
+
+            const fields = fieldsResult.node.fields.nodes;
+
+            // Find Sprint (Iteration) field
+            const sprintField = fields.find(f => f.configuration?.iterations);
+            if (!sprintField) {
+              console.log('Sprint (Iteration) field not found');
+              return;
+            }
+            console.log(`Sprint field detected: ${sprintField.name} (${sprintField.id})`);
+
+            // Map all iterations (active + completed)
+            const allIterations = [
+              ...(sprintField.configuration.iterations || []),
+              ...(sprintField.configuration.completedIterations || [])
+            ];
+            const iterationMap = {};
+            for (const iter of allIterations) {
+              const startDate = new Date(iter.startDate);
+              const endDate = new Date(startDate);
+              endDate.setDate(endDate.getDate() + iter.duration);
+              iterationMap[iter.id] = {
+                title: iter.title,
+                startDate: iter.startDate,
+                endDate: endDate.toISOString().split('T')[0],
+                duration: iter.duration
+              };
+              console.log(`  Sprint: ${iter.title} (${iter.startDate} ~ ${endDate.toISOString().split('T')[0]})`);
+            }
+
+            // 2. Fetch all project items
+            let hasNextPage = true;
+            let cursor = null;
+            let allItems = [];
+
+            while (hasNextPage) {
+              const itemsQuery = `query($projectId: ID!, $cursor: String) {
+                node(id: $projectId) {
+                  ... on ProjectV2 {
+                    items(first: 100, after: $cursor) {
+                      pageInfo { hasNextPage endCursor }
+                      nodes {
+                        id
+                        content {
+                          ... on Issue { number title }
+                          ... on PullRequest { number title }
+                        }
+                        fieldValues(first: 30) {
+                          nodes {
+                            ... on ProjectV2ItemFieldIterationValue {
+                              field { ... on ProjectV2IterationField { id name } }
+                              iterationId
+                              title
+                              startDate
+                              duration
+                            }
+                            ... on ProjectV2ItemFieldDateValue {
+                              field { ... on ProjectV2Field { id name } }
+                              date
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }`;
+
+              const result = await github.graphql(itemsQuery, {
+                projectId: process.env.PROJECT_ID,
+                cursor: cursor
+              });
+
+              const items = result.node.items;
+              allItems = allItems.concat(items.nodes);
+              hasNextPage = items.pageInfo.hasNextPage;
+              cursor = items.pageInfo.endCursor;
+            }
+
+            console.log(`\nTotal items: ${allItems.length}`);
+
+            // 3. Check Sprint info for each item and log date field status
+            let syncCount = 0;
+            for (const item of allItems) {
+              const title = item.content?.title || '(Draft item)';
+              const number = item.content?.number || '-';
+
+              const sprintValue = item.fieldValues.nodes.find(
+                fv => fv.iterationId && fv.field?.id === sprintField.id
+              );
+
+              if (!sprintValue) {
+                continue;
+              }
+
+              const iterInfo = iterationMap[sprintValue.iterationId];
+              if (!iterInfo) {
+                console.log(`  #${number} ${title}: Sprint ID ${sprintValue.iterationId} not found`);
+                continue;
+              }
+
+              console.log(`  #${number} ${title}: Sprint "${iterInfo.title}" -> ${iterInfo.startDate} ~ ${iterInfo.endDate}`);
+              syncCount++;
+            }
+
+            console.log(`\nSync targets: ${syncCount} items`);
+            console.log('\nThe Roadmap view displays Sprint (Iteration) field start/end dates');
+            console.log('as timeline bars automatically.');
+            console.log('Date fields setting: Start date = Sprint start, Target date = Sprint end');
+
+            // 4. Write summary
+            core.summary
+              .addHeading('Roadmap Date Sync Result', 2)
+              .addRaw(`**Executed at**: ${new Date().toISOString()}`)
+              .addBreak()
+              .addRaw(`**Total items**: ${allItems.length}`)
+              .addBreak()
+              .addRaw(`**With Sprint**: ${syncCount}`)
+              .addBreak()
+              .addBreak()
+              .addHeading('Sprint List', 3);
+
+            for (const [id, info] of Object.entries(iterationMap)) {
+              core.summary.addRaw(`- **${info.title}**: ${info.startDate} ~ ${info.endDate}`).addBreak();
+            }
+
+            await core.summary.write();
