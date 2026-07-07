@@ -14,6 +14,8 @@
  * Button ids: 'home-play', 'level-ch1-l01'.., 'hud-restart', 'result-replay',
  * 'result-retry', 'result-next'.
  */
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
 
 interface InkbridgeHook {
@@ -58,13 +60,30 @@ async function tapButton(page: Page, id: string): Promise<void> {
   await page.mouse.click(rect.x + rect.width / 2, rect.y + rect.height / 2);
 }
 
-/** L1 solution stroke in world coordinates (mirrors the ch1-l01 ghost). */
-const L1_STROKE_WORLD: ReadonlyArray<[number, number]> = [
-  [-2.6, 0.35],
-  [-1.0, 0.45],
-  [0.8, 0.45],
-  [2.6, 0.35],
-];
+/**
+ * L1 solution stroke = the level's own recorded ghost (single source of truth —
+ * stays correct when level geometry is re-authored or tuning is recalibrated).
+ */
+function loadL1GhostStroke(): ReadonlyArray<[number, number]> {
+  const candidates = [
+    join(process.cwd(), 'levels', 'ch1-l01.json'),
+    join(process.cwd(), 'tests', 'fixtures', 'gate-levels', 'ch1-l01.json'),
+  ];
+  for (const file of candidates) {
+    try {
+      const level = JSON.parse(readFileSync(file, 'utf-8')) as {
+        ghostSolutions: Array<{ stroke: Array<[number, number]> }>;
+      };
+      const stroke = level.ghostSolutions[0]?.stroke;
+      if (stroke && stroke.length >= 2) return stroke;
+    } catch {
+      // try next candidate
+    }
+  }
+  throw new Error('ch1-l01 level JSON with a ghost stroke not found');
+}
+
+const L1_STROKE_WORLD = loadL1GhostStroke();
 
 async function drawStroke(page: Page, worldPoints: ReadonlyArray<[number, number]>): Promise<void> {
   const screenPoints = await page.evaluate((pts) => {
