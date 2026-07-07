@@ -59,7 +59,7 @@ Fields: `points` (current raw polyline), `inkConsumed` (world-meter length, decr
 |---|---|---|
 | `segments` | Segment[] | N = 8–24 capsule bodies (start 12, hard cap 32), length = `physics.segmentLength`; capsule radius TBD (spike S1); same-stroke self-collision off (`groupIndex = -strokeId`); total chain mass = `bridge.strokeMassToCarRatio` (0.5) × vehicle mass |
 | `joints` | ChainJoint[] | N−1 revolute joints: spring `hertz` 6 (4–8), `dampingRatio` 0.7 (0.6–0.8), angle limit ±0.3 rad (±0.2–0.4), `collideConnected=false` |
-| joint stress state | per joint | `raw = \|F\|/breakForce + \|τ\|/breakTorque`; `ema = 0.85·ema + 0.15·raw` every tick; `creaking = ema in [0.6, 1.0]`; `broken = ema > 1.0` → `b2DestroyJoint` (all over-threshold joints break the same step) |
+| joint stress state | per joint | `raw = \|F\|/breakForce + \|τ\|/breakTorque`; `ema = 0.85·ema + 0.15·raw` every tick; `creaking = ema in [0.6, 1.0)`; `broken = ema >= 1.0` → `b2DestroyJoint` (all over-threshold joints break the same step) |
 | `breakForce/breakTorque` | number | initial = `bridge.breakForceFactor` (2.5) × vehicle static load |
 | orphan fragments | Segment[] | after break: non-colliding with vehicle + fade after `bridge.debrisFadeDelaySec` (3.0 s) |
 | fallback mode | flag | single compound rigid body (method A): no stress/creak/break; render-layer-only bending; swapped at physics layer only |
@@ -88,7 +88,7 @@ JudgeOutcome =
       ticks }
 ```
 
-Rules: clear on the tick referencePoint ∈ goalFlag rect; fail on ① referencePoint.y < killY, ② roof ground-contact sustained `fail.tipOverTimeSec` (0.5 s), ③ ticks > maxTicks (1800). **Same-tick clear+fail resolves as clear (BR-009).** Partial collapse with the car still reaching the flag = clear. Solver divergence (NaN, or speed > `physics.divergenceSpeedMax` 80 m/s) triggers the failsafe reset path (≤ 1 s), not a fail result.
+Rules: clear on the tick referencePoint ∈ goalFlag rect; fail on ① referencePoint.y < killY, ② vehicle inverted (|tilt| > `fail.tipOverAngleRad` 2.1 rad, deterministic headless-friendly proxy for roof contact — see .fable/decisions.md) sustained `fail.tipOverTimeSec` (0.5 s), ③ ticks > maxTicks (1800). **Same-tick clear+fail resolves as clear (BR-009).** Partial collapse with the car still reaching the flag = clear. Solver divergence (NaN, or speed > `physics.divergenceSpeedMax` 80 m/s) triggers the failsafe reset path (≤ 1 s), not a fail result.
 
 ### 1.6 StarRating (derived)
 
