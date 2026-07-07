@@ -29,6 +29,8 @@ export const physics = {
 
 /** Bridge chain (game_design §8.1) */
 export const bridge = {
+  /** Capsule segment radius in meters (game_design §3.2 "radius TBD spike S1"). */
+  capsuleRadius: 0.12, // TBD (spike S1) — provisional
   /** Revolute spring joint stiffness. Range 4-8. */
   jointHertz: 6,
   /** Joint spring damping ratio. Range 0.6-0.8. */
@@ -49,8 +51,24 @@ export const bridge = {
   debrisFadeDelaySec: 3.0,
 };
 
-/** Vehicle (game_design §8.1) */
+/** Vehicle (game_design §8.1; geometry §3.4 "dimensions TBD spike S1") */
 export const car = {
+  /** Chassis rounded-box half width in meters. */
+  chassisHalfWidth: 0.75, // TBD (spike S1) — provisional
+  /** Chassis rounded-box half height in meters. */
+  chassisHalfHeight: 0.25, // TBD (spike S1) — provisional
+  /** Chassis rounded-box corner radius in meters. */
+  chassisCornerRadius: 0.08, // TBD (spike S1) — provisional
+  /** Chassis shape density (kg/m^2). */
+  chassisDensity: 1.0, // TBD (spike S1) — provisional
+  /** Wheel circle radius in meters. */
+  wheelRadius: 0.3, // TBD (spike S1) — provisional
+  /** Wheel shape density (kg/m^2). */
+  wheelDensity: 1.0, // TBD (spike S1) — provisional
+  /** Wheel anchor X offset from chassis center (+front / -rear), meters. */
+  wheelOffsetX: 0.45, // TBD (spike S1) — provisional
+  /** Wheel anchor Y offset from chassis center (below), meters. */
+  wheelOffsetY: -0.25, // TBD (spike S1) — provisional
   /** Wheel joint suspension stiffness. Range 3-6. */
   suspensionHertz: 4,
   /** Wheel joint suspension damping. Range 0.5-0.9. */
@@ -71,6 +89,11 @@ export const car = {
 export const fail = {
   /** Roof-contact time to declare tip-over, seconds. Range 0.3-1.0. */
   tipOverTimeSec: 0.5,
+  /**
+   * Chassis tilt (rad, either direction) that counts as roof-down.
+   * Angle-based roofContactActive definition — see Vehicle.ts header.
+   */
+  tipOverAngleRad: 2.1, // TBD (tuning) — provisional (~120 deg)
   /** Default timeout in ticks (30 s @ 60 Hz). Level JSON maxTicks overrides. */
   maxTicksDefault: 1800,
 };
