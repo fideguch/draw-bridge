@@ -165,6 +165,7 @@ export class ShopScene extends Phaser.Scene {
       label: `◎ ${formatCoins(price)}`,
       variant: 'primary',
       services: this.services,
+      devId: `shop-buy-${card.axis}`,
       onClick: () => void this.buy(card.axis),
     });
     button.setEnabled(isAffordable);

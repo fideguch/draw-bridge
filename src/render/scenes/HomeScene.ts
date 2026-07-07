@@ -67,6 +67,7 @@ export class HomeScene extends Phaser.Scene {
       label: 'ショップ',
       variant: 'secondary',
       services,
+      devId: 'home-shop',
       onClick: () => this.scene.start('Shop'),
     });
 
