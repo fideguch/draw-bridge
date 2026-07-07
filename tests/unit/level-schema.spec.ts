@@ -54,7 +54,7 @@ describe('validateLevel — accepts the contract example', () => {
     expect(level.gimmickTags).toEqual([]);
     expect(level.ghostSolutions).toHaveLength(1);
     expect(level.ghostSolutions[0]?.kind).toBe('any');
-    expect(level.ghostSolutions[0]?.result.starRating).toBe(2);
+    expect(level.ghostSolutions[0]?.result.starRating).toBe(3); // genuine recorded ghost (T029)
     expect(level.maxTicks).toBeUndefined();
     expect(level.bonusMultiplier).toBeUndefined();
   });

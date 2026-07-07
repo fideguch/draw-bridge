@@ -34,11 +34,11 @@
 - [x] T023 Implement src/engine/physics/Vehicle.ts to pass T022 (FR-005, FR-019 effect wiring)
 - [x] T024 Write failing tests for judge in tests/unit/judge.spec.ts (flag AABB reach via VehicleReferencePoint=chassis AABB center; killY fall; tip-over roof-contact 0.5s; timeout 1800 ticks; same-tick clear-beats-fail per BR-009; divergence failsafe at physics.divergenceSpeedMax)
 - [x] T025 Implement src/engine/rules/Judge.ts to pass T024 (FR-007, FR-008)
-- [ ] T026 [P] Write failing tests for ink + stars in tests/unit/ink-stars.spec.ts (length accounting, budget colors thresholds 50%/20%, star2/star3 thresholds from level JSON, star1 on any clear)
-- [ ] T027 [P] Implement src/engine/rules/InkBudget.ts + StarRating.ts to pass T026 (FR-002, FR-007)
-- [ ] T028 [P] Write failing tests for ghost replay in tests/unit/ghost.spec.ts (position-sample record every N ticks; playback verification tolerance band: success match, final pos ε=0.05m, ticks ±30)
-- [ ] T029 [P] Implement src/engine/replay/GhostRecorder.ts + GhostPlayer.ts to pass T028 (FR-015, FR-026 Gate 2 substrate)
-- [ ] T030 Implement src/engine/EngineEvents.ts typed event bus (stroke committed / launch / creak / break / coin / clear / fail) + tests in tests/unit/events.spec.ts — one-way Engine→observers (constitution IV)
+- [x] T026 [P] Write failing tests for ink + stars in tests/unit/ink-stars.spec.ts (length accounting, budget colors thresholds 50%/20%, star2/star3 thresholds from level JSON, star1 on any clear)
+- [x] T027 [P] Implement src/engine/rules/InkBudget.ts + StarRating.ts to pass T026 (FR-002, FR-007)
+- [x] T028 [P] Write failing tests for ghost replay in tests/unit/ghost.spec.ts (position-sample record every N ticks; playback verification tolerance band: success match, final pos ε=0.05m, ticks ±30)
+- [x] T029 [P] Implement src/engine/replay/GhostRecorder.ts + GhostPlayer.ts to pass T028 (FR-015, FR-026 Gate 2 substrate)
+- [x] T030 Implement src/engine/EngineEvents.ts typed event bus (stroke committed / launch / creak / break / coin / clear / fail) + tests in tests/unit/events.spec.ts — one-way Engine→observers (constitution IV) + src/engine/GameSimulation.ts attempt-lifecycle facade (tests/unit/simulation.spec.ts) consumed by GhostPlayer/gates/PlayScene
 
 **Checkpoint**: headless engine plays a scripted stroke on a fixture level and judges clear/fail deterministically; unit coverage ≥80% on src/engine/.
 

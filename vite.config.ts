@@ -29,5 +29,15 @@ export default defineConfig({
   test: {
     environment: 'node',
     include: ['tests/unit/**/*.spec.ts', 'tests/contract/**/*.spec.ts'],
+    coverage: {
+      // Phase 2 checkpoint gate: unit coverage >= 80% on src/engine/ (tasks.md).
+      provider: 'v8',
+      include: ['src/engine/**/*.ts'],
+      thresholds: {
+        lines: 80,
+        functions: 80,
+        statements: 80,
+      },
+    },
   },
 });

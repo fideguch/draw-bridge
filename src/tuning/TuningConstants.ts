@@ -214,6 +214,8 @@ export const speedLines = {
 
 /** Coin pickup (game_design §8.4) */
 export const coin = {
+  /** Pickup radius around VehicleReferencePoint in meters (FR-009). */
+  collectRadiusM: 0.5, // TBD (tuning) — provisional
   /** Pop scale (1.0 -> this -> 0). Fixed. */
   popScale: 1.3,
   /** Pop duration in ms. Fixed. */
