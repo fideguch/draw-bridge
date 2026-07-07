@@ -81,7 +81,7 @@ export class LevelSelectScene extends Phaser.Scene {
     );
     if (tile.isBonus) {
       container.add(
-        this.add.text(0, -2, 'BONUS', makeTextStyle({ size: 12, bold: true }, color.textPrimary)).setOrigin(0.5),
+        this.add.text(0, -2, 'ボーナス', makeTextStyle({ size: 12, bold: true }, color.textPrimary)).setOrigin(0.5),
       );
     }
 

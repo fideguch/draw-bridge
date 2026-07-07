@@ -85,7 +85,7 @@ export class SettingsScene extends Phaser.Scene {
     this.add.text(ROW_LABEL_X, 420, 'クレジット', makeTextStyle(type.body, color.textPrimary)).setOrigin(0, 0);
     this.add.text(ROW_LABEL_X, 448, appInfo.credits, makeTextStyle(type.caption, color.textSecondary)).setOrigin(0, 0);
     this.add
-      .text(ROW_LABEL_X, 512, `Version ${appInfo.version}`, makeTextStyle(type.caption, color.textSecondary))
+      .text(ROW_LABEL_X, 512, `バージョン ${appInfo.version}`, makeTextStyle(type.caption, color.textSecondary))
       .setOrigin(0, 0);
   }
 

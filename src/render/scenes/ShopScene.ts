@@ -145,7 +145,7 @@ export class ShopScene extends Phaser.Scene {
           y: centerY,
           width: 200,
           height: 52,
-          label: 'MAX',
+          label: '最大',
           variant: 'secondary',
           services: this.services,
           onClick: () => undefined,
