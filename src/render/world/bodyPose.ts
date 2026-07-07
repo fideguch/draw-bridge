@@ -11,7 +11,7 @@
  * WorldToPixel before drawing.
  */
 
-import { b2Body_GetPosition, b2Body_GetRotation } from 'phaser-box2d';
+import { b2Body_GetLinearVelocity, b2Body_GetPosition, b2Body_GetRotation } from 'phaser-box2d';
 import type { b2BodyId } from 'phaser-box2d';
 import type { Pose } from './StepInterpolator';
 
@@ -20,6 +20,12 @@ export function readBodyPose(bodyId: b2BodyId): Pose {
   const position = b2Body_GetPosition(bodyId);
   const rotation = b2Body_GetRotation(bodyId);
   return { x: position.x, y: position.y, angle: Math.atan2(rotation.s, rotation.c) };
+}
+
+/** Live linear speed (m/s) of one body — the speed-lines / engine-hum gate. */
+export function readBodySpeed(bodyId: b2BodyId): number {
+  const velocity = b2Body_GetLinearVelocity(bodyId);
+  return Math.hypot(velocity.x, velocity.y);
 }
 
 /** Live poses of an ordered body list (chain segments, vehicle parts). */

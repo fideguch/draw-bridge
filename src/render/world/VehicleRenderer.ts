@@ -19,8 +19,9 @@
 import type Phaser from 'phaser';
 import type { Vehicle } from '@engine/physics/Vehicle';
 import { color, stroke as strokeToken } from '@render/ui/theme';
-import { car } from '@tuning/TuningConstants';
-import { readBodyPose } from './bodyPose';
+import { car, launch } from '@tuning/TuningConstants';
+import { degToRad } from '@render/juice/cameraMath';
+import { readBodyPose, readBodySpeed } from './bodyPose';
 import { StepInterpolator, type Pose } from './StepInterpolator';
 import type { WorldToPixel } from './worldToPixel';
 
@@ -29,6 +30,7 @@ export interface VehicleRendererOptions {
 }
 
 export class VehicleRenderer {
+  private readonly scene: Phaser.Scene;
   private readonly graphics: Phaser.GameObjects.Graphics;
   private readonly vehicle: Vehicle;
   private readonly transform: WorldToPixel;
@@ -39,7 +41,12 @@ export class VehicleRenderer {
   private readonly chassisCornerPx: number;
   private readonly wheelRadiusPx: number;
 
+  // Anticipation squash / release stretch (game_design §4.2 2-1 / 2-2). Tweened
+  // fields applied as a canvas transform about the chassis centre each frame.
+  private readonly squash = { x: 1, y: 1, tilt: 0 };
+
   constructor(scene: Phaser.Scene, vehicle: Vehicle, transform: WorldToPixel, options: VehicleRendererOptions = {}) {
+    this.scene = scene;
     this.graphics = scene.add.graphics();
     if (options.depth !== undefined) {
       this.graphics.setDepth(options.depth);
@@ -61,18 +68,72 @@ export class VehicleRenderer {
       return;
     }
     this.graphics.clear();
+    // Apply squash/stretch as a transform about the chassis pixel centre so the
+    // whole car deforms around itself (identity when not launching → no cost).
+    const pivot = this.transform.point(chassis);
+    this.graphics.save();
+    this.graphics.translateCanvas(pivot.x, pivot.y);
+    this.graphics.scaleCanvas(this.squash.x, this.squash.y);
+    this.graphics.rotateCanvas(this.squash.tilt);
+    this.graphics.translateCanvas(-pivot.x, -pivot.y);
     // Wheels first so the chassis body overlaps their inner edge.
     this.drawWheel(rearWheel);
     this.drawWheel(frontWheel);
     this.drawChassis(chassis);
+    this.graphics.restore();
   }
 
-  /** Forget interpolation history on attempt restart. */
+  /** Current chassis linear speed (m/s) — speed-lines / engine-hum gate. */
+  chassisSpeed(): number {
+    return readBodySpeed(this.vehicle.chassisId);
+  }
+
+  /**
+   * Anticipation squash (§4.2 2-1): ease into a rear-tilted, vertically
+   * compressed pose over launch.squashEaseInSec. Held until playRelease().
+   */
+  playAnticipation(): void {
+    this.scene.tweens.killTweensOf(this.squash);
+    this.scene.tweens.add({
+      targets: this.squash,
+      x: launch.squashScaleX,
+      y: launch.squashScaleY,
+      tilt: -degToRad(launch.squashTiltDeg), // nose-up rear lean (car faces +x)
+      duration: launch.squashEaseInSec * 1000,
+      ease: 'Sine.In',
+    });
+  }
+
+  /**
+   * Release stretch (§4.2 2-2): snap to a forward stretch then recover to rest
+   * over launch.stretchRecoverMs.
+   */
+  playRelease(): void {
+    this.scene.tweens.killTweensOf(this.squash);
+    this.squash.x = launch.stretchScaleX;
+    this.squash.y = launch.stretchScaleY;
+    this.squash.tilt = 0;
+    this.scene.tweens.add({
+      targets: this.squash,
+      x: 1,
+      y: 1,
+      tilt: 0,
+      duration: launch.stretchRecoverMs,
+      ease: 'Quad.Out',
+    });
+  }
+
+  /** Forget interpolation history + squash on attempt restart. */
   reset(): void {
     this.interpolator.reset();
+    this.scene.tweens.killTweensOf(this.squash);
+    this.squash.x = 1;
+    this.squash.y = 1;
+    this.squash.tilt = 0;
   }
 
   destroy(): void {
+    this.scene.tweens.killTweensOf(this.squash);
     this.graphics.destroy();
   }
 

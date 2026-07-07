@@ -56,6 +56,43 @@ export interface LevelResultCreditView {
 }
 
 /**
+ * Per-attempt juice handle (returned by attachEngineJuice). Bundles the
+ * engine-event SFX/haptic detach with the render-driven audio+haptics the scene
+ * fires from its own loop: the continuous drawing/running sounds (§4.1 1-4 /
+ * §4.2 2-1 / 2-5) and the goal 5-beat celebration cues (§4.3). The concrete
+ * SfxPlayer / HapticsRouter / AudioBus live in the composition root (main.ts) —
+ * `render → meta` / `render → platform-impl` are forbidden — so the scene never
+ * touches them directly; it drives these semantic methods and the root maps them
+ * to buffers/haptics behind the port (sound/haptic settings gated there).
+ */
+export interface AttemptJuice {
+  /** Detach the engine-event SFX + haptics for this attempt. */
+  detach(): void;
+
+  // ── continuous drawing / running sounds (scene-cadenced) ──────────────────
+  /** Draw-scrub tick at draw speed [0,1] → volume/pitch (§4.1 1-4). */
+  drawScrub(speed01: number): void;
+  /** Anticipation engine-rev tick at progress [0,1] → rising pitch (§4.2 2-1). */
+  revTick(progress01: number): void;
+  /** Engine-hum tick at speed ratio [0,1] → gear-stepped pitch (§4.2 2-5). */
+  engineHum(speedRatio01: number): void;
+
+  // ── goal celebration cues (§4.3) ──────────────────────────────────────────
+  /** Duck the BGM bus for the celebration (§4.3 3-8). */
+  duckBgm(): void;
+  /** Restore the BGM bus after the celebration. */
+  unduckBgm(): void;
+  /** Star beat i (0-2): C-E-G arpeggio + cymbal on the 3rd + ascending haptic (§4.3 3-4). */
+  goalStarBeat(index: number): void;
+  /** Reward count-up tick at progress [0,1] → pitch 1.0→1.3 (§4.3 3-5). */
+  goalCountTick(progress01: number): void;
+  /** Coin arrival i: a semitone-up chime (§4.3 3-6). */
+  goalCoinArrive(index: number): void;
+  /** Confetti cannon side (0 left / 1 right): pop SFX + heavy haptic on side 0 (§4.3 3-3). */
+  goalConfettiPop(sideIndex: number): void;
+}
+
+/**
  * The full service surface the meta screens consume. Every method is
  * synchronous-safe to call from a scene; the async ones persist through the
  * SaveManager triggers behind the port.
@@ -104,14 +141,14 @@ export interface GameServices {
 
   /**
    * Wire engine-event juice (SFX + haptics) for ONE attempt's event bus and
-   * return a detach() for teardown. The composition root owns the concrete
-   * SfxPlayer/HapticsRouter — `render → meta` and `render → platform-impl` are
-   * forbidden (constitution IV / conventions §1) — so PlayScene hands it the
-   * sim's events rather than constructing those itself. Camera/renderer juice
-   * (kick, trauma, stress tint, coin pop) stays in PlayScene where the scene
-   * objects live.
+   * return an AttemptJuice handle (detach + scene-driven celebration cues). The
+   * composition root owns the concrete SfxPlayer/HapticsRouter/AudioBus —
+   * `render → meta` and `render → platform-impl` are forbidden (constitution IV
+   * / conventions §1) — so PlayScene hands it the sim's events rather than
+   * constructing those itself. Camera/renderer juice (kick, trauma, stress tint,
+   * coin pop, confetti, stars) stays in PlayScene where the scene objects live.
    */
-  attachEngineJuice(events: EngineEvents): () => void;
+  attachEngineJuice(events: EngineEvents): AttemptJuice;
 }
 
 /** Read the injected services from a scene registry (throws if BootScene skipped). */

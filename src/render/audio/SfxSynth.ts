@@ -32,6 +32,8 @@ export const SFX = {
   countTick: 'countTick',
   sadFail: 'sadFail',
   confettiPop: 'confettiPop',
+  engineHum: 'engineHum',
+  cymbal: 'cymbal',
 } as const;
 
 export type SfxKey = (typeof SFX)[keyof typeof SFX];
@@ -239,6 +241,44 @@ export function confettiPop(ctx: AudioContextLike, params: ToneParams = {}): Aud
 }
 
 /**
+ * Engine hum — short buzzy tone (fundamental + octave saw-ish harmonics) re-
+ * triggered on a cadence during the run with a speed→pitch multiplier
+ * (game_design §4.2 2-5). Kept short so successive triggers overlap into a
+ * continuous-enough hum without a true looping voice.
+ */
+export function engineHum(ctx: AudioContextLike, params: ToneParams = {}): AudioBufferLike {
+  const duration = params.durationSec ?? 0.16;
+  const freq = params.freqHz ?? 120;
+  const amplitude = params.amplitude ?? 0.3;
+  const { buffer, data, sampleRate } = createMono(ctx, duration);
+  for (let i = 0; i < data.length; i++) {
+    const t = i / sampleRate;
+    const env = attackRelease(t, duration, 0.02, 0.04);
+    const body = Math.sin(TWO_PI * freq * t) + Math.sin(TWO_PI * freq * 2 * t) * 0.35;
+    const grit = noise() * 0.08;
+    data[i] = (body + grit) * env * amplitude;
+  }
+  return buffer;
+}
+
+/** Cymbal — bright decaying noise crash for the 3rd goal star (§4.3 3-4). */
+export function cymbal(ctx: AudioContextLike, params: ToneParams = {}): AudioBufferLike {
+  const duration = params.durationSec ?? 0.4;
+  const amplitude = params.amplitude ?? 0.35;
+  const { buffer, data, sampleRate } = createMono(ctx, duration);
+  let last = 0;
+  for (let i = 0; i < data.length; i++) {
+    const t = i / sampleRate;
+    const env = Math.exp(-t * 7);
+    // High-passed noise (subtract a slow-moving average) reads as a shimmer.
+    const n = noise();
+    last += 0.5 * (n - last);
+    data[i] = (n - last) * env * amplitude;
+  }
+  return buffer;
+}
+
+/**
  * Build the full SFX library once (call at scene start after the context is
  * resumable). `loopFadeMs`/draw-loop params reference TuningConstants where a
  * canonical value exists; the rest are provisional placeholder tunings.
@@ -260,5 +300,7 @@ export function buildSfxLibrary(ctx: AudioContextLike): Map<SfxKey, AudioBufferL
     [SFX.countTick, countTick(ctx)],
     [SFX.sadFail, sadFail(ctx)],
     [SFX.confettiPop, confettiPop(ctx)],
+    [SFX.engineHum, engineHum(ctx)],
+    [SFX.cymbal, cymbal(ctx)],
   ]);
 }

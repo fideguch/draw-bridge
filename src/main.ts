@@ -8,8 +8,10 @@ import { SfxPlayer } from '@render/audio/SfxPlayer';
 import type { PlayOptions } from '@render/audio/SfxPlayer';
 import { SFX, buildSfxLibrary } from '@render/audio/SfxSynth';
 import type { SfxKey } from '@render/audio/SfxSynth';
+import { drawScrubModulation, engineHumModulation, rateToSemitones } from '@render/audio/audioMath';
 import type { AudioContextLike } from '@render/audio/WebAudioTypes';
 import { HapticsRouter } from '@render/juice/HapticsRouter';
+import { launch } from '@tuning/TuningConstants';
 import { BootScene } from '@render/scenes/BootScene';
 import { HomeScene } from '@render/scenes/HomeScene';
 import { LevelSelectScene } from '@render/scenes/LevelSelectScene';
@@ -17,7 +19,7 @@ import { PlayScene } from '@render/scenes/PlayScene';
 import { SettingsScene } from '@render/scenes/SettingsScene';
 import { ShopScene } from '@render/scenes/ShopScene';
 import { SERVICES_KEY } from '@render/ui/services';
-import type { GameServices } from '@render/ui/services';
+import type { AttemptJuice, GameServices } from '@render/ui/services';
 
 // Portrait design basis (plan.md Technical Context): 390x844.
 const DESIGN_WIDTH = 390;
@@ -140,9 +142,8 @@ function createGameServices(): GameServices {
       const clamp01 = (value: number): number => Math.min(1, Math.max(0, value));
       const unsubscribes = [
         events.on('strokeCommitted', () => playIf(SFX.commitPop)),
-        // No dedicated rev buffer yet: a quiet, pitched-down launch thud stands in
-        // for the anticipation rev (Phase 6 replaces it with the goal sequence).
-        events.on('launchStarted', () => playIf(SFX.launchBurst, { volume: 0.3, pitchSemitones: -5 })),
+        // The rising anticipation rev is scene-driven (revTick); launchReleased is
+        // the bass-weighted release burst (§4.2 2-2 "低域を効かせた発進バースト音").
         events.on('launchReleased', () => playIf(SFX.launchBurst)),
         events.on('creak', (payload) =>
           playIf(SFX.creak, {
@@ -152,12 +153,6 @@ function createGameServices(): GameServices {
         ),
         events.on('break', () => playIf(SFX.crack)),
         events.on('coinCollected', () => playIf(SFX.coinChime, { pitchSemitones: sfxPlayer.nextCoinPitch() })),
-        events.on('cleared', () => {
-          // Interim 3-note win arpeggio; the star-count-driven 5-beat is Phase 6.
-          playIf(SFX.starC);
-          window.setTimeout(() => playIf(SFX.starE), 120);
-          window.setTimeout(() => playIf(SFX.starG), 240);
-        }),
         events.on('failed', (payload) => {
           // divergence is the silent solver failsafe — no fail SFX (Judge header).
           if (payload.cause !== 'divergence') {
@@ -169,12 +164,52 @@ function createGameServices(): GameServices {
         enabled: saveManager.getData().settings.haptics,
       });
       attemptHaptics.attach();
-      return (): void => {
-        for (const unsubscribe of unsubscribes) {
-          unsubscribe();
-        }
-        attemptHaptics.detach();
+
+      const juice: AttemptJuice = {
+        detach: () => {
+          for (const unsubscribe of unsubscribes) {
+            unsubscribe();
+          }
+          attemptHaptics.detach();
+          audioBus.unduck(0);
+        },
+        drawScrub: (speed01) => {
+          const mod = drawScrubModulation(speed01);
+          playIf(SFX.drawLoop, { volume: mod.volume, pitchSemitones: mod.pitchSemitones });
+        },
+        revTick: (progress01) => {
+          const rate = 1 + (launch.revPitchMax - 1) * clamp01(progress01);
+          playIf(SFX.engineHum, { volume: 0.3, pitchSemitones: rateToSemitones(rate) });
+        },
+        engineHum: (speedRatio01) => {
+          const mod = engineHumModulation(speedRatio01);
+          playIf(SFX.engineHum, { volume: mod.volume, pitchSemitones: mod.pitchSemitones });
+        },
+        duckBgm: () => audioBus.duck(),
+        unduckBgm: () => audioBus.unduck(),
+        goalStarBeat: (index) => {
+          const note = index <= 0 ? SFX.starC : index === 1 ? SFX.starE : SFX.starG;
+          playIf(note);
+          if (index >= 2) {
+            playIf(SFX.cymbal); // 3rd star is "豪華" — add the cymbal accent (§4.3 3-4)
+          }
+          attemptHaptics.starBeat(index); // ascending light→medium→heavy
+        },
+        goalCountTick: (progress01) => {
+          const rate = 1 + 0.3 * clamp01(progress01); // pitch 1.0 → 1.3 (§4.3 3-5)
+          playIf(SFX.countTick, { pitchSemitones: rateToSemitones(rate) });
+        },
+        goalCoinArrive: (index) => {
+          playIf(SFX.coinChime, { pitchSemitones: Math.min(index, 12) });
+        },
+        goalConfettiPop: (sideIndex) => {
+          playIf(SFX.confettiPop);
+          if (sideIndex === 0) {
+            attemptHaptics.onLanding(); // .heavy on the cannon volley (§4.3 3-3)
+          }
+        },
       };
+      return juice;
     },
   };
 }

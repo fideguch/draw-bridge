@@ -27,6 +27,10 @@ interface InkbridgeHook {
   readonly state: DevHookPlayState['state'];
   readonly tick: number;
   readonly outcome: DevHookPlayState['outcome'];
+  /** True once the clear overlay's Next button is active (tempo contract, T093). */
+  readonly resultNextReady: boolean;
+  /** Raw accepted stroke-point count while drawing (input-latency probe, NFR-002). */
+  readonly strokePointCount: number;
   worldToScreen(x: number, y: number): { x: number; y: number };
   buttonRect(id: string): PageRect | null;
 }
@@ -38,6 +42,8 @@ const buttonRegistry = new Map<string, GameRectGetter>();
 const playState: DevHookPlayState = { state: null, tick: 0, outcome: null };
 let worldToScreenFn: WorldToScreenFn | null = null;
 let gameRef: Phaser.Game | null = null;
+let isResultNextReady = false;
+let strokePointCountValue = 0;
 
 /** Register a tappable target under a stable id; auto-cleans on scene shutdown. */
 export function registerDevButton(id: string, scene: Phaser.Scene, getGameRect: GameRectGetter): void {
@@ -56,6 +62,16 @@ export function setDevPlayState(next: Partial<DevHookPlayState>): void {
 /** PlayScene registers its camera-aware world->GAME-coordinate transform. */
 export function setWorldToGame(fn: WorldToScreenFn | null): void {
   worldToScreenFn = fn;
+}
+
+/** GoalSequence flips this true when the clear overlay's Next button activates. */
+export function setDevResultNextReady(ready: boolean): void {
+  isResultNextReady = ready;
+}
+
+/** PlayScene publishes the raw accepted stroke-point count while drawing. */
+export function setDevStrokePointCount(count: number): void {
+  strokePointCountValue = count;
 }
 
 function gameToPage(gx: number, gy: number): { x: number; y: number } {
@@ -82,6 +98,12 @@ export function installDevHook(game: Phaser.Game): void {
     },
     get outcome() {
       return playState.outcome;
+    },
+    get resultNextReady() {
+      return isResultNextReady;
+    },
+    get strokePointCount() {
+      return strokePointCountValue;
     },
     worldToScreen(x: number, y: number): { x: number; y: number } {
       if (!worldToScreenFn) throw new Error('worldToScreen not registered (PlayScene not active)');

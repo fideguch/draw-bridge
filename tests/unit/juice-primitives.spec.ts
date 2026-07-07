@@ -34,6 +34,14 @@ import {
 } from '@render/juice/RewardCountUp';
 import { confettiCannonPieces, confettiRainPieces } from '@render/juice/Confetti';
 import { starPolygon, starRevealSchedule } from '@render/juice/StarBurst';
+import { speedLineIntensity } from '@render/juice/SpeedLines';
+import {
+  drawScrubModulation,
+  engineHumModulation,
+  rateToSemitones,
+  semitonesToRate,
+} from '@render/audio/audioMath';
+import { draw, engine, speedLines } from '@tuning/TuningConstants';
 
 /** Injected celebration palette (the wiring passes real theme colours). */
 const TEST_PALETTE: readonly number[] = [0xff4f9a, 0xff7a1a, 0xffe14d, 0x21c46b, 0xffb300];
@@ -285,5 +293,50 @@ describe('star generators — §4.3 3-4 sequential reveal', () => {
       const r = Math.hypot(points[i] ?? 0, points[i + 1] ?? 0);
       expect(r).toBeLessThanOrEqual(28 + 1e-9);
     }
+  });
+});
+
+describe('speedLineIntensity — §4.2 2-10 over-threshold ramp', () => {
+  it('is 0 at or below the threshold, 1 at top speed', () => {
+    expect(speedLineIntensity(speedLines.thresholdRatio, speedLines.thresholdRatio)).toBe(0);
+    expect(speedLineIntensity(speedLines.thresholdRatio - 0.1, speedLines.thresholdRatio)).toBe(0);
+    expect(speedLineIntensity(1, speedLines.thresholdRatio)).toBeCloseTo(1, 5);
+  });
+
+  it('ramps monotonically between the threshold and top speed', () => {
+    const mid = (speedLines.thresholdRatio + 1) / 2;
+    const i = speedLineIntensity(mid, speedLines.thresholdRatio);
+    expect(i).toBeGreaterThan(0);
+    expect(i).toBeLessThan(1);
+    expect(i).toBeCloseTo(0.5, 5);
+  });
+});
+
+describe('draw/engine audio modulation — §4.1 1-4 / §4.2 2-5', () => {
+  it('rateToSemitones inverts semitonesToRate', () => {
+    expect(rateToSemitones(semitonesToRate(5))).toBeCloseTo(5, 5);
+    expect(rateToSemitones(1)).toBeCloseTo(0, 5);
+  });
+
+  it('draw scrub maps speed 0→1 to the loop volume/pitch tuning band', () => {
+    const slow = drawScrubModulation(0);
+    const fast = drawScrubModulation(1);
+    expect(slow.volume).toBeCloseTo(draw.loopVolumeMin, 5);
+    expect(fast.volume).toBeCloseTo(draw.loopVolumeMax, 5);
+    // pitch rises from loopPitchMin (0 semitones) toward loopPitchMax.
+    expect(slow.pitchSemitones).toBeCloseTo(rateToSemitones(draw.loopPitchMin), 5);
+    expect(fast.pitchSemitones).toBeCloseTo(rateToSemitones(draw.loopPitchMax), 5);
+    expect(fast.pitchSemitones).toBeGreaterThan(slow.pitchSemitones);
+  });
+
+  it('engine hum quantises pitch into gear-step bands and grows louder with speed', () => {
+    const idle = engineHumModulation(0);
+    const top = engineHumModulation(1);
+    expect(idle.pitchSemitones).toBeCloseTo(0, 5); // base rate 1.0 → 0 semitones
+    expect(top.volume).toBeGreaterThan(idle.volume);
+    // The stepped rate is always on an engine.gearStep grid above 1.0.
+    const topRate = semitonesToRate(top.pitchSemitones);
+    const steps = (topRate - 1) / engine.gearStep;
+    expect(steps).toBeCloseTo(Math.round(steps), 5);
   });
 });
