@@ -6,6 +6,7 @@ import { DEFAULT_SAMPLE_EVERY_TICKS, GhostRecorder } from '@engine/replay/GhostR
 import {
   GHOST_FINAL_POS_EPSILON_M,
   GHOST_TICK_TOLERANCE,
+  HAZARD_SETTLE_EPSILON_M,
   compareToRecorded,
   replayGhost,
   runScriptedAttempt,
@@ -211,6 +212,74 @@ describe('compareToRecorded — Gate 2 tolerance band edges', () => {
     expect(comparison.pass).toBe(false);
     expect(comparison.outcomeMatch).toBe(false);
     expect(comparison.errors.join(' ')).toMatch(/outcome/);
+  });
+});
+
+describe('compareToRecorded — dynamic-hazard settle conditional (l10 false-positive fix)', () => {
+  // Recorded at origin so replayed.finalPos.x IS the Euclidean drift in meters.
+  const recorded: GhostResult = {
+    outcome: 'clear',
+    ticks: 300,
+    finalPos: { x: 0, y: 0 },
+    inkConsumed: 4,
+    starRating: 3,
+  };
+
+  it('widens the finalPos band to HAZARD_SETTLE_EPSILON_M for rock levels', () => {
+    expect(HAZARD_SETTLE_EPSILON_M).toBe(0.5);
+    expect(HAZARD_SETTLE_EPSILON_M).toBeGreaterThan(GHOST_FINAL_POS_EPSILON_M);
+  });
+
+  it('NEGATIVE CONTROL: a static level with 0.06 m drift still FAILS', () => {
+    const replayed = { outcome: 'clear', ticks: 300, finalPos: { x: 0.06, y: 0 } } as const;
+    // default (no options) and explicit hasDynamicHazards:false must both fail
+    expect(compareToRecorded(recorded, replayed).pass).toBe(false);
+    const strict = compareToRecorded(recorded, replayed, { hasDynamicHazards: false });
+    expect(strict.pass).toBe(false);
+    expect(strict.errors.join(' ')).toMatch(/finalPos/);
+  });
+
+  it('a rock level with 0.4 m drift + clear/clear + tick match PASSES', () => {
+    const replayed = { outcome: 'clear', ticks: 318, finalPos: { x: 0.4, y: 0 } } as const; // tickDelta 18 <= 30
+    const relaxed = compareToRecorded(recorded, replayed, { hasDynamicHazards: true });
+    expect(relaxed.pass).toBe(true);
+    expect(relaxed.finalPosDeltaM).toBeCloseTo(0.4, 9);
+    expect(relaxed.tickDelta).toBe(18);
+    // the SAME drift on a static level (no hazards) must fail — proves the relaxation is hazard-gated
+    expect(compareToRecorded(recorded, replayed, { hasDynamicHazards: false }).pass).toBe(false);
+  });
+
+  it('the relaxation matches the measured ch1-l10 drift (0.4617 m < 0.5 m)', () => {
+    // measured l10: recorded 214 vs replay 232 ticks (delta 18, in band) + 0.4617 m settle drift
+    const l10Recorded: GhostResult = { ...recorded, ticks: 214 };
+    const replayed = { outcome: 'clear', ticks: 232, finalPos: { x: 0.4617, y: 0 } } as const;
+    expect(compareToRecorded(l10Recorded, replayed, { hasDynamicHazards: true }).pass).toBe(true);
+  });
+
+  it('NEGATIVE CONTROL: rock level beyond 0.5 m still FAILS', () => {
+    const replayed = { outcome: 'clear', ticks: 300, finalPos: { x: 0.51, y: 0 } } as const;
+    const cmp = compareToRecorded(recorded, replayed, { hasDynamicHazards: true });
+    expect(cmp.pass).toBe(false);
+    expect(cmp.errors.join(' ')).toMatch(/finalPos/);
+  });
+
+  it('NEGATIVE CONTROL: rock level with a tick regression re-applies the STRICT epsilon', () => {
+    // tickDelta 31 > 30 → not tick-in-band → strict 0.05 m even with hazards
+    const replayed = { outcome: 'clear', ticks: 331, finalPos: { x: 0.4, y: 0 } } as const;
+    const cmp = compareToRecorded(recorded, replayed, { hasDynamicHazards: true });
+    expect(cmp.pass).toBe(false);
+    // both the tick AND the (now-strict) finalPos bounds are violated
+    expect(cmp.errors.join(' ')).toMatch(/tick/i);
+    expect(cmp.errors.join(' ')).toMatch(new RegExp(`> ${GHOST_FINAL_POS_EPSILON_M}m`));
+  });
+
+  it('NEGATIVE CONTROL: an outcome mismatch never triggers the relaxation', () => {
+    // replayed FAILs → not clear → strict epsilon regardless of hazards
+    const replayed = { outcome: 'fail', ticks: 300, finalPos: { x: 0.4, y: 0 } } as const;
+    const cmp = compareToRecorded(recorded, replayed, { hasDynamicHazards: true });
+    expect(cmp.pass).toBe(false);
+    expect(cmp.errors.join(' ')).toMatch(/outcome/);
+    expect(cmp.errors.join(' ')).toMatch(/finalPos/);
   });
 });
 

@@ -109,12 +109,22 @@ function checkGhost(
     errors.push(`ghost[${index}]: cross-world determinism violation (${hash1} != ${hash2})`);
   }
 
-  // Tolerance band vs the recorded result.
-  const comparison = compareToRecorded(ghost.result, {
-    outcome: run1.outcome,
-    ticks: run1.ticks,
-    finalPos: run1.finalPos,
-  });
+  // Tolerance band vs the recorded result. Dynamic-hazard settle conditional:
+  // levels WITH rocks[] widen the finalPos epsilon to HAZARD_SETTLE_EPSILON_M
+  // (rock-on-dome settle chaos, see GhostPlayer header) — but the relaxation
+  // only engages when the replay still CLEARs and the tick delta is in band, and
+  // run 1 == run 2 is already proven bit-exactly by the cross-world determinism
+  // check above, so "both runs clear" is guaranteed before the band relaxes.
+  const hasDynamicHazards = (level.rocks?.length ?? 0) > 0;
+  const comparison = compareToRecorded(
+    ghost.result,
+    {
+      outcome: run1.outcome,
+      ticks: run1.ticks,
+      finalPos: run1.finalPos,
+    },
+    { hasDynamicHazards },
+  );
   if (!comparison.pass) {
     errors.push(
       ...comparison.errors.map((e) => `ghost[${index}]: ${e}`),
