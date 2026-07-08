@@ -179,6 +179,73 @@ function coinLine(ax: number, ay: number, bx: number, by: number, count: number)
   return coins;
 }
 
+/**
+ * One-sided CEILING/overhang segment: authored right->left so the UNDERSIDE is
+ * the solid face (Terrain PORT-CONVENTION: left->right = top solid; overhangs
+ * work by authoring the opposite direction). `ya` is the underside y at x1,
+ * `yb` at x2 (defaults flat). Blocks strokes/cars approaching from BELOW only.
+ */
+function ceiling(x1: number, x2: number, ya: number, yb = ya): Polyline {
+  return [
+    [Math.max(x1, x2), yb],
+    [Math.min(x1, x2), ya],
+  ];
+}
+
+/**
+ * Narrow rock SPIKE rising from the chasm floor. Unlike a flat-topped pillar,
+ * nothing rests stably on the point: a straight line crossing below the tip
+ * collides with the faces and dies, while an authored line can arc over (or
+ * rest its apex exactly on) the tip. This is the anti-dominant obstacle that
+ * does NOT accidentally support enemy straights — the diversification-pass
+ * probes showed flat-topped walls/ledges turn falling straight lines into
+ * usable ramps (bot candidates CLEARED off them), spikes never do.
+ */
+function spike(cx: number, topY: number, chasmY: number, halfBase: number): Polyline {
+  return [
+    [cx - halfBase, chasmY],
+    [cx, topY],
+    [cx + halfBase, chasmY],
+  ];
+}
+
+/**
+ * Catmull-Rom spline through control points (`seg` samples per span) — smooth
+ * multi-bend ghost strokes (S / U / W shapes). Sharp polyline corners catapult
+ * the car at speed (measured: a flat->climb kink launched the car ~1.4m into
+ * the air); splined joins keep the drive surface continuous.
+ */
+function spline(ctrl: readonly Point[], seg = 7): Point[] {
+  const out: Point[] = [];
+  for (let i = 0; i < ctrl.length - 1; i++) {
+    const p0 = ctrl[Math.max(0, i - 1)] as Point;
+    const p1 = ctrl[i] as Point;
+    const p2 = ctrl[i + 1] as Point;
+    const p3 = ctrl[Math.min(ctrl.length - 1, i + 2)] as Point;
+    for (let j = 0; j < seg; j++) {
+      const t = j / seg;
+      const t2 = t * t;
+      const t3 = t2 * t;
+      out.push(
+        p(
+          0.5 *
+            (2 * p1.x +
+              (-p0.x + p2.x) * t +
+              (2 * p0.x - 5 * p1.x + 4 * p2.x - p3.x) * t2 +
+              (-p0.x + 3 * p1.x - 3 * p2.x + p3.x) * t3),
+          0.5 *
+            (2 * p1.y +
+              (-p0.y + p2.y) * t +
+              (2 * p0.y - 5 * p1.y + 4 * p2.y - p3.y) * t2 +
+              (-p0.y + 3 * p1.y - 3 * p2.y + p3.y) * t3),
+        ),
+      );
+    }
+  }
+  out.push(ctrl[ctrl.length - 1] as Point);
+  return out;
+}
+
 // -- levels ----------------------------------------------------------------------
 
 export const CH1_SOURCES: readonly LevelSource[] = [
@@ -336,34 +403,69 @@ export const CH1_SOURCES: readonly LevelSource[] = [
     strokes: [{ kind: 'any', role: 'climb-arch', points: arch(-2.9, 0.15, 2.8, 2.65, 0.34) }],
   },
 
-  // L9 — tight-budget CLIMB (+2.0m) over a 4.4m gap; precise efficient arch. AD.
+  // L9 — LOW-CEILING CORRIDOR (A4 ceiling squeeze): a rock ceiling at +1.35m
+  // spans the 5.6m gap. High arches bump the ceiling (probed: a bow-0.9 lazy
+  // arch stalls/fails); the solution is a FLAT ink-efficient hug line with
+  // modest overlap — teaches restraint. AD: the exact rim-to-rim straight
+  // slides in (fall) at this width and the overlapped straights exceed the
+  // tight derived budget (infeasible) — probed all 9 candidates fail.
   {
     id: 'ch1-l09',
-    design: 'A7 4.4m gap · climb to +2.0m · TIGHT budget (efficient arch) (AD)',
+    design: 'A4 CEILING corridor · 5.6m gap · flat hug line only · restraint (AD)',
     inkFeel: 'tight',
     gimmickTags: ['anti-dominant'],
     maxTicks: 1800,
-    terrain: twoPlatforms({ leftFar: -11, leftRim: -2.2, leftY: 0, rightRim: 2.2, rightY: 2.0, rightFar: 14, chasmY: -5.5 }),
-    vehicleSpawn: p(-4.6, 0.6),
-    goalFlag: flag(3.9, 2.0, 1.1, 2.2),
-    killY: -6.5,
-    coins: coinLine(-1.5, 0.8, 2.5, 2.2, 6),
-    strokes: [{ kind: 'any', role: 'efficient-climb', points: arch(-2.7, 0.15, 2.6, 2.15, 0.3) }],
+    terrain: [
+      ...twoPlatforms({ leftFar: -11, leftRim: -2.8, leftY: 0, rightRim: 2.8, rightY: 0, rightFar: 14, chasmY: -6 }),
+      ceiling(-1.9, 1.9, 1.35),
+    ],
+    vehicleSpawn: p(-5.1, 0.6),
+    goalFlag: flag(4.4, 0, 1.2, 2.2),
+    killY: -7.5,
+    coins: coinArc(0, 0.75, 7, 0.5, 0.2),
+    strokes: [{ kind: 'any', role: 'flat-hug', points: arch(-3.5, 0.15, 3.45, 0.15, 0.18) }],
   },
 
-  // L10 — MID CLIMAX: widest+highest so far, 5m gap climb to +2.6m over a deep pit.
+  // L10 — MID CLIMAX: TWO-TIER U (A9). Goal across AND 1.5m BELOW the start;
+  // the widest chasm yet (7m) with a deep central shelf. The stroke descends
+  // into the basin, glides across the shelf, and rises out to the lower far
+  // bank (2 bends, span_y ~2.6m of DOWNWARD portrait usage). AD: no straight
+  // survives — 7m rim-to-rim chords fall or tip on the violent deep-shelf
+  // catch, overlapped ones tip over (probed all 9 fail).
   {
     id: 'ch1-l10',
-    design: 'A9 CLIMAX · 5m gap · climb to +2.6m · deep pit (AD)',
+    design: 'A9 CLIMAX · two-tier U · 7m chasm · goal 1.5m BELOW start (AD)',
     inkFeel: 'standard',
     gimmickTags: ['anti-dominant'],
     maxTicks: 1800,
-    terrain: twoPlatforms({ leftFar: -13, leftRim: -2.5, leftY: 0, rightRim: 2.5, rightY: 2.6, rightFar: 16, chasmY: -6 }),
-    vehicleSpawn: p(-5.0, 0.6),
-    goalFlag: flag(4.4, 2.6, 1.0, 2.2),
-    killY: -8,
-    coins: coinArc(-0.1, 1.8, 7, 0.55, 0.45),
-    strokes: [{ kind: 'any', role: 'climax-arch', points: arch(-3.0, 0.15, 2.9, 2.75, 0.36) }],
+    terrain: [
+      ...twoPlatforms({ leftFar: -13, leftRim: -3.5, leftY: 0, rightRim: 3.5, rightY: -1.5, rightFar: 16, chasmY: -6.8 }),
+      // Deep NARROW shelf: the chain sags onto it mid-U (support) but a falling
+      // straight lands violently and teeters off (halfTop 0.6 — probed: wider
+      // 1.0 tops let one floating straight settle into a rideable ramp).
+      pillar(0, -2.4, -6.8, 0.6, 1.2),
+    ],
+    vehicleSpawn: p(-5.8, 0.6),
+    goalFlag: flag(5.1, -1.5, 1.0, 2.2),
+    killY: -8.2,
+    coins: [...coinLine(-2.6, -0.6, -1.0, -1.4, 4), ...coinLine(0.9, -1.4, 2.6, -1.0, 4)],
+    strokes: [
+      {
+        kind: 'any',
+        role: 'u-glide',
+        // Probed 4x on a recycled world: clears every run (t 250-254); all 9
+        // bot candidates fail 3/3 runs each.
+        points: spline([
+          p(-3.9, 0.12),
+          p(-2.7, -0.9),
+          p(-1.5, -1.65),
+          p(-0.4, -1.92),
+          p(0.7, -1.88),
+          p(1.8, -1.68),
+          p(3.9, -1.36),
+        ]),
+      },
+    ],
   },
 
   // B2 — bonus after L10: DESCENT + triple coin arch (goal below the high start).
@@ -402,19 +504,42 @@ export const CH1_SOURCES: readonly LevelSource[] = [
     strokes: [{ kind: 'any', role: 'gentle-climb', points: arch(-2.5, 0.15, 2.4, 1.95, 0.32) }],
   },
 
-  // L12 — deep GORGE, climb to +2.4m raised ledge (anti-dominant).
+  // L12 — OVERHANG DUCK-UNDER (A5): a rock lip (winding-reversed, underside
+  // solid) protrudes from the left rim over the gorge at 1.5->1.25m. The
+  // natural climb arch to the +2.4m ledge collides with the lip (probed: the
+  // arch is at ~1.48m under the lip tip); the line must HUG LOW under the lip,
+  // then sweep up — a smooth S with 2 bends. Straights still die on the
+  // raised-goal/deep-pit mechanism (probed all 9 fail; ov2 infeasible).
   {
     id: 'ch1-l12',
-    design: 'A7 5m deep gorge · climb to +2.4m raised ledge (AD)',
+    design: 'A5 OVERHANG duck-under · 5m gorge · low hug then climb +2.4m (AD)',
     inkFeel: 'standard',
     gimmickTags: ['anti-dominant'],
     maxTicks: 1800,
-    terrain: twoPlatforms({ leftFar: -12, leftRim: -2.5, leftY: 0, rightRim: 2.5, rightY: 2.4, rightFar: 15, chasmY: -6.5 }),
+    terrain: [
+      ...twoPlatforms({ leftFar: -12, leftRim: -2.5, leftY: 0, rightRim: 2.5, rightY: 2.4, rightFar: 15, chasmY: -6.5 }),
+      ceiling(-2.25, -0.55, 1.5, 1.25), // rock lip over the left half of the gorge
+    ],
     vehicleSpawn: p(-5.0, 0.6),
     goalFlag: flag(4.4, 2.4, 1.0, 2.2),
     killY: -8,
-    coins: coinArc(-0.1, 1.7, 6, 0.55, 0.45),
-    strokes: [{ kind: 'any', role: 'gorge-climb', points: arch(-3.0, 0.15, 2.9, 2.55, 0.34) }],
+    coins: [...coinLine(-1.9, 0.62, -0.7, 0.66, 4), ...coinLine(0.4, 1.5, 2.6, 2.8, 4)],
+    strokes: [
+      {
+        kind: 'any',
+        role: 'duck-under-S',
+        points: spline([
+          p(-3.0, 0.16),
+          p(-1.8, 0.1),
+          p(-0.6, 0.14),
+          p(0.3, 0.62),
+          p(1.2, 1.35),
+          p(2.1, 2.0),
+          p(3.0, 2.42),
+          p(3.6, 2.6),
+        ]),
+      },
+    ],
   },
 
   // L13 — WALL OVER-ARCH: a tall central wall (top +1.2m) blocks any straight
@@ -437,34 +562,106 @@ export const CH1_SOURCES: readonly LevelSource[] = [
     strokes: [{ kind: 'any', role: 'over-arch', points: arch(-2.8, 0.15, 2.7, 1.65, 1.4) }],
   },
 
-  // L14 — PRECISION: raised +2.4m goal, narrow flag, tight budget (anti-dominant).
+  // L14 — SWITCHBACK DESCENT (A10): the goal sits 2.6m BELOW the start. A
+  // two-terrace stair is carved into the LEFT platform (BEHIND the gap rim —
+  // physically unreachable by rim-to-rim straights), then a rock spike rises
+  // from the chasm to -0.65m just past the stair exit: every straight chord
+  // crosses well BELOW the tip and dies on its faces (probed: all 9 fail —
+  // divergence/timeout/fall chewed up by the spike). The intended line is a
+  // W: zig-zag down the stair (2 bends), hump up OVER the spike tip using the
+  // stair momentum (3rd bend), long descent to the low bank (4th) — the
+  // longest stroke in the chapter (~10.5m), ~2.7m of downward portrait span.
+  // Ghost re-probed 4x on a recycled world: clears every run (t 308-329).
   {
     id: 'ch1-l14',
-    design: 'A7 5m gap · climb to +2.4m · NARROW flag · tight (AD)',
-    inkFeel: 'tight',
+    design: 'A10 SWITCHBACK · stair down 2 terraces + spike hump · goal 2.6m BELOW (AD)',
+    inkFeel: 'standard',
     gimmickTags: ['anti-dominant'],
     maxTicks: 1800,
-    terrain: twoPlatforms({ leftFar: -12, leftRim: -2.5, leftY: 0, rightRim: 2.5, rightY: 2.4, rightFar: 15, chasmY: -6 }),
-    vehicleSpawn: p(-5.0, 0.6),
-    goalFlag: flag(4.4, 2.4, 1.0, 1.9),
-    killY: -8,
-    coins: coinArc(-0.1, 1.7, 5, 0.5, 0.4),
-    strokes: [{ kind: 'any', role: 'precise-climb', points: arch(-3.0, 0.15, 2.9, 2.55, 0.32) }],
+    terrain: [
+      // Left platform with the carved two-step stair ending at the gap rim.
+      [
+        [-11, 0],
+        [-4.6, 0],
+        [-4.65, -0.9],
+        [-3.4, -0.9],
+        [-3.45, -1.8],
+        [-2.2, -1.8],
+        [-2.4, -7.0],
+      ],
+      [
+        [3.6, -7.0],
+        [3.4, -2.6],
+        [15, -2.6],
+      ],
+      spike(-0.4, -0.65, -7.0, 1.0), // spike just past the stair — straight-line killer
+    ],
+    vehicleSpawn: p(-5.9, 0.6),
+    goalFlag: flag(3.9, -2.6, 1.1, 2.2),
+    killY: -8.5,
+    coins: [...coinLine(-4.4, -0.3, -2.9, -1.2, 4), ...coinArc(-0.4, 0.0, 5, 0.55, 0.25), ...coinLine(1.6, -0.9, 3.0, -1.8, 4)],
+    strokes: [
+      {
+        kind: 'any',
+        role: 'switchback-W',
+        points: spline([
+          p(-5.3, 0.12),
+          p(-4.7, -0.35),
+          p(-4.2, -0.78),
+          p(-3.6, -0.8),
+          p(-3.2, -1.35),
+          p(-2.75, -1.62),
+          p(-1.9, -1.2),
+          p(-1.1, -0.72),
+          p(-0.4, -0.5),
+          p(0.4, -0.75),
+          p(1.4, -1.25),
+          p(2.6, -1.9),
+          p(3.8, -2.45),
+        ]),
+      },
+    ],
   },
 
-  // L15 — CHAPTER BOSS: longest span + highest climb (+3.2m), deepest pit, tight.
+  // L15 — CHAPTER BOSS (A13 compound): 7m chasm + climb to a +3.2m summit +
+  // a 1.6m rock spike mid-gap + a ceiling shelf over the approach. The line
+  // is a long (~8.7m) convex climb anchored on the platform, threading under
+  // the ceiling, over the spike, easing across the shoulder, and re-rising to
+  // the summit bank — 3 slope changes, ~3.3m of vertical span. AD: rim-to-rim
+  // straights fall (7m to +3.2 is unholdable), overlapped straights exceed
+  // the derived budget (probed all 9 fail).
   {
     id: 'ch1-l15',
-    design: 'A13 BOSS · 5.4m span · HIGHEST climb to +3.2m · deep pit · tight (AD)',
+    design: 'A13 BOSS compound · 7m chasm + spike + ceiling · climb +3.2m (AD)',
     inkFeel: 'tight',
     gimmickTags: ['anti-dominant'],
     maxTicks: 1800,
-    terrain: twoPlatforms({ leftFar: -13, leftRim: -2.7, leftY: 0, rightRim: 2.7, rightY: 3.2, rightFar: 18, chasmY: -6.5 }),
-    vehicleSpawn: p(-5.2, 0.6),
-    goalFlag: flag(4.6, 3.2, 1.0, 2.2),
+    terrain: [
+      ...twoPlatforms({ leftFar: -13, leftRim: -3.5, leftY: 0, rightRim: 3.5, rightY: 3.2, rightFar: 18, chasmY: -6.5 }),
+      spike(-0.4, 1.6, -6.5, 0.8), // mid-gap spike — blocks low/lazy lines
+      ceiling(-3.1, -2.0, 2.75), // approach shelf — blocks high lazy entries
+    ],
+    vehicleSpawn: p(-5.9, 0.6),
+    goalFlag: flag(5.0, 3.2, 1.0, 2.2),
     killY: -8.5,
-    coins: coinArc(-0.1, 2.2, 7, 0.55, 0.5),
-    strokes: [{ kind: 'any', role: 'boss-climb', points: arch(-3.2, 0.15, 3.1, 3.35, 0.42) }],
+    coins: [...coinLine(-2.9, 1.5, -0.6, 2.7, 5), ...coinArc(2.6, 3.5, 4, 0.5, 0.3)],
+    strokes: [
+      {
+        kind: 'any',
+        role: 'boss-compound',
+        points: spline([
+          p(-4.0, 0.15),
+          p(-3.0, 0.95),
+          p(-2.0, 1.6),
+          p(-1.0, 2.05),
+          p(0.0, 2.3),
+          p(1.0, 2.45),
+          p(2.0, 2.7),
+          p(3.0, 3.05),
+          p(3.9, 3.38),
+        ]),
+      },
+    ],
   },
 
   // B3 — bonus after L15: flat long run + coin bonanza (chapter-complete reward).
