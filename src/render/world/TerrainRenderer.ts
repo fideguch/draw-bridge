@@ -15,7 +15,7 @@
 import type Phaser from 'phaser';
 import type { Level } from '@engine/level/LevelSchema';
 import { fillThickPolyline } from '@render/ui/fillShapes';
-import { color, stroke as strokeToken } from '@render/ui/theme';
+import { color, layout, stroke as strokeToken } from '@render/ui/theme';
 import type { PixelPoint, WorldToPixel } from './worldToPixel';
 
 export type TerrainSource = Pick<Level, 'terrain' | 'killY'>;
@@ -26,7 +26,8 @@ export interface TerrainRendererOptions {
   readonly grassCapPx?: number;
 }
 
-const DEFAULT_GRASS_CAP_PX = 6;
+/** Grass band width in 390-design px (ui/DPR-scaled at draw time). */
+const DEFAULT_GRASS_CAP_PX = 10;
 
 export class TerrainRenderer {
   private readonly graphics: Phaser.GameObjects.Graphics;
@@ -76,9 +77,13 @@ export class TerrainRenderer {
       this.graphics.closePath();
       this.graphics.fillPath();
 
-      // Grass cap + dark outline along the surface.
-      this.strokeEdge(topEdge, grassCapPx, color.terrainGrass);
-      this.strokeEdge(topEdge, strokeToken.game, color.terrainStroke);
+      // Grass band with a dark outline: paint the dark line WIDER first, then
+      // the grass on top — leaves a thin dark rim above and below the green
+      // (slope-safe; drawing the thin line second used to cover the grass
+      // entirely, so the play terrain read as bare brown vs Home's scenery).
+      const grassW = layout.ui(grassCapPx);
+      this.strokeEdge(topEdge, grassW + strokeToken.game, color.terrainStroke);
+      this.strokeEdge(topEdge, grassW, color.terrainGrass);
     }
   }
 
