@@ -33,6 +33,8 @@ interface InkbridgeHook {
   readonly strokePointCount: number;
   worldToScreen(x: number, y: number): { x: number; y: number };
   buttonRect(id: string): PageRect | null;
+  /** QG-6: live perpendicular deviation (m) of the bridge-chain midpoint from its chord. */
+  bridgeMidDeviationM(): number;
 }
 
 type GameRectGetter = () => { x: number; y: number; width: number; height: number };
@@ -41,6 +43,12 @@ type WorldToScreenFn = (x: number, y: number) => { x: number; y: number };
 const buttonRegistry = new Map<string, GameRectGetter>();
 const playState: DevHookPlayState = { state: null, tick: 0, outcome: null };
 let worldToScreenFn: WorldToScreenFn | null = null;
+let bridgeMidDeviationFn: (() => number) | null = null;
+
+/** PlayScene registers the live chain-deviation getter (QG-6). */
+export function setBridgeMidDeviation(fn: (() => number) | null): void {
+  bridgeMidDeviationFn = fn;
+}
 let gameRef: Phaser.Game | null = null;
 let isResultNextReady = false;
 let strokePointCountValue = 0;
@@ -109,6 +117,9 @@ export function installDevHook(game: Phaser.Game): void {
       if (!worldToScreenFn) throw new Error('worldToScreen not registered (PlayScene not active)');
       const gamePoint = worldToScreenFn(x, y);
       return gameToPage(gamePoint.x, gamePoint.y);
+    },
+    bridgeMidDeviationM(): number {
+      return bridgeMidDeviationFn ? bridgeMidDeviationFn() : NaN;
     },
     buttonRect(id: string): PageRect | null {
       const getter = buttonRegistry.get(id);

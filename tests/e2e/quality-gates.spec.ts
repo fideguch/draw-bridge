@@ -149,7 +149,7 @@ test('QG-6 stroke shape fidelity: a drawn arc must stay an arc after solidify (ç
   }, arc);
   await page.mouse.move(pts[0]!.x, pts[0]!.y);
   await page.mouse.down();
-  for (const p of pts.slice(1)) await page.mouse.move(p.x, p.y, { steps: 4 });
+  for (const p of pts.slice(1)) await page.mouse.move(p.x, p.y, { steps: 2 });
   await page.mouse.up();
 
   // Within 300ms of solidify (before major settling), the bridge's mid must

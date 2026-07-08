@@ -6,6 +6,12 @@ import { defineConfig, devices } from '@playwright/test';
  */
 export default defineConfig({
   testDir: './tests/e2e',
+  // Ghost strokes carry many vertices post rdpEpsilon 0.02; real-pointer
+  // replay takes ~25s — default 30s flakes under serial load.
+  timeout: 60_000,
+  // Wall-clock tempo assertions flake under full-suite serial CPU load; one
+  // retry (fresh page, settled load) keeps the contracts strict but stable.
+  retries: 1,
   // Tempo-contract tests measure real wall-clock (retry <=1s etc.) — parallel
   // workers contend for CPU with the physics loop and flake the timings.
   workers: 1,

@@ -19,6 +19,7 @@
 
 import type Phaser from 'phaser';
 import type { Point } from '@engine/level/LevelSchema';
+import { layout } from '@render/ui/theme';
 import { draw } from '@tuning/TuningConstants';
 import { shouldAppendPoint } from './strokeMath';
 import type { WorldToPixel } from '@render/world/worldToPixel';
@@ -66,7 +67,10 @@ export class StrokeInput {
     this.scene = scene;
     this.transform = options.transform;
     this.camera = options.camera;
-    this.minVertexDistancePx = options.minVertexDistancePx ?? draw.minPointDistPx;
+    // draw.minPointDistPx is a CSS-px design value; game px are device px now
+    // (DPR-native canvas), so scale it or sampling becomes ~3x too dense —
+    // which made the O(n) live repaint freeze the main thread (2026-07-08).
+    this.minVertexDistancePx = options.minVertexDistancePx ?? draw.minPointDistPx * layout.dpr;
     this.canDraw = options.canDraw ?? ((): boolean => true);
     this.callbacks = options.callbacks ?? {};
   }

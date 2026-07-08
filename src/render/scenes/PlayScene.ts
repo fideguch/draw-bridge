@@ -53,7 +53,7 @@ import { getServices } from '@render/ui/services';
 import type { AttemptJuice, GameServices } from '@render/ui/services';
 import { color, layout, LAYOUT_EVENT, makeTextStyle, margin, space, type } from '@render/ui/theme';
 import { camera as cameraTuning, car, draw, launch, physics, speedLines as speedLinesTuning } from '@tuning/TuningConstants';
-import { setDevPlayState, setDevResultNextReady, setDevStrokePointCount, setWorldToGame } from '@render/devhook';
+import { setBridgeMidDeviation, setDevPlayState, setDevResultNextReady, setDevStrokePointCount, setWorldToGame } from '@render/devhook';
 import type { DevHookPlayState } from '@render/devhook';
 import { framingFor } from './play/levelFraming';
 import { ResultOverlay } from './play/ResultOverlay';
@@ -298,6 +298,7 @@ export class PlayScene extends Phaser.Scene {
     });
 
     setWorldToGame((wx, wy) => this.worldToGame(wx, wy));
+    setBridgeMidDeviation(() => this.sim?.chainMidDeviationM() ?? NaN);
     this.beginDrawing();
     this.subscribeLayout();
   }
@@ -870,6 +871,7 @@ export class PlayScene extends Phaser.Scene {
   private teardown(): void {
     this.isTornDown = true;
     setWorldToGame(null);
+    setBridgeMidDeviation(null);
     setDevResultNextReady(false);
     setDevStrokePointCount(0);
     this.juice?.detach();

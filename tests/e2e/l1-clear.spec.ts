@@ -97,7 +97,7 @@ async function drawStroke(page: Page, worldPoints: ReadonlyArray<[number, number
   await page.mouse.down();
   for (const point of screenPoints.slice(1)) {
     // Several sub-moves per segment — StrokeInput thins by min vertex distance.
-    await page.mouse.move(point.x, point.y, { steps: 8 });
+    await page.mouse.move(point.x, point.y, { steps: 2 });
   }
   await page.mouse.up();
 }

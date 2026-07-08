@@ -114,7 +114,7 @@ async function drawStroke(page: Page, worldPoints: ReadonlyArray<[number, number
   await page.mouse.move(first.x, first.y);
   await page.mouse.down();
   for (const point of screenPoints.slice(1)) {
-    await page.mouse.move(point.x, point.y, { steps: 8 });
+    await page.mouse.move(point.x, point.y, { steps: 2 });
   }
   await page.mouse.up();
 }
