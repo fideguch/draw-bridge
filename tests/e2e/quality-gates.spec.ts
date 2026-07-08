@@ -39,13 +39,13 @@ async function tapRect(page: Page, id: string, fx = 0.5, fy = 0.5): Promise<void
   await page.touchscreen.tap(r.x + r.width * fx, r.y + r.height * fy);
 }
 
-async function waitHome(page: Page): Promise<void> {
+async function waitHub(page: Page): Promise<void> {
   await page.goto('/');
-  await expect.poll(async () => (await getHook(page)).scene, { timeout: 15_000 }).toBe('Home');
+  await expect.poll(async () => (await getHook(page)).scene, { timeout: 15_000 }).toBe('Hub');
 }
 
 test('QG-1 crisp rendering: canvas backing resolution >= CSS size x devicePixelRatio (ガビガビ根絶)', async ({ page }) => {
-  await waitHome(page);
+  await waitHub(page);
   const metrics = await page.evaluate(() => {
     const canvas = document.querySelector('canvas')!;
     const box = canvas.getBoundingClientRect();
@@ -60,7 +60,7 @@ test('QG-1 crisp rendering: canvas backing resolution >= CSS size x devicePixelR
 });
 
 test('QG-2 full-bleed: canvas fills the entire viewport, no letterbox (黒縁根絶)', async ({ page }) => {
-  await waitHome(page);
+  await waitHub(page);
   const m = await page.evaluate(() => {
     const canvas = document.querySelector('canvas')!;
     const box = canvas.getBoundingClientRect();
@@ -72,9 +72,9 @@ test('QG-2 full-bleed: canvas fills the entire viewport, no letterbox (黒縁根
   expect(m.h).toBeGreaterThanOrEqual(m.vh - 2);
 });
 
-test('QG-3 no overlapping tap targets on Home (あそぶ/ショップ重なり)', async ({ page }) => {
-  await waitHome(page);
-  const ids = ['home-play', 'home-shop'];
+test('QG-3 no overlapping tap targets on Hub (つづきから/強化重なり)', async ({ page }) => {
+  await waitHub(page);
+  const ids = ['hub-continue', 'hub-upgrade'];
   const rects = [];
   for (const id of ids) {
     const r = await rect(page, id);
@@ -88,28 +88,25 @@ test('QG-3 no overlapping tap targets on Home (あそぶ/ショップ重なり)'
 });
 
 test('QG-4 every menu button is alive (押せないボタン根絶): full navigation sweep', async ({ page }) => {
-  await waitHome(page);
-  // Home -> Shop -> back -> Home -> Settings -> back -> Home -> Play flow.
-  await tapRect(page, 'home-shop');
-  await expect.poll(async () => (await getHook(page)).scene, { timeout: 5_000 }).toBe('Shop');
-  await tapRect(page, 'shop-back');
-  await expect.poll(async () => (await getHook(page)).scene, { timeout: 5_000 }).toBe('Home');
-  await tapRect(page, 'home-settings');
+  await waitHub(page);
+  // Hub -> 強化 -> back -> Hub -> Settings -> back -> Hub -> Play flow.
+  await tapRect(page, 'hub-upgrade');
+  await expect.poll(async () => (await getHook(page)).scene, { timeout: 5_000 }).toBe('Upgrade');
+  await tapRect(page, 'upgrade-back');
+  await expect.poll(async () => (await getHook(page)).scene, { timeout: 5_000 }).toBe('Hub');
+  await tapRect(page, 'hub-settings');
   await expect.poll(async () => (await getHook(page)).scene, { timeout: 5_000 }).toBe('Settings');
   await tapRect(page, 'settings-back');
-  await expect.poll(async () => (await getHook(page)).scene, { timeout: 5_000 }).toBe('Home');
-  // CRITICAL repro: after round-trips, Home buttons must STILL work — and at
-  // an off-centre point (bottom-right area), not just dead centre.
-  await tapRect(page, 'home-play', 0.8, 0.8);
-  await expect.poll(async () => (await getHook(page)).scene, { timeout: 5_000 }).toBe('LevelSelect');
-  await tapRect(page, 'level-ch1-l01');
+  await expect.poll(async () => (await getHook(page)).scene, { timeout: 5_000 }).toBe('Hub');
+  // CRITICAL repro: after round-trips, Hub buttons must STILL work — and at
+  // an off-centre point (bottom-right area), not just dead centre. つづきから
+  // launches the next uncleared level straight into Play (no LevelSelect).
+  await tapRect(page, 'hub-continue', 0.8, 0.8);
   await expect.poll(async () => (await getHook(page)).state, { timeout: 10_000 }).toBe('drawing');
 });
 
 test('QG-5 stable world scale across 5 replays (画面縮小の蓄積根絶)', async ({ page }) => {
-  await waitHome(page);
-  await tapRect(page, 'home-play');
-  await expect.poll(async () => (await getHook(page)).scene, { timeout: 5_000 }).toBe('LevelSelect');
+  await waitHub(page);
   await tapRect(page, 'level-ch1-l01');
   await expect.poll(async () => (await getHook(page)).state, { timeout: 10_000 }).toBe('drawing');
 
@@ -132,9 +129,7 @@ test('QG-5 stable world scale across 5 replays (画面縮小の蓄積根絶)', a
 });
 
 test('QG-6 stroke shape fidelity: a drawn arc must stay an arc after solidify (直線化根絶)', async ({ page }) => {
-  await waitHome(page);
-  await tapRect(page, 'home-play');
-  await expect.poll(async () => (await getHook(page)).scene, { timeout: 5_000 }).toBe('LevelSelect');
+  await waitHub(page);
   await tapRect(page, 'level-ch1-l01');
   await expect.poll(async () => (await getHook(page)).state, { timeout: 10_000 }).toBe('drawing');
 
@@ -170,10 +165,8 @@ test('QG-6 stroke shape fidelity: a drawn arc must stay an arc after solidify (�
   expect(midDeviation).toBeGreaterThanOrEqual(0.33);
 });
 
-test('QG-7 in-play navigation: pause menu reaches LevelSelect and resume works (動線)', async ({ page }) => {
-  await waitHome(page);
-  await tapRect(page, 'home-play');
-  await expect.poll(async () => (await getHook(page)).scene, { timeout: 5_000 }).toBe('LevelSelect');
+test('QG-7 in-play navigation: pause menu reaches the Hub grid and resume works (動線)', async ({ page }) => {
+  await waitHub(page);
   await tapRect(page, 'level-ch1-l01');
   await expect.poll(async () => (await getHook(page)).state, { timeout: 10_000 }).toBe('drawing');
 
@@ -182,8 +175,8 @@ test('QG-7 in-play navigation: pause menu reaches LevelSelect and resume works (
   await tapRect(page, 'pause-resume');
   await expect.poll(async () => (await getHook(page)).state, { timeout: 3_000 }).toBe('drawing');
 
-  // Pause -> level list: back on the menu (the missing escape route).
+  // Pause -> level list: back on the Hub grid (the missing escape route).
   await tapRect(page, 'hud-pause');
   await tapRect(page, 'pause-levels');
-  await expect.poll(async () => (await getHook(page)).scene, { timeout: 5_000 }).toBe('LevelSelect');
+  await expect.poll(async () => (await getHook(page)).scene, { timeout: 5_000 }).toBe('Hub');
 });

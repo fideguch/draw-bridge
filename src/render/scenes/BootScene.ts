@@ -62,6 +62,6 @@ export class BootScene extends Phaser.Scene {
     if (notice !== null) {
       this.registry.set(SAVE_NOTICE_KEY, notice);
     }
-    this.scene.start('Home');
+    this.scene.start('Hub');
   }
 }

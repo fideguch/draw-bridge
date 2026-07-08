@@ -60,15 +60,13 @@ export class SettingsScene extends Phaser.Scene {
     new Button(this, {
       x: layout.safe.left + this.ui(margin + 22),
       y: topRowY,
-      width: 44,
-      height: 44,
+      size: 'iconM',
       label: '',
       icon: 'back',
-      iconSize: 22,
       variant: 'secondary',
       services: this.services,
       devId: 'settings-back',
-      onClick: () => this.scene.start('Home'),
+      onClick: () => this.scene.start('Hub'),
     });
     this.add.text(layout.safe.left + this.ui(margin + 66), topRowY, '設定', makeTextStyle(type.h1, color.textPrimary)).setOrigin(0, 0.5);
 
@@ -99,10 +97,9 @@ export class SettingsScene extends Phaser.Scene {
 
     this.add.text(this.rowLabelX, this.absY(330), '進行をリセット', makeTextStyle(type.body, color.textPrimary)).setOrigin(0, 0.5);
     new Button(this, {
-      x: layout.width - layout.safe.right - this.ui(margin + 66),
+      x: layout.width - layout.safe.right - this.ui(margin + 80),
       y: this.absY(330),
-      width: 132,
-      height: 48,
+      size: 'S',
       label: 'リセット',
       variant: 'danger',
       services: this.services,
@@ -142,7 +139,8 @@ export class SettingsScene extends Phaser.Scene {
   private openConfirm1(): void {
     this.closeModal();
     this.addScrim();
-    this.addCard(this.ui(300), this.absY(220), this.ui(176));
+    // Card wide enough for two catalog-S buttons (DESIGN.md §4.1 size system).
+    this.addCard(this.ui(356), this.absY(220), this.ui(176));
     this.trackModal(
       this.add
         .text(layout.width / 2, this.absY(262), '本当にリセットしますか？', makeTextStyle(type.h2, color.textPrimary))
@@ -151,10 +149,9 @@ export class SettingsScene extends Phaser.Scene {
     );
     this.trackModal(
       new Button(this, {
-        x: layout.width / 2 - this.ui(72),
+        x: layout.width / 2 - this.ui(86),
         y: this.absY(336),
-        width: 120,
-        height: 48,
+        size: 'S',
         label: 'キャンセル',
         variant: 'secondary',
         services: this.services,
@@ -163,10 +160,9 @@ export class SettingsScene extends Phaser.Scene {
     );
     this.trackModal(
       new Button(this, {
-        x: layout.width / 2 + this.ui(72),
+        x: layout.width / 2 + this.ui(86),
         y: this.absY(336),
-        width: 120,
-        height: 48,
+        size: 'S',
         label: '続ける',
         variant: 'primary',
         services: this.services,
@@ -179,7 +175,7 @@ export class SettingsScene extends Phaser.Scene {
     this.closeModal();
     this.typedSequence = '';
     this.addScrim();
-    this.addCard(this.ui(340), this.absY(232), this.ui(356));
+    this.addCard(this.ui(356), this.absY(232), this.ui(356));
 
     this.trackModal(
       this.add
@@ -204,10 +200,9 @@ export class SettingsScene extends Phaser.Scene {
 
     this.trackModal(
       new Button(this, {
-        x: layout.width / 2 - this.ui(78),
+        x: layout.width / 2 - this.ui(86),
         y: this.absY(476),
-        width: 120,
-        height: 48,
+        size: 'S',
         label: 'キャンセル',
         variant: 'secondary',
         services: this.services,
@@ -215,10 +210,9 @@ export class SettingsScene extends Phaser.Scene {
       }).setDepth(MODAL_DEPTH + 1),
     );
     this.executeButton = new Button(this, {
-      x: layout.width / 2 + this.ui(78),
+      x: layout.width / 2 + this.ui(86),
       y: this.absY(476),
-      width: 120,
-      height: 48,
+      size: 'S',
       label: 'リセット実行',
       variant: 'danger',
       fontSize: type.body.size,
@@ -240,8 +234,7 @@ export class SettingsScene extends Phaser.Scene {
         new Button(this, {
           x: startX + index * (buttonSize + gap),
           y,
-          width: 56,
-          height: 56,
+          size: 'iconL', // catalog 56×56 (DESIGN.md §4.1) — key-tile shape
           label: char,
           variant: 'secondary',
           fontSize: type.h2.size,
@@ -271,7 +264,7 @@ export class SettingsScene extends Phaser.Scene {
     }
     await this.services.resetProgress();
     this.closeModal();
-    this.scene.start('Home');
+    this.scene.start('Hub');
   }
 
   private addScrim(): void {

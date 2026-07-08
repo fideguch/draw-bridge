@@ -68,6 +68,10 @@ export interface GoalCelebrationData {
   readonly hasNext: boolean;
   readonly onReplay: () => void;
   readonly onNext: () => void;
+  /** レベル選択 link on the clear panel (DESIGN.md §6.4) → Hub. */
+  readonly onLevels: () => void;
+  /** Post-reward 強化 link on the clear panel (DESIGN.md §9). */
+  readonly onUpgrade: () => void;
 }
 
 export interface GoalSequenceDeps {
@@ -300,6 +304,14 @@ export class GoalSequence {
       onNext: () => {
         this.skip();
         data.onNext();
+      },
+      onLevels: () => {
+        this.skip();
+        data.onLevels();
+      },
+      onUpgrade: () => {
+        this.skip();
+        data.onUpgrade();
       },
       onSkip: () => this.skip(),
     });

@@ -1,7 +1,7 @@
 /**
  * AC-6 manual-flow E2E — the meta loop end to end (FR-018, FR-019, FR-021):
- * seeded save -> Shop purchase (real multiplier level-up, balance deduction)
- * -> atomic persistence across reload.
+ * seeded save -> 強化/Upgrade purchase (real multiplier level-up, balance
+ * deduction) -> atomic persistence across reload.
  * Save seeding via localStorage (WebStorage impl, key 'inkbridge.save').
  */
 import { expect, test, type Page } from '@playwright/test';
@@ -66,17 +66,17 @@ test('meta loop: seeded coins -> shop purchase -> persisted across reload (AC-6)
   );
 
   await page.goto('/');
-  await expect.poll(async () => hookScene(page), { timeout: 15_000 }).toBe('Home');
+  await expect.poll(async () => hookScene(page), { timeout: 15_000 }).toBe('Hub');
 
-  // Home -> Shop.
-  await tapButton(page, 'home-shop');
-  await expect.poll(async () => hookScene(page), { timeout: 5_000 }).toBe('Shop');
+  // Hub -> 強化 (Upgrade, UL-026 rebrand of Shop).
+  await tapButton(page, 'hub-upgrade');
+  await expect.poll(async () => hookScene(page), { timeout: 5_000 }).toBe('Upgrade');
 
   // Buy one ink-capacity level: balance drops by the price, level goes to 1,
   // and the save is written immediately (FR-021 save-on-purchase).
   const before = await readSave(page);
   expect(before.coins).toBe(500);
-  await tapButton(page, 'shop-buy-inkCapacity');
+  await tapButton(page, 'upgrade-buy-inkCapacity');
 
   await expect
     .poll(async () => (await readSave(page)).upgrades.inkCapacityLv, { timeout: 5_000 })
@@ -88,7 +88,7 @@ test('meta loop: seeded coins -> shop purchase -> persisted across reload (AC-6)
 
   // Atomic persistence across a full reload (FR-021).
   await page.reload();
-  await expect.poll(async () => hookScene(page), { timeout: 15_000 }).toBe('Home');
+  await expect.poll(async () => hookScene(page), { timeout: 15_000 }).toBe('Hub');
   const persisted = await readSave(page);
   expect(persisted.upgrades.inkCapacityLv).toBe(1);
   expect(persisted.coins).toBe(500 - price);

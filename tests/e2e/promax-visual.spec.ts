@@ -40,7 +40,7 @@ async function tap(page: Page, id: string): Promise<void> {
 test('Pro Max 430x932: full-bleed, crisp, no overlap, all screens navigable + captured', async ({ page }) => {
   const dir = '.fable/evidence-promax';
   await page.goto('/');
-  await expect.poll(async () => (await hook(page)).scene, { timeout: 15_000 }).toBe('Home');
+  await expect.poll(async () => (await hook(page)).scene, { timeout: 15_000 }).toBe('Hub');
 
   // Full-bleed + DPR backing at THIS size.
   const m = await page.evaluate(() => {
@@ -52,23 +52,21 @@ test('Pro Max 430x932: full-bleed, crisp, no overlap, all screens navigable + ca
   expect(m.w).toBeGreaterThanOrEqual(m.vw - 2);
   expect(m.h).toBeGreaterThanOrEqual(m.vh - 2);
   expect(m.backingW).toBeGreaterThanOrEqual(m.w * m.dpr * 0.9);
-  await page.screenshot({ path: `${dir}/01-home.png` });
+  await page.screenshot({ path: `${dir}/01-hub.png` });
 
-  await tap(page, 'home-settings');
+  await tap(page, 'hub-settings');
   await expect.poll(async () => (await hook(page)).scene).toBe('Settings');
   await page.screenshot({ path: `${dir}/02-settings.png` });
   await tap(page, 'settings-back');
-  await expect.poll(async () => (await hook(page)).scene).toBe('Home');
+  await expect.poll(async () => (await hook(page)).scene).toBe('Hub');
 
-  await tap(page, 'home-shop');
-  await expect.poll(async () => (await hook(page)).scene).toBe('Shop');
-  await page.screenshot({ path: `${dir}/03-shop.png` });
-  await tap(page, 'shop-back');
-  await expect.poll(async () => (await hook(page)).scene).toBe('Home');
+  await tap(page, 'hub-upgrade');
+  await expect.poll(async () => (await hook(page)).scene).toBe('Upgrade');
+  await page.screenshot({ path: `${dir}/03-upgrade.png` });
+  await tap(page, 'upgrade-back');
+  await expect.poll(async () => (await hook(page)).scene).toBe('Hub');
 
-  await tap(page, 'home-play');
-  await expect.poll(async () => (await hook(page)).scene).toBe('LevelSelect');
-  await page.screenshot({ path: `${dir}/04-level-select.png` });
+  // Hub is the merged grid — tap a level tile straight into Play.
   await tap(page, 'level-ch1-l01');
   await expect.poll(async () => (await hook(page)).state, { timeout: 10_000 }).toBe('drawing');
   await page.screenshot({ path: `${dir}/05-play-drawing.png` });

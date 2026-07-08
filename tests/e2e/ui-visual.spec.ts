@@ -48,24 +48,20 @@ async function waitScene(page: Page, name: string): Promise<void> {
 test('capture menu + play screens at DSF3', async ({ page }) => {
   mkdirSync(OUT, { recursive: true });
   await page.goto('/');
-  await waitScene(page, 'Home');
-  await page.screenshot({ path: `${OUT}/01-home.png` });
+  await waitScene(page, 'Hub');
+  await page.screenshot({ path: `${OUT}/01-hub.png` });
 
-  await tap(page, 'home-shop');
-  await waitScene(page, 'Shop');
-  await page.screenshot({ path: `${OUT}/02-shop.png` });
-  await tap(page, 'shop-back');
-  await waitScene(page, 'Home');
+  await tap(page, 'hub-upgrade');
+  await waitScene(page, 'Upgrade');
+  await page.screenshot({ path: `${OUT}/02-upgrade.png` });
+  await tap(page, 'upgrade-back');
+  await waitScene(page, 'Hub');
 
-  await tap(page, 'home-settings');
+  await tap(page, 'hub-settings');
   await waitScene(page, 'Settings');
   await page.screenshot({ path: `${OUT}/03-settings.png` });
   await tap(page, 'settings-back');
-  await waitScene(page, 'Home');
-
-  await tap(page, 'home-play');
-  await waitScene(page, 'LevelSelect');
-  await page.screenshot({ path: `${OUT}/04-levelselect.png` });
+  await waitScene(page, 'Hub');
 
   // Play drawing phase — best-effort (skip if the engine is red under the feel agent).
   try {

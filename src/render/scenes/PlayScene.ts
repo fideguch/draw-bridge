@@ -30,6 +30,7 @@ import { validateLevel } from '@engine/level/LevelSchema';
 import { GameSimulation } from '@engine/GameSimulation';
 import type { AttemptOutcome, UpgradeLevels } from '@engine/GameSimulation';
 import { isFailsafeReset } from '@engine/rules/Judge';
+import type { FailCause } from '@engine/rules/Judge';
 import { BridgeRenderer } from '@render/world/BridgeRenderer';
 import { CoinRenderer } from '@render/world/CoinRenderer';
 import { FlagRenderer } from '@render/world/FlagRenderer';
@@ -52,7 +53,7 @@ import { CHAPTER1_TILES } from '@render/ui/levelCatalog';
 import { getServices } from '@render/ui/services';
 import type { AttemptJuice, GameServices } from '@render/ui/services';
 import { color, layout, LAYOUT_EVENT, makeTextStyle, margin, space, type } from '@render/ui/theme';
-import { camera as cameraTuning, car, draw, launch, physics, speedLines as speedLinesTuning } from '@tuning/TuningConstants';
+import { camera as cameraTuning, car, draw, economy, launch, physics, speedLines as speedLinesTuning } from '@tuning/TuningConstants';
 import { setBridgeMidDeviation, setDevPlayState, setDevResultNextReady, setDevStrokePointCount, setWorldToGame } from '@render/devhook';
 import type { DevHookPlayState } from '@render/devhook';
 import { framingFor, type FramingViewport } from './play/levelFraming';
@@ -157,6 +158,7 @@ export class PlayScene extends Phaser.Scene {
   private overlay: ResultOverlay | null = null;
   private hudRestart: Button | null = null;
   private hudPause: Button | null = null;
+  private levelLabel: Phaser.GameObjects.Text | null = null;
   private pauseOverlay: PauseOverlay | null = null;
   /** True while the pause menu freezes stepping (2026-07-08 nav feedback). */
   private isPausedByUser = false;
@@ -273,7 +275,7 @@ export class PlayScene extends Phaser.Scene {
 
     this.buildWorldRenderers();
     this.strokeRenderer = new StrokeRenderer(this, { transform: this.transform, depth: DEPTH.stroke });
-    this.inkBar = new InkBarView(this);
+    this.inkBar = this.makeInkBar();
     this.overlay = new ResultOverlay(this, this.services);
     this.strokeInput = new StrokeInput(this, {
       transform: this.transform,
@@ -287,6 +289,7 @@ export class PlayScene extends Phaser.Scene {
     });
     this.buildHudRestart();
     this.buildHudPause();
+    this.buildLevelLabel();
 
     // SFX + haptics (composition-root owned) bound to this attempt's event bus.
     this.juice = this.services.attachEngineJuice(this.sim.events);
@@ -361,11 +364,15 @@ export class PlayScene extends Phaser.Scene {
     this.strokeRenderer?.destroy();
     this.strokeRenderer = new StrokeRenderer(this, { transform: this.transform, depth: DEPTH.stroke });
     this.inkBar?.destroy();
-    this.inkBar = new InkBarView(this);
+    this.inkBar = this.makeInkBar();
     this.inkBar.update(this.sim.inkState.ratio, this.sim.inkState.zone);
     this.strokeInput?.setTransform(this.transform);
     this.buildHudRestart();
     this.buildHudPause();
+    this.buildLevelLabel();
+    if (this.playState !== 'drawing') {
+      this.levelLabel?.setAlpha(0); // stay hidden mid-run after a relayout
+    }
   }
 
   /** Goal flag centre in world metres (confetti + coin-burst anchor). */
@@ -463,12 +470,11 @@ export class PlayScene extends Phaser.Scene {
     new Button(this, {
       x: layout.width / 2,
       y: layout.height * 0.4 + layout.ui(space.space8 * 2),
-      width: 200,
-      height: 56,
+      size: 'M',
       label: '一覧へもどる',
       variant: 'primary',
       services: this.services,
-      onClick: () => this.scene.start('LevelSelect'),
+      onClick: () => this.scene.start('Hub'),
     });
     setDevPlayState({ state: null, tick: 0, outcome: null });
   }
@@ -494,16 +500,60 @@ export class PlayScene extends Phaser.Scene {
     this.vehicle = new VehicleRenderer(this, sim.renderVehicle, this.transform, { depth: DEPTH.vehicle });
   }
 
+  /**
+   * The HUD InkGauge (DESIGN.md §4.7). Star-threshold ticks come from the level's
+   * star thresholds ÷ effective ink budget: a tick sits at the REMAINING ratio
+   * where consumption would still earn that star (consumed ≤ threshold ⇔
+   * remaining ≥ effective − threshold).
+   */
+  private makeInkBar(): InkBarView {
+    const markers: number[] = [];
+    const sim = this.sim;
+    const level = this.level;
+    if (sim !== null && level !== null) {
+      const eff = sim.inkState.effectiveBudget;
+      if (eff > 0) {
+        const clamp01 = (v: number): number => Math.min(1, Math.max(0, v));
+        markers.push(clamp01((eff - level.starThresholds.star3) / eff)); // ★3 tick
+        markers.push(clamp01((eff - level.starThresholds.star2) / eff)); // ★2 tick
+      }
+    }
+    // Directly under the LEVEL label (DESIGN.md §6.2 anchor map).
+    return new InkBarView(this, { markers, y: layout.safe.top + layout.ui(72) });
+  }
+
+  /**
+   * LEVEL label — top centre, aligned with the pause row (DESIGN.md §4.7/§6.2).
+   * Fades out over 150 ms as the launch anticipation starts (running HUD is
+   * restart-only, FR-005); beginDrawing restores it.
+   */
+  private buildLevelLabel(): void {
+    this.levelLabel?.destroy();
+    const tileLabel = CHAPTER1_TILES.find((tile) => tile.id === this.levelId)?.label ?? this.levelId;
+    this.levelLabel = this.add
+      .text(layout.width / 2, layout.safe.top + layout.ui(space.space4 + 22), `LEVEL ${tileLabel}`, makeTextStyle(type.h2, color.textPrimary))
+      .setOrigin(0.5)
+      .setScrollFactor(0)
+      .setDepth(DEPTH.hud);
+  }
+
+  /** 150 ms fade of the LEVEL label at launch (走行HUDはリスタートのみ, FR-005). */
+  private fadeOutLevelLabel(): void {
+    if (this.levelLabel === null) {
+      return;
+    }
+    this.tweens.killTweensOf(this.levelLabel);
+    this.tweens.add({ targets: this.levelLabel, alpha: 0, duration: 150, ease: 'Quad.Out' });
+  }
+
   private buildHudPause(): void {
     this.hudPause?.destroy();
     this.hudPause = new Button(this, {
       x: layout.safe.left + layout.ui(margin + 22),
       y: layout.safe.top + layout.ui(space.space4 + 22),
-      width: 44,
-      height: 44,
+      size: 'iconM',
       label: '',
       icon: 'pause',
-      iconSize: 22,
       variant: 'secondary',
       services: this.services,
       devId: 'hud-pause',
@@ -529,9 +579,14 @@ export class PlayScene extends Phaser.Scene {
         this.closePause();
         this.restartAttempt();
       },
+      onUpgrade: () => {
+        this.closePause();
+        // 全画面導線 (DESIGN.md §9): back returns to a fresh attempt of this level.
+        this.scene.start('Upgrade', { returnScene: 'Play', returnData: { levelId: this.levelId } });
+      },
       onLevels: () => {
         this.closePause();
-        this.scene.start('LevelSelect');
+        this.scene.start('Hub');
       },
     });
   }
@@ -546,14 +601,13 @@ export class PlayScene extends Phaser.Scene {
 
   private buildHudRestart(): void {
     this.hudRestart?.destroy();
+    // iconL (56×56) in the bottom-right thumb zone (DESIGN.md §4.7/§6.2).
     this.hudRestart = new Button(this, {
-      x: layout.width - layout.safe.right - layout.ui(margin + 22),
-      y: layout.safe.top + layout.ui(space.space4 + 22),
-      width: 44,
-      height: 44,
+      x: layout.width - layout.safe.right - layout.ui(margin + 28),
+      y: layout.height - layout.safe.bottom - layout.ui(margin + 28),
+      size: 'iconL',
       label: '',
       icon: 'restart',
-      iconSize: 24,
       variant: 'secondary',
       services: this.services,
       devId: 'hud-restart',
@@ -581,6 +635,10 @@ export class PlayScene extends Phaser.Scene {
     this.timeScale.resetBudget();
     this.speedLines.update(0);
     this.inkBar?.update(sim.inkState.ratio, sim.inkState.zone);
+    if (this.levelLabel !== null) {
+      this.tweens.killTweensOf(this.levelLabel);
+      this.levelLabel.setAlpha(1); // restored for the fresh drawing phase
+    }
     this.director.reset(this.centerPx);
     this.director.follow(() => this.centerPx);
     this.director.setZoomImmediate(1);
@@ -679,6 +737,7 @@ export class PlayScene extends Phaser.Scene {
     // Anticipation squash (§4.2 2-1) begins the moment the line solidifies.
     this.anticipationElapsedMs = 0;
     this.vehicle?.playAnticipation();
+    this.fadeOutLevelLabel(); // running HUD is restart-only (FR-005)
     this.setPlayState('anticipation');
   }
 
@@ -756,6 +815,9 @@ export class PlayScene extends Phaser.Scene {
           hasNext: nextId !== null,
           onReplay: () => this.restartAttempt(),
           onNext: () => this.goToNext(),
+          onLevels: () => this.scene.start('Hub'),
+          onUpgrade: () =>
+            this.scene.start('Upgrade', { returnScene: 'Play', returnData: { levelId: this.levelId } }),
         });
       });
   }
@@ -769,11 +831,50 @@ export class PlayScene extends Phaser.Scene {
     const causePx = this.transform.point(outcome.causeLocation);
     this.director.follow(() => causePx); // lerp-pan toward the cause point
     this.spawnFailMarker(causePx);
+    const hasInkUpsell = this.shouldOfferInkUpsell(outcome.cause);
     this.time.delayedCall(FAIL_MARK_MS, () => {
       if (this.playState === 'result') {
-        this.overlay?.showFail({ cause: outcome.cause, onRetry: () => this.restartAttempt() });
+        this.overlay?.showFail({
+          cause: outcome.cause,
+          onRetry: () => this.restartAttempt(),
+          onLevels: () => this.scene.start('Hub'),
+          onUpgrade: () =>
+            this.scene.start('Upgrade', { returnScene: 'Play', returnData: { levelId: this.levelId } }),
+          // Contextual ink upsell (DESIGN.md §8.4): only when ink shortage caused
+          // the fall — opens 強化 with the ink axis pre-recommended.
+          ...(hasInkUpsell
+            ? {
+                onUpgradeInk: () =>
+                  this.scene.start('Upgrade', {
+                    returnScene: 'Play',
+                    returnData: { levelId: this.levelId },
+                    recommendedAxis: 'inkCapacity',
+                  }),
+              }
+            : {}),
+        });
       }
     });
+  }
+
+  /**
+   * DESIGN.md §8.4 ink-shortage upsell gate (AND of all three):
+   *   1. the fall cause is `fall` (bridge didn't reach — not tip/timeout/divergence)
+   *   2. consumed ≥ 90% of the effective ink budget (ink was ~fully spent)
+   *   3. the ink-capacity axis still has upgrade headroom
+   */
+  private shouldOfferInkUpsell(cause: FailCause): boolean {
+    if (cause !== 'fall') {
+      return false;
+    }
+    const sim = this.sim;
+    if (sim === null) {
+      return false;
+    }
+    const eff = sim.inkState.effectiveBudget;
+    const isNearlyDepleted = eff > 0 && sim.inkState.consumed >= eff * 0.9;
+    const hasHeadroom = this.services.getUpgradeLevel('inkCapacity') < economy.maxUpgradeLevel;
+    return isNearlyDepleted && hasHeadroom;
   }
 
   /** A pulsing highlight ring at the fail cause (fades over FAIL_MARK_MS). */
@@ -812,7 +913,7 @@ export class PlayScene extends Phaser.Scene {
     if (nextId !== null && LEVEL_JSON[levelPath(nextId)] !== undefined) {
       this.scene.start('Play', { levelId: nextId });
     } else {
-      this.scene.start('LevelSelect');
+      this.scene.start('Hub');
     }
   }
 
@@ -905,6 +1006,7 @@ export class PlayScene extends Phaser.Scene {
       } else if (phase === 'anticipation') {
         this.playState = 'anticipation';
       }
+      this.syncHudVisibility();
     }
     setDevPlayState({ state: this.playState, tick: this.currentTick(), outcome: this.outcomeTag() });
   }
@@ -927,7 +1029,18 @@ export class PlayScene extends Phaser.Scene {
 
   private setPlayState(state: PlayStateTag): void {
     this.playState = state;
+    this.syncHudVisibility();
     setDevPlayState({ state, tick: this.currentTick(), outcome: this.outcomeTag() });
+  }
+
+  /**
+   * HUD visibility per phase (DESIGN.md §4.7): pause shows only while DRAWING
+   * (the run HUD is restart-only), and BOTH hide behind the result overlays so
+   * the overlay's own controls (Retry / Replay / レベル選択) are unambiguous.
+   */
+  private syncHudVisibility(): void {
+    this.hudPause?.setVisible(this.playState === 'drawing');
+    this.hudRestart?.setVisible(this.playState !== 'result');
   }
 
   private readUpgrades(): UpgradeLevels {

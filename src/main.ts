@@ -17,11 +17,10 @@ import type { AudioContextLike } from '@render/audio/WebAudioTypes';
 import { HapticsRouter } from '@render/juice/HapticsRouter';
 import { launch } from '@tuning/TuningConstants';
 import { BootScene } from '@render/scenes/BootScene';
-import { HomeScene } from '@render/scenes/HomeScene';
-import { LevelSelectScene } from '@render/scenes/LevelSelectScene';
+import { HubScene } from '@render/scenes/HubScene';
 import { PlayScene } from '@render/scenes/PlayScene';
 import { SettingsScene } from '@render/scenes/SettingsScene';
-import { ShopScene } from '@render/scenes/ShopScene';
+import { UpgradeScene } from '@render/scenes/UpgradeScene';
 import { SERVICES_KEY } from '@render/ui/services';
 import type { AttemptJuice, GameServices } from '@render/ui/services';
 import { skyCssColor } from '@render/ui/theme';
@@ -252,7 +251,7 @@ function createGameServices(): GameServices {
   };
 }
 
-const META_SCENES = [BootScene, HomeScene, LevelSelectScene, ShopScene, SettingsScene, PlayScene];
+const META_SCENES = [BootScene, HubScene, UpgradeScene, SettingsScene, PlayScene];
 
 // Dev-only spike route (?spike=1): S2 visual check scene (research R10, T035).
 // The dynamic import keeps src/debug/ tree-shaken out of release builds.

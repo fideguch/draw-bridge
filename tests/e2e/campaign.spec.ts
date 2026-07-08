@@ -112,9 +112,8 @@ test.describe('Chapter 1 full campaign', () => {
     test.setTimeout(480_000);
 
     await page.goto('/');
-    await expect.poll(async () => (await hook(page)).scene, { timeout: 20_000 }).toBe('Home');
-    await tapButton(page, 'home-play');
-    await expect.poll(async () => (await hook(page)).scene, { timeout: 10_000 }).toBe('LevelSelect');
+    // Hub merges Home + LevelSelect (DESIGN.md §6.1): the grid is the entry screen.
+    await expect.poll(async () => (await hook(page)).scene, { timeout: 20_000 }).toBe('Hub');
 
     // Sequential-unlock gate is live: L1 open, L2 still locked (not a registered tap target).
     expect(await buttonRegistered(page, 'level-ch1-l01'), 'L1 must be unlocked at start').toBe(true);

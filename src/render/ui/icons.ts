@@ -16,7 +16,7 @@
 import type Phaser from 'phaser';
 import { color } from './theme';
 
-export type IconName = 'gear' | 'back' | 'restart' | 'play' | 'coin' | 'pause';
+export type IconName = 'gear' | 'back' | 'restart' | 'play' | 'coin' | 'pause' | 'ink' | 'speed' | 'lock';
 
 export interface IconStyle {
   /** Foreground fill (monochrome icons). */
@@ -48,7 +48,90 @@ export function drawIcon(g: Gfx, name: IconName, size: number, style: IconStyle)
     case 'pause':
       drawPause(g, size, style);
       return;
+    case 'ink':
+      drawInk(g, size, style);
+      return;
+    case 'speed':
+      drawSpeed(g, size, style);
+      return;
+    case 'lock':
+      drawLock(g, size, style);
+      return;
   }
+}
+
+/**
+ * Ink bottle: a trapezoid bottle body + a short neck + a nib/drop, fill-only.
+ * Reads as "this is the ink resource" beside the HUD gauge (DESIGN.md §4.7/§4.8).
+ */
+function drawInk(g: Gfx, size: number, style: IconStyle): void {
+  const half = size / 2;
+  g.fillStyle(style.color, 1);
+  // Neck (short rounded rect at the top).
+  const neckW = size * 0.26;
+  const neckH = size * 0.16;
+  g.fillRoundedRect(-neckW / 2, -half * 0.9, neckW, neckH, neckW * 0.25);
+  // Bottle body: a downward-widening trapezoid with a flat rounded base.
+  const topW = size * 0.44;
+  const botW = size * 0.72;
+  const bodyTop = -half * 0.74;
+  const bodyBot = half * 0.62;
+  g.fillPoints(
+    [
+      { x: -topW / 2, y: bodyTop },
+      { x: topW / 2, y: bodyTop },
+      { x: botW / 2, y: bodyBot },
+      { x: -botW / 2, y: bodyBot },
+    ] as unknown as Phaser.Math.Vector2[],
+    true,
+  );
+  g.fillRoundedRect(-botW / 2, bodyBot - size * 0.14, botW, size * 0.2, size * 0.1);
+  // Ink drop highlight punched in the hole colour (a readable "fill level" cue).
+  g.fillStyle(style.holeColor ?? color.uiSurface, 1);
+  g.fillCircle(0, half * 0.18, size * 0.16);
+}
+
+/** Speed: a forward-leaning lightning bolt (engine-speed axis, DESIGN.md §4.8). */
+function drawSpeed(g: Gfx, size: number, style: IconStyle): void {
+  const half = size / 2;
+  g.fillStyle(style.color, 1);
+  g.fillPoints(
+    [
+      { x: half * 0.28, y: -half * 0.92 },
+      { x: -half * 0.5, y: half * 0.12 },
+      { x: -half * 0.04, y: half * 0.12 },
+      { x: -half * 0.28, y: half * 0.92 },
+      { x: half * 0.5, y: -half * 0.18 },
+      { x: half * 0.04, y: -half * 0.18 },
+    ] as unknown as Phaser.Math.Vector2[],
+    true,
+  );
+}
+
+/**
+ * Padlock: a shackle ring (outer disc + hole-colour inner disc, upper half only
+ * shown once the body covers the rest) + a rounded body with a keyhole. Fill-only
+ * (research §3 — no strokeCircle), matches the tile lock (DESIGN.md §4.4/§4.8).
+ */
+function drawLock(g: Gfx, size: number, style: IconStyle): void {
+  const half = size / 2;
+  const bodyW = size * 0.62;
+  const bodyH = size * 0.5;
+  const bodyTop = half * 0.02;
+  const shackleR = bodyW * 0.34;
+  const shackleCy = bodyTop - shackleR * 0.5;
+  const shackleThick = size * 0.11;
+  // Shackle ring (fill-only): outer disc, then hole-colour inner disc.
+  g.fillStyle(style.color, 1);
+  g.fillCircle(0, shackleCy, shackleR);
+  g.fillStyle(style.holeColor ?? color.uiSurface, 1);
+  g.fillCircle(0, shackleCy, shackleR - shackleThick);
+  // Body covers the ring's lower half so only the top arc reads as a shackle.
+  g.fillStyle(style.color, 1);
+  g.fillRoundedRect(-bodyW / 2, bodyTop, bodyW, bodyH, size * 0.1);
+  // Keyhole punched in the hole colour.
+  g.fillStyle(style.holeColor ?? color.uiSurface, 1);
+  g.fillCircle(0, bodyTop + bodyH * 0.42, size * 0.07);
 }
 
 /** Two rounded vertical bars. */

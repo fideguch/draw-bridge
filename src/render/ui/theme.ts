@@ -40,7 +40,7 @@ export const color = {
   stressHigh: 0xff3b30,
   goalFlag: 0xff4f9a,
   carBody: 0xff7a1a,
-  // Sporty vehicle accents (additive — VehicleRenderer + Home scenery car).
+  // Sporty vehicle accents (additive — VehicleRenderer).
   carBodyDark: 0xe0590b, // lower-body / belly ambient-occlusion shade
   carRoof: 0x323a5e, // cabin / roof — cool steel-blue contrast to the orange body
   carGlass: 0x9bd9ff, // windshield + side window glass
@@ -52,14 +52,23 @@ export const color = {
   coinStroke: 0x8c6d1f,
   star: 0xffe14d,
   starEmpty: 0xc9c6d9,
-  // ui
+  // ui (DESIGN.md §3.1 — chunky/soft refine)
   uiPrimary: 0x21c46b,
   uiPrimaryShadow: 0x178c4b,
+  uiPrimaryText: 0x0e3a22, // deep-green label on the primary face (AA on #21C46B)
+  uiSecondary: 0xfff7e6, // cream secondary face (NOT flat white) — the "押せる塊" fix
+  uiSecondaryShadow: 0xe7d9b8, // cream dark-tone chunky shadow
+  uiPremium: 0xffc531, // gold reward/currency accent (coin-buy + インクを増やす)
+  uiPremiumShadow: 0xc8901a,
   uiDanger: 0xff3b30,
   uiDangerShadow: 0xb32820,
   uiDisabled: 0xc9c6d9,
   uiDisabledShadow: 0x9d9ab0,
   uiSurface: 0xffffff,
+  uiSurfaceAlt: 0xfff7e6, // cream panel sub-surface (avoids flat-white monotony)
+  inkBarHigh: 0x21c46b, // ink > 50% (green)
+  inkBarMid: 0xffb300, // ink 20–50% (yellow)
+  inkBarLow: 0xff3b30, // ink < 20% (red + blink)
   textPrimary: 0x1e1b33,
   textSecondary: 0x6e6a8a,
   textInverse: 0xffffff,
@@ -77,13 +86,14 @@ export const space = {
   space2: 8,
   space3: 12,
   space4: 16,
+  space5: 20, // NEW (DESIGN.md §3.3) — card inner mid gap
   space6: 24,
   space8: 32,
   space12: 48,
 } as const;
 
-/** Radius (ui_design_brief §3.4), live getters → game px (DPR-crisp corners). */
-const RADIUS_DESIGN = { s: 8, m: 12, l: 20, full: 999 } as const;
+/** Radius (DESIGN.md §3.4), live getters → game px (DPR-crisp corners). */
+const RADIUS_DESIGN = { s: 8, m: 12, l: 20, xl: 28, full: 999 } as const;
 export const radius = {
   get s(): number {
     return layout.ui(RADIUS_DESIGN.s);
@@ -94,13 +104,17 @@ export const radius = {
   get l(): number {
     return layout.ui(RADIUS_DESIGN.l);
   },
+  /** NEW (DESIGN.md §3.4) — large panels / upgrade cards / overlays (toy feel). */
+  get xl(): number {
+    return layout.ui(RADIUS_DESIGN.xl);
+  },
   get full(): number {
     return layout.ui(RADIUS_DESIGN.full);
   },
 };
 
-/** Stroke widths (ui_design_brief §3.4), live getters → game px (DPR-crisp lines). */
-const STROKE_DESIGN = { game: 3, ui: 2 } as const;
+/** Stroke widths (DESIGN.md §3.4), live getters → game px (DPR-crisp lines). */
+const STROKE_DESIGN = { game: 3, ui: 2, panel: 3 } as const;
 export const stroke = {
   get game(): number {
     return layout.ui(STROKE_DESIGN.game);
@@ -108,10 +122,20 @@ export const stroke = {
   get ui(): number {
     return layout.ui(STROKE_DESIGN.ui);
   },
+  /** NEW (DESIGN.md §3.4 strokePanel) — chunky panel / card outline. */
+  get panel(): number {
+    return layout.ui(STROKE_DESIGN.panel);
+  },
 };
 
-/** Button hard-shadow offset (design px, ui_design_brief §3.4 shadowButton). */
-export const shadowOffsetY = 4;
+/**
+ * Chunky-shadow depths in design px (DESIGN.md §3.4). The body sits (0, +depth)
+ * above its dark-tone shadow; a press collapses the shadow and drops the body by
+ * `depth` (physical-key feel). `shadowDepthL` (6) is the main-CTA depth,
+ * `shadowDepthM` (4) covers M/S/icon/cards.
+ */
+export const shadowDepthL = 6;
+export const shadowDepthM = 4;
 
 /** Minimum touch target (design px, ui_design_brief §4, WCAG). */
 export const minTouchTarget = 44;
@@ -129,7 +153,9 @@ export const type = {
   button: { size: 18, bold: true },
   hudNumeral: { size: 18, bold: true },
   body: { size: 16, bold: false },
+  label: { size: 14, bold: true }, // NEW (DESIGN.md §3.2) — card sub-heading / effect value
   caption: { size: 13, bold: false },
+  labelSmall: { size: 12, bold: true }, // NEW (DESIGN.md §3.2) — tile bonus tag / Lv pip subscript (min 12pt)
 } as const satisfies Record<string, TypeToken>;
 
 /**

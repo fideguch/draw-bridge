@@ -129,9 +129,8 @@ async function drawToClear(page: Page, levelId: keyof typeof GHOSTS): Promise<vo
 
 async function navigateToL1Drawing(page: Page): Promise<void> {
   await page.goto('/');
-  await expect.poll(async () => (await hook(page)).scene, { timeout: 15_000 }).toBe('Home');
-  await tapButton(page, 'home-play');
-  await expect.poll(async () => (await hook(page)).scene, { timeout: 5_000 }).toBe('LevelSelect');
+  // Hub is the merged entry grid (DESIGN.md §6.1) — tap L1 directly.
+  await expect.poll(async () => (await hook(page)).scene, { timeout: 15_000 }).toBe('Hub');
   await tapButton(page, 'level-ch1-l01');
   await expect.poll(async () => (await hook(page)).state, { timeout: 10_000 }).toBe('drawing');
 }

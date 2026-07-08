@@ -1,7 +1,8 @@
 /**
- * CoinCounter.ts — the shared coin-balance pill (ui_design_brief §6.0 コイン残高
- * ピル). Rendered identically on Home / Shop (and later Result) so the single
- * balance reads the same everywhere (FR-018, trust pattern P1).
+ * CoinCounter.ts — the shared coin-balance pill (DESIGN.md §4.2 コイン残高ピル).
+ * Rendered identically on the Hub / 強化(Upgrade) / clear result so the single
+ * balance reads the same everywhere (FR-018, trust pattern P1). NEVER shown on
+ * the play HUD (DESIGN.md 原則1 — the play field stays clear).
  *
  * The pill is right-anchored: its right edge stays at the container origin, so
  * a digit-count change never shifts the top-right anchor.

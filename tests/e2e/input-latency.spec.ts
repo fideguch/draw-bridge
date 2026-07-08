@@ -47,9 +47,8 @@ function l1StrokeStart(): [number, number] {
 
 test('input -> stroke-state reflection median <= 100ms (NFR-002 probe)', async ({ page }) => {
   await page.goto('/');
-  await expect.poll(async () => (await getHook(page)).scene, { timeout: 15_000 }).toBe('Home');
-  await tapButton(page, 'home-play');
-  await expect.poll(async () => (await getHook(page)).scene, { timeout: 5_000 }).toBe('LevelSelect');
+  // Hub is the merged entry grid (DESIGN.md §6.1) — tap L1 directly.
+  await expect.poll(async () => (await getHook(page)).scene, { timeout: 15_000 }).toBe('Hub');
   await tapButton(page, 'level-ch1-l01');
   await expect.poll(async () => (await getHook(page)).state, { timeout: 10_000 }).toBe('drawing');
 

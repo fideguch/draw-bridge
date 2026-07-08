@@ -11,8 +11,8 @@
  *     worldToScreen(x, y): {x, y},        // world meters -> page pixels
  *     buttonRect(id): {x, y, width, height} | null,  // page pixels
  *   }
- * Button ids: 'home-play', 'level-ch1-l01'.., 'hud-restart', 'result-replay',
- * 'result-retry', 'result-next'.
+ * Button ids: 'level-ch1-l01'.. (on the Hub grid), 'hud-restart',
+ * 'result-replay', 'result-retry', 'result-next'.
  */
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -104,9 +104,9 @@ async function drawStroke(page: Page, worldPoints: ReadonlyArray<[number, number
 
 async function navigateToL1Drawing(page: Page): Promise<void> {
   await page.goto('/');
-  await expect.poll(async () => (await hook(page)).scene, { timeout: 15_000 }).toBe('Home');
-  await tapButton(page, 'home-play');
-  await expect.poll(async () => (await hook(page)).scene, { timeout: 5_000 }).toBe('LevelSelect');
+  // Hub merges Home + LevelSelect (DESIGN.md §6.1): the grid is the entry screen,
+  // so L1 is tapped directly — no intermediate LevelSelect.
+  await expect.poll(async () => (await hook(page)).scene, { timeout: 15_000 }).toBe('Hub');
   await tapButton(page, 'level-ch1-l01');
   await expect.poll(async () => (await hook(page)).state, { timeout: 10_000 }).toBe('drawing');
 }
