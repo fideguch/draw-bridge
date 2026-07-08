@@ -16,6 +16,7 @@
 
 import type Phaser from 'phaser';
 import type { Point } from '@engine/level/LevelSchema';
+import { fillThickPolyline } from '@render/ui/fillShapes';
 import { color, screen } from '@render/ui/theme';
 import { draw } from '@tuning/TuningConstants';
 import { buildStrokePath } from './strokeMath';
@@ -88,24 +89,12 @@ export class StrokeRenderer {
     this.graphics.destroy();
   }
 
-  /** Stroke a polyline with round caps + joins (disc at each vertex). */
+  /**
+   * Draw a polyline with round caps + joins out of FILLS (oriented quad per
+   * segment + a disc at each vertex). Replaces `strokePath`, which has no
+   * rounded-fill equivalent and hits Phaser 4's line regression (research §3).
+   */
   private strokeRoundedPolyline(pixels: readonly PixelPoint[], width: number, colorValue: number): void {
-    const first = pixels[0];
-    if (first === undefined) {
-      return;
-    }
-    this.graphics.lineStyle(width, colorValue, 1);
-    this.graphics.beginPath();
-    this.graphics.moveTo(first.x, first.y);
-    for (let i = 1; i < pixels.length; i++) {
-      const point = pixels[i] as PixelPoint;
-      this.graphics.lineTo(point.x, point.y);
-    }
-    this.graphics.strokePath();
-    const radius = width / 2;
-    this.graphics.fillStyle(colorValue, 1);
-    for (const point of pixels) {
-      this.graphics.fillCircle(point.x, point.y, radius);
-    }
+    fillThickPolyline(this.graphics, pixels, width, colorValue);
   }
 }

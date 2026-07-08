@@ -14,6 +14,7 @@
 
 import type Phaser from 'phaser';
 import type { Level } from '@engine/level/LevelSchema';
+import { fillThickPolyline } from '@render/ui/fillShapes';
 import { color, stroke as strokeToken } from '@render/ui/theme';
 import type { PixelPoint, WorldToPixel } from './worldToPixel';
 
@@ -81,18 +82,8 @@ export class TerrainRenderer {
     }
   }
 
+  /** Trace the surface edge as a filled thick polyline (fill-only; research §3). */
   private strokeEdge(edge: readonly PixelPoint[], width: number, colorValue: number): void {
-    const first = edge[0];
-    if (first === undefined) {
-      return;
-    }
-    this.graphics.lineStyle(width, colorValue, 1);
-    this.graphics.beginPath();
-    this.graphics.moveTo(first.x, first.y);
-    for (let i = 1; i < edge.length; i++) {
-      const point = edge[i] as PixelPoint;
-      this.graphics.lineTo(point.x, point.y);
-    }
-    this.graphics.strokePath();
+    fillThickPolyline(this.graphics, edge, width, colorValue);
   }
 }

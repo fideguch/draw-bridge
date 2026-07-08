@@ -14,6 +14,7 @@
 
 import type Phaser from 'phaser';
 import { draw } from '@tuning/TuningConstants';
+import { fillThickPolyline, type Vec2 } from '@render/ui/fillShapes';
 import type { PixelPoint } from '@render/world/worldToPixel';
 
 export interface CommitPopOptions {
@@ -45,19 +46,9 @@ export function playCommitPop(
   if (options.depth !== undefined) {
     graphics.setDepth(options.depth);
   }
-  graphics.lineStyle(options.lineWidthPx, options.color, 1);
-  graphics.fillStyle(options.color, 1);
-  const first = pixels[0] as PixelPoint;
-  graphics.beginPath();
-  graphics.moveTo(first.x - cx, first.y - cy);
-  for (let i = 1; i < pixels.length; i++) {
-    const point = pixels[i] as PixelPoint;
-    graphics.lineTo(point.x - cx, point.y - cy);
-  }
-  graphics.strokePath();
-  for (const point of pixels) {
-    graphics.fillCircle(point.x - cx, point.y - cy, options.lineWidthPx / 2);
-  }
+  // Centroid-local thick polyline, fill-only (no strokePath; research §3).
+  const local: Vec2[] = pixels.map((point) => ({ x: point.x - cx, y: point.y - cy }));
+  fillThickPolyline(graphics, local, options.lineWidthPx, options.color);
 
   graphics.setScale(1).setAlpha(0.9);
   scene.tweens.add({

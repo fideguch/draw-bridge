@@ -14,6 +14,7 @@ import { Button } from '@render/ui/Button';
 import { CoinCounter } from '@render/ui/CoinCounter';
 import { CHAPTER1_TILES, CHAPTER1_TITLE, findNextLevelId, isLevelUnlocked } from '@render/ui/levelCatalog';
 import type { LevelTile } from '@render/ui/levelCatalog';
+import { borderedCircle, borderedRoundedRect } from '@render/ui/fillShapes';
 import { getServices } from '@render/ui/services';
 import type { GameServices } from '@render/ui/services';
 import { color, layout, LAYOUT_EVENT, makeTextStyle, margin, radius, space, stroke, type } from '@render/ui/theme';
@@ -44,7 +45,9 @@ export class LevelSelectScene extends Phaser.Scene {
       y: topRowY,
       width: 44,
       height: 44,
-      label: '←',
+      label: '',
+      icon: 'back',
+      iconSize: 22,
       variant: 'secondary',
       services: this.services,
       onClick: () => this.scene.start('Home'),
@@ -86,10 +89,11 @@ export class LevelSelectScene extends Phaser.Scene {
 
     const fill = !isUnlocked ? color.uiDisabled : tile.isBonus ? color.coin : color.uiSurface;
     const g = this.add.graphics();
-    g.fillStyle(fill, 1);
-    g.fillRoundedRect(-tileSize / 2, -tileSize / 2, tileSize, tileSize, radius.s);
-    g.lineStyle(stroke.ui, color.inkBorder, 1);
-    g.strokeRoundedRect(-tileSize / 2, -tileSize / 2, tileSize, tileSize, radius.s);
+    borderedRoundedRect(g, -tileSize / 2, -tileSize / 2, tileSize, tileSize, radius.s, {
+      fill,
+      border: color.inkBorder,
+      borderWidth: stroke.ui,
+    });
     container.add(g);
 
     const numberColor = isUnlocked ? color.textPrimary : color.textSecondary;
@@ -160,8 +164,13 @@ export class LevelSelectScene extends Phaser.Scene {
   private drawLock(container: Phaser.GameObjects.Container): void {
     const ui = (n: number): number => layout.ui(n);
     const g = this.add.graphics();
-    g.lineStyle(stroke.game, color.textSecondary, 1);
-    g.strokeCircle(0, ui(20), ui(7)); // shackle (body covers its lower half)
+    // Shackle: a ring drawn fill-only (outer disc + tile-fill inner disc); the
+    // body rect then covers its lower half (research §3 — no strokeCircle).
+    borderedCircle(g, 0, ui(20), ui(7), {
+      fill: color.uiDisabled,
+      border: color.textSecondary,
+      borderWidth: stroke.game,
+    });
     g.fillStyle(color.textSecondary, 1);
     g.fillRoundedRect(-ui(9), ui(20), ui(18), ui(14), ui(3)); // body
     container.add(g);

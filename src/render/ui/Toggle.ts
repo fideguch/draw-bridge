@@ -9,6 +9,7 @@
 
 import Phaser from 'phaser';
 import type { GameServices } from './services';
+import { borderedCircle, clampRadius } from './fillShapes';
 import { color, layout, radius, stroke } from './theme';
 
 // Design px (ui_design_brief §6.8) — ui-scaled to game px in the constructor.
@@ -29,7 +30,7 @@ export interface ToggleOptions {
 
 export class Toggle extends Phaser.GameObjects.Container {
   private readonly track: Phaser.GameObjects.Graphics;
-  private readonly knob: Phaser.GameObjects.Arc;
+  private readonly knob: Phaser.GameObjects.Graphics;
   private readonly options: ToggleOptions;
   // Dimensions ui-scaled to game px once (DPR-crisp — research §2).
   private readonly trackWidth = layout.ui(TRACK_WIDTH_DESIGN);
@@ -43,9 +44,14 @@ export class Toggle extends Phaser.GameObjects.Container {
     this.isOn = options.initial;
 
     this.track = scene.add.graphics();
-    this.knob = scene.add
-      .circle(0, 0, layout.ui(KNOB_RADIUS_DESIGN), color.uiSurface)
-      .setStrokeStyle(stroke.ui, color.inkBorder);
+    // Fill-only bordered knob (no setStrokeStyle — research §3). Drawn at local
+    // (0, 0) so the position tween only moves the graphics' x.
+    this.knob = scene.add.graphics();
+    borderedCircle(this.knob, 0, 0, layout.ui(KNOB_RADIUS_DESIGN), {
+      fill: color.uiSurface,
+      border: color.inkBorder,
+      borderWidth: stroke.ui,
+    });
     this.add([this.track, this.knob]);
 
     const hitWidth = layout.ui(HIT_WIDTH_DESIGN);
@@ -76,7 +82,7 @@ export class Toggle extends Phaser.GameObjects.Container {
     // Clamp the pill radius to half the track height: radius.full is ui-scaled to
     // a huge value and Phaser's fillRoundedRect blows the corner arcs out into a
     // full-width cross on a small near-square rect if the radius exceeds it.
-    const pill = Math.min(radius.full, this.trackHeight / 2);
+    const pill = clampRadius(radius.full, this.trackWidth, this.trackHeight);
     this.track.clear();
     this.track.fillStyle(this.isOn ? color.uiPrimary : color.uiDisabled, 1);
     this.track.fillRoundedRect(-this.trackWidth / 2, -this.trackHeight / 2, this.trackWidth, this.trackHeight, pill);

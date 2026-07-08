@@ -18,6 +18,7 @@
 
 import type Phaser from 'phaser';
 import type { Vehicle } from '@engine/physics/Vehicle';
+import { borderedRoundedRect } from '@render/ui/fillShapes';
 import { color, stroke as strokeToken } from '@render/ui/theme';
 import { car, launch } from '@tuning/TuningConstants';
 import { degToRad } from '@render/juice/cameraMath';
@@ -152,10 +153,15 @@ export class VehicleRenderer {
     this.graphics.rotateCanvas(-pose.angle);
     const width = this.chassisHalfWidthPx * 2;
     const height = this.chassisHalfHeightPx * 2;
-    this.graphics.fillStyle(color.carBody, 1);
-    this.graphics.fillRoundedRect(-this.chassisHalfWidthPx, -this.chassisHalfHeightPx, width, height, this.chassisCornerPx);
-    this.graphics.lineStyle(strokeToken.game, color.inkBorder, 1);
-    this.graphics.strokeRoundedRect(-this.chassisHalfWidthPx, -this.chassisHalfHeightPx, width, height, this.chassisCornerPx);
+    borderedRoundedRect(
+      this.graphics,
+      -this.chassisHalfWidthPx,
+      -this.chassisHalfHeightPx,
+      width,
+      height,
+      this.chassisCornerPx,
+      { fill: color.carBody, border: color.inkBorder, borderWidth: strokeToken.game },
+    );
     this.graphics.restore();
   }
 
@@ -167,15 +173,12 @@ export class VehicleRenderer {
     this.graphics.rotateCanvas(-pose.angle);
     this.graphics.fillStyle(color.inkBorder, 1);
     this.graphics.fillCircle(0, 0, radius);
-    // Spoke cross rotates with the wheel body -> spin is legible.
-    this.graphics.lineStyle(2, color.inkLine, 1);
-    this.graphics.beginPath();
-    this.graphics.moveTo(-radius, 0);
-    this.graphics.lineTo(radius, 0);
-    this.graphics.moveTo(0, -radius);
-    this.graphics.lineTo(0, radius);
-    this.graphics.strokePath();
+    // Spoke cross (two filled bars) rotates with the wheel body -> spin is
+    // legible. Fill-only: no strokePath (research §3).
+    const spoke = Math.max(2, radius * 0.16);
     this.graphics.fillStyle(color.inkLine, 1);
+    this.graphics.fillRect(-radius, -spoke / 2, radius * 2, spoke);
+    this.graphics.fillRect(-spoke / 2, -radius, spoke, radius * 2);
     this.graphics.fillCircle(0, 0, Math.max(2, radius * 0.25));
     this.graphics.restore();
   }

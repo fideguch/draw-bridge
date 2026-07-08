@@ -16,6 +16,7 @@ import { CoinCounter } from '@render/ui/CoinCounter';
 import { formatCoins } from '@render/ui/format';
 import { getServices } from '@render/ui/services';
 import type { GameServices, UpgradeAxisId } from '@render/ui/services';
+import { borderedCircle, borderedRoundedRect } from '@render/ui/fillShapes';
 import { color, layout, LAYOUT_EVENT, makeTextStyle, margin, radius, space, stroke, type } from '@render/ui/theme';
 
 interface AxisCard {
@@ -63,7 +64,9 @@ export class ShopScene extends Phaser.Scene {
       y: topRowY,
       width: 44,
       height: 44,
-      label: '←',
+      label: '',
+      icon: 'back',
+      iconSize: 22,
       variant: 'secondary',
       services: this.services,
       devId: 'shop-back',
@@ -114,10 +117,11 @@ export class ShopScene extends Phaser.Scene {
     const cardHeight = this.ui(CARD_HEIGHT);
 
     const bg = this.add.graphics();
-    bg.fillStyle(color.uiSurface, 1);
-    bg.fillRoundedRect(cardLeft, card.top, cardWidth, cardHeight, radius.m);
-    bg.lineStyle(stroke.ui, color.inkBorder, 1);
-    bg.strokeRoundedRect(cardLeft, card.top, cardWidth, cardHeight, radius.m);
+    borderedRoundedRect(bg, cardLeft, card.top, cardWidth, cardHeight, radius.m, {
+      fill: color.uiSurface,
+      border: color.inkBorder,
+      borderWidth: stroke.ui,
+    });
     this.track(bg);
 
     this.track(
@@ -153,8 +157,12 @@ export class ShopScene extends Phaser.Scene {
         g.fillStyle(color.uiPrimary, 1);
         g.fillCircle(x, y, pipRadius);
       } else {
-        g.lineStyle(stroke.ui, color.uiDisabled, 1);
-        g.strokeCircle(x, y, pipRadius);
+        // Empty pip: a ring drawn fill-only over the card surface (no strokeCircle).
+        borderedCircle(g, x, y, pipRadius, {
+          fill: color.uiSurface,
+          border: color.uiDisabled,
+          borderWidth: stroke.ui,
+        });
       }
     }
     this.track(g);
@@ -192,7 +200,9 @@ export class ShopScene extends Phaser.Scene {
       y: centerY,
       width: 200,
       height: 52,
-      label: `◎ ${formatCoins(price)}`,
+      label: formatCoins(price),
+      icon: 'coin',
+      iconSize: 20,
       variant: 'primary',
       services: this.services,
       devId: `shop-buy-${card.axis}`,

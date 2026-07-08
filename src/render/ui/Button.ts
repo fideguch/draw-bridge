@@ -14,10 +14,15 @@
 
 import Phaser from 'phaser';
 import { registerDevButton } from '../devhook';
+import { borderedRoundedRect } from './fillShapes';
+import { drawIcon, type IconName } from './icons';
 import type { GameServices } from './services';
 import { color, layout, makeTextStyle, minTouchTarget, radius, shadowOffsetY, stroke, type } from './theme';
 
 export type ButtonVariant = 'primary' | 'secondary' | 'danger';
+
+/** Design-px gap between a leading icon and its label (0 when icon-only). */
+const ICON_LABEL_GAP_DESIGN = 6;
 
 export interface ButtonOptions {
   readonly x: number;
@@ -30,6 +35,10 @@ export interface ButtonOptions {
   readonly variant?: ButtonVariant;
   readonly fontSize?: number;
   readonly cornerRadius?: number;
+  /** Leading vector icon (fill-only, research §4.2) — replaces glyph labels. */
+  readonly icon?: IconName;
+  /** Icon box size in design px. Defaults to the font size. */
+  readonly iconSize?: number;
   /** Stable E2E tap-target id (dev builds only — see src/render/devhook.ts). */
   readonly devId?: string;
 }
@@ -59,6 +68,9 @@ function styleFor(variant: ButtonVariant, isEnabled: boolean): VariantStyle {
 export class Button extends Phaser.GameObjects.Container {
   private readonly shadow: Phaser.GameObjects.Graphics;
   private readonly bodyGfx: Phaser.GameObjects.Graphics;
+  private readonly iconGfx: Phaser.GameObjects.Graphics | null;
+  private readonly iconName?: IconName;
+  private readonly iconPx: number;
   private readonly face: Phaser.GameObjects.Container;
   private readonly label: Phaser.GameObjects.Text;
   private readonly options: ButtonOptions;
@@ -86,14 +98,23 @@ export class Button extends Phaser.GameObjects.Container {
     this.uiWidth = layout.ui(options.width);
     this.uiHeight = layout.ui(options.height);
     this.shadowShift = layout.ui(shadowOffsetY);
+    this.iconName = options.icon;
+    this.iconPx = layout.ui(options.iconSize ?? options.fontSize ?? type.button.size);
 
     this.shadow = scene.add.graphics();
     this.bodyGfx = scene.add.graphics();
+    this.iconGfx = options.icon !== undefined ? scene.add.graphics() : null;
     this.label = scene.add
       .text(0, 0, options.label, makeTextStyle({ size: options.fontSize ?? type.button.size, bold: true }, color.textPrimary))
       .setOrigin(0.5);
-    this.face = scene.add.container(0, 0, [this.bodyGfx, this.label]);
+    const faceChildren: Phaser.GameObjects.GameObject[] = [this.bodyGfx];
+    if (this.iconGfx !== null) {
+      faceChildren.push(this.iconGfx);
+    }
+    faceChildren.push(this.label);
+    this.face = scene.add.container(0, 0, faceChildren);
     this.add([this.shadow, this.face]);
+    this.layoutContents();
 
     const hitWidth = layout.ui(Math.max(options.width, minTouchTarget));
     const hitHeight = layout.ui(Math.max(options.height, minTouchTarget));
@@ -134,7 +155,23 @@ export class Button extends Phaser.GameObjects.Container {
 
   setLabel(text: string): this {
     this.label.setText(text);
+    this.layoutContents();
     return this;
+  }
+
+  /** Centre the icon + label group inside the face (icon leads the label). */
+  private layoutContents(): void {
+    if (this.iconGfx === null) {
+      this.label.setOrigin(0.5).setPosition(0, 0);
+      return;
+    }
+    const hasLabel = this.label.text.length > 0;
+    const gap = hasLabel ? layout.ui(ICON_LABEL_GAP_DESIGN) : 0;
+    const labelWidth = hasLabel ? this.label.width : 0;
+    const totalWidth = this.iconPx + gap + labelWidth;
+    const leftEdge = -totalWidth / 2;
+    this.iconGfx.setPosition(leftEdge + this.iconPx / 2, 0);
+    this.label.setOrigin(0, 0.5).setPosition(leftEdge + this.iconPx + gap, 0);
   }
 
   private onPress(): void {
@@ -178,13 +215,25 @@ export class Button extends Phaser.GameObjects.Container {
     this.shadow.fillStyle(s.shadow, 1);
     this.shadow.fillRoundedRect(left, top + this.shadowShift, w, h, this.corner);
 
+    // Body: borderless variants are a single fill; bordered variants use the
+    // double-fill technique (research §3.2) — Phaser 4 strokeRoundedRect is broken.
     this.bodyGfx.clear();
-    this.bodyGfx.fillStyle(s.fill, 1);
-    this.bodyGfx.fillRoundedRect(left, top, w, h, this.corner);
     if (s.border !== null) {
-      this.bodyGfx.lineStyle(stroke.ui, s.border, 1);
-      this.bodyGfx.strokeRoundedRect(left, top, w, h, this.corner);
+      borderedRoundedRect(this.bodyGfx, left, top, w, h, this.corner, {
+        fill: s.fill,
+        border: s.border,
+        borderWidth: stroke.ui,
+      });
+    } else {
+      this.bodyGfx.fillStyle(s.fill, 1);
+      this.bodyGfx.fillRoundedRect(left, top, w, h, this.corner);
     }
+
+    if (this.iconGfx !== null && this.iconName !== undefined) {
+      this.iconGfx.clear();
+      drawIcon(this.iconGfx, this.iconName, this.iconPx, { color: s.text, holeColor: s.fill });
+    }
+
     this.label.setColor(makeTextStyle(type.button, s.text).color ?? '#000000');
   }
 }

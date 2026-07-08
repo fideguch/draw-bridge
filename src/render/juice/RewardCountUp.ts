@@ -277,11 +277,13 @@ export class CoinBurstFlight {
   }
 
   private drawCoin(graphics: Phaser.GameObjects.Graphics): void {
+    // Bordered disc, fill-only (no strokeCircle; research §3): a stroke-coloured
+    // disc with the coin fill inset by the 2px border.
     const r = COIN_BURST_SIZE_PX / 2;
-    graphics.fillStyle(this.colors.coinColor, 1);
+    graphics.fillStyle(this.colors.strokeColor, 1);
     graphics.fillCircle(0, 0, r);
-    graphics.lineStyle(2, this.colors.strokeColor, 1);
-    graphics.strokeCircle(0, 0, r);
+    graphics.fillStyle(this.colors.coinColor, 1);
+    graphics.fillCircle(0, 0, r - 2);
   }
 }
 

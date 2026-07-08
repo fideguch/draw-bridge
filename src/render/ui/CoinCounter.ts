@@ -9,6 +9,7 @@
 
 import Phaser from 'phaser';
 import { formatCoins } from './format';
+import { borderedCircle, borderedRoundedRect, clampRadius } from './fillShapes';
 import { color, layout, makeTextStyle, radius, space, stroke, type } from './theme';
 
 // Design px (ui_design_brief §6.0) — ui-scaled to game px on read.
@@ -48,20 +49,22 @@ export class CoinCounter extends Phaser.GameObjects.Container {
     const contentWidth = pad + coinRadius * 2 + gap + textWidth + pad;
     const left = -contentWidth;
     // Clamp the pill radius to half the height (radius.full is ui-scaled huge).
-    const pill = Math.min(radius.full, pillHeight / 2);
+    const pill = clampRadius(radius.full, contentWidth, pillHeight);
 
     this.pill.clear();
-    this.pill.fillStyle(color.uiSurface, 1);
-    this.pill.fillRoundedRect(left, -pillHeight / 2, contentWidth, pillHeight, pill);
-    this.pill.lineStyle(stroke.ui, color.inkBorder, 1);
-    this.pill.strokeRoundedRect(left, -pillHeight / 2, contentWidth, pillHeight, pill);
+    borderedRoundedRect(this.pill, left, -pillHeight / 2, contentWidth, pillHeight, pill, {
+      fill: color.uiSurface,
+      border: color.inkBorder,
+      borderWidth: stroke.ui,
+    });
 
     const coinCenterX = left + pad + coinRadius;
     this.coinIcon.clear();
-    this.coinIcon.fillStyle(color.coin, 1);
-    this.coinIcon.fillCircle(coinCenterX, 0, coinRadius);
-    this.coinIcon.lineStyle(stroke.ui, color.coinStroke, 1);
-    this.coinIcon.strokeCircle(coinCenterX, 0, coinRadius);
+    borderedCircle(this.coinIcon, coinCenterX, 0, coinRadius, {
+      fill: color.coin,
+      border: color.coinStroke,
+      borderWidth: stroke.ui,
+    });
 
     this.label.setX(coinCenterX + coinRadius + gap);
   }

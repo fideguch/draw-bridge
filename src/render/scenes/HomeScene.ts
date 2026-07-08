@@ -30,15 +30,16 @@ export class HomeScene extends Phaser.Scene {
     const ui = (n: number): number => layout.ui(n);
     const topRowY = layout.safe.top + ui(space.space4 + 22);
 
-    // settings entry (top-left, 44×44)
+    // settings entry (top-left, 44×44) — vector gear icon (no glyph, research §4.2)
     new Button(this, {
       x: layout.safe.left + ui(margin + 22),
       y: topRowY,
       width: 44,
       height: 44,
-      label: '⚙',
+      label: '',
+      icon: 'gear',
+      iconSize: 24,
       variant: 'secondary',
-      fontSize: type.h2.size,
       services,
       devId: 'home-settings',
       onClick: () => this.scene.start('Settings'),
@@ -59,7 +60,9 @@ export class HomeScene extends Phaser.Scene {
       y: playCenterY,
       width: 280,
       height: 64,
-      label: '▶ あそぶ',
+      label: 'あそぶ',
+      icon: 'play',
+      iconSize: 20,
       variant: 'primary',
       services,
       devId: 'home-play',

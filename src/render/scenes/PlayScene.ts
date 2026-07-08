@@ -47,6 +47,7 @@ import { ParticleBurst } from '@render/juice/ParticleBurst';
 import { SpeedLines, speedLineIntensity } from '@render/juice/SpeedLines';
 import { playCommitPop } from '@render/juice/CommitPop';
 import { Button } from '@render/ui/Button';
+import { fillRing } from '@render/ui/fillShapes';
 import { CHAPTER1_TILES } from '@render/ui/levelCatalog';
 import { getServices } from '@render/ui/services';
 import type { AttemptJuice, GameServices } from '@render/ui/services';
@@ -161,7 +162,7 @@ export class PlayScene extends Phaser.Scene {
   private isTornDown = false;
   private accumulatorSec = 0;
   private lastAlpha = 0;
-  private strokePoints: Point[] = [];
+  private strokeVertices: Point[] = [];
   private hasFiredDepleted = false;
   private juice: AttemptJuice | null = null;
   private readonly cameraJuiceUnsubs: Array<() => void> = [];
@@ -480,9 +481,10 @@ export class PlayScene extends Phaser.Scene {
       y: layout.safe.top + layout.ui(space.space4 + 22),
       width: 44,
       height: 44,
-      label: '↺',
+      label: '',
+      icon: 'restart',
+      iconSize: 24,
       variant: 'secondary',
-      fontSize: type.h2.size,
       services: this.services,
       devId: 'hud-restart',
       onClick: () => this.restartAttempt(),
@@ -497,7 +499,7 @@ export class PlayScene extends Phaser.Scene {
     this.outcomeHandled = false;
     this.accumulatorSec = 0;
     this.lastAlpha = 0;
-    this.strokePoints = [];
+    this.strokeVertices = [];
     this.hasFiredDepleted = false;
     this.lastTip = null;
     this.launchReleased = false;
@@ -523,11 +525,11 @@ export class PlayScene extends Phaser.Scene {
     if (sim === null || sim.phase !== 'drawing') {
       return false;
     }
-    return rawPolylineLength(this.strokePoints) < sim.inkState.remaining;
+    return rawPolylineLength(this.strokeVertices) < sim.inkState.remaining;
   }
 
   private onStrokeStart(point: Point): void {
-    this.strokePoints = [point];
+    this.strokeVertices = [point];
     this.hasFiredDepleted = false;
     this.lastTip = null;
     setDevStrokePointCount(1);
@@ -535,8 +537,8 @@ export class PlayScene extends Phaser.Scene {
   }
 
   private onStrokePoint(point: Point): void {
-    this.strokePoints.push(point);
-    setDevStrokePointCount(this.strokePoints.length);
+    this.strokeVertices.push(point);
+    setDevStrokePointCount(this.strokeVertices.length);
     this.emitDrawJuice(point);
     this.redrawStroke();
     if (!this.canDraw() && !this.hasFiredDepleted) {
@@ -567,10 +569,10 @@ export class PlayScene extends Phaser.Scene {
 
   private redrawStroke(): void {
     const sim = this.activeSim;
-    const consumed = rawPolylineLength(this.strokePoints);
+    const consumed = rawPolylineLength(this.strokeVertices);
     const remaining = Math.max(0, sim.inkState.remaining - consumed);
     const ratio = remaining / sim.inkState.effectiveBudget;
-    this.strokeRenderer?.redraw(this.strokePoints, ratio);
+    this.strokeRenderer?.redraw(this.strokeVertices, ratio);
     this.inkBar?.update(ratio);
   }
 
@@ -583,7 +585,7 @@ export class PlayScene extends Phaser.Scene {
     this.strokeRenderer?.clear();
     setDevStrokePointCount(0);
     const committedPixels = points.map((p) => this.transform.point(p));
-    this.strokePoints = [];
+    this.strokeVertices = [];
     if (!result.committed) {
       // Discarded (too short / invalid / not enough ink): refund, nudge, stay.
       this.inkBar?.update(sim.inkState.ratio, sim.inkState.zone);
@@ -716,8 +718,9 @@ export class PlayScene extends Phaser.Scene {
       ease: 'Quad.Out',
       onUpdate: () => {
         ring.clear();
-        ring.lineStyle(4, color.stressHigh, proxy.a);
-        ring.strokeCircle(px.x, px.y, proxy.r);
+        // Fill-only expanding ring (annulus) — no strokeCircle (research §3).
+        const thickness = layout.ui(4);
+        fillRing(ring, px.x, px.y, proxy.r, Math.max(0, proxy.r - thickness), color.stressHigh, proxy.a);
       },
       onComplete: () => ring.destroy(),
     });

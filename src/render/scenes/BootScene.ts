@@ -30,6 +30,16 @@ export class BootScene extends Phaser.Scene {
   }
 
   private async boot(): Promise<void> {
+    // Wait for the rounded-gothic stack to settle before any menu text bakes, so
+    // glyph metrics don't shift after the first paint (FOUT, research §5). System
+    // fonts resolve near-instantly; the guard covers non-browser/test contexts.
+    if (typeof document !== 'undefined' && document.fonts !== undefined) {
+      try {
+        await document.fonts.ready;
+      } catch {
+        // Font readiness is best-effort — never block boot on it.
+      }
+    }
     const services = getServices(this);
     let notice: SaveNotice | null = null;
     try {

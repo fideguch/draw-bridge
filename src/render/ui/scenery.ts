@@ -9,6 +9,7 @@
  */
 
 import Phaser from 'phaser';
+import { borderedRoundedRect, fillLine } from './fillShapes';
 import { color, layout, stroke } from './theme';
 
 /** Draw a static ground + parked car + goal flag vignette across the bottom. */
@@ -24,23 +25,22 @@ export function drawGroundScene(scene: Phaser.Scene): void {
   g.fillRect(0, groundY, width, height - groundY);
   g.fillStyle(color.terrainGrass, 1);
   g.fillRect(0, groundY, width, ui(8));
-  g.lineStyle(stroke.game, color.terrainStroke, 1);
-  g.lineBetween(0, groundY, width, groundY);
+  fillLine(g, 0, groundY, width, groundY, stroke.game, color.terrainStroke);
 
   // parked hero car (rounded body + two wheels)
   const carX = ui(108);
-  g.fillStyle(color.carBody, 1);
-  g.fillRoundedRect(carX - ui(30), groundY - ui(34), ui(60), ui(24), ui(8));
-  g.lineStyle(stroke.game, color.inkBorder, 1);
-  g.strokeRoundedRect(carX - ui(30), groundY - ui(34), ui(60), ui(24), ui(8));
+  borderedRoundedRect(g, carX - ui(30), groundY - ui(34), ui(60), ui(24), ui(8), {
+    fill: color.carBody,
+    border: color.inkBorder,
+    borderWidth: stroke.game,
+  });
   g.fillStyle(color.inkBorder, 1);
   g.fillCircle(carX - ui(16), groundY - ui(8), ui(10));
   g.fillCircle(carX + ui(16), groundY - ui(8), ui(10));
 
   // goal flag (pole + magenta pennant)
   const flagX = ui(300);
-  g.lineStyle(stroke.game, color.inkBorder, 1);
-  g.lineBetween(flagX, groundY, flagX, groundY - ui(64));
+  fillLine(g, flagX, groundY, flagX, groundY - ui(64), stroke.game, color.inkBorder);
   g.fillStyle(color.goalFlag, 1);
   g.fillTriangle(flagX, groundY - ui(64), flagX, groundY - ui(40), flagX + ui(30), groundY - ui(52));
 }

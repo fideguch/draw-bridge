@@ -10,6 +10,7 @@
 
 import type Phaser from 'phaser';
 import type { Rect } from '@engine/level/LevelSchema';
+import { borderedPolygon, fillLine } from '@render/ui/fillShapes';
 import { color, stroke as strokeToken } from '@render/ui/theme';
 import type { WorldToPixel } from './worldToPixel';
 
@@ -68,32 +69,19 @@ export class FlagRenderer {
 
   private redraw(waveOffsetPx: number): void {
     this.graphics.clear();
-    // Pole.
-    this.graphics.lineStyle(strokeToken.game, color.inkBorder, 1);
-    this.graphics.beginPath();
-    this.graphics.moveTo(this.poleTopX, this.poleBaseY);
-    this.graphics.lineTo(this.poleTopX, this.poleTopY);
-    this.graphics.strokePath();
-    // Waving magenta pennant hanging from the top of the pole.
+    // Pole — a thin filled bar (fill-only, no strokePath; research §3).
+    fillLine(this.graphics, this.poleTopX, this.poleBaseY, this.poleTopX, this.poleTopY, strokeToken.game, color.inkBorder);
+    // Waving magenta pennant (filled triangle + fill-only outset border).
     const tipX = this.poleTopX + this.pennantLenPx + waveOffsetPx;
     const tipY = this.poleTopY + this.pennantHeightPx / 2;
-    this.graphics.fillStyle(color.goalFlag, 1);
-    this.graphics.fillTriangle(
-      this.poleTopX,
-      this.poleTopY,
-      this.poleTopX,
-      this.poleTopY + this.pennantHeightPx,
-      tipX,
-      tipY,
-    );
-    this.graphics.lineStyle(strokeToken.game, color.inkBorder, 1);
-    this.graphics.strokeTriangle(
-      this.poleTopX,
-      this.poleTopY,
-      this.poleTopX,
-      this.poleTopY + this.pennantHeightPx,
-      tipX,
-      tipY,
+    borderedPolygon(
+      this.graphics,
+      [
+        { x: this.poleTopX, y: this.poleTopY },
+        { x: this.poleTopX, y: this.poleTopY + this.pennantHeightPx },
+        { x: tipX, y: tipY },
+      ],
+      { fill: color.goalFlag, border: color.inkBorder, borderWidth: strokeToken.game },
     );
   }
 }

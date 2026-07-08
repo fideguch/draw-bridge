@@ -16,6 +16,7 @@
 
 import type Phaser from 'phaser';
 import type { InkZone } from '@engine/rules/InkBudget';
+import { borderedRoundedRect, clampRadius } from '@render/ui/fillShapes';
 import { color, layout, radius as radiusToken, stroke } from '@render/ui/theme';
 import { ink } from '@tuning/TuningConstants';
 import { inkZoneOf } from '@render/world/renderColors';
@@ -130,10 +131,12 @@ export class InkBarView {
   }
 
   private drawTrack(track: Phaser.GameObjects.Graphics): void {
-    const pillRadius = Math.min(radiusToken.full, this.barHeight / 2);
-    track.fillStyle(color.uiSurface, 0.35);
-    track.fillRoundedRect(-this.barWidth / 2, -this.barHeight / 2, this.barWidth, this.barHeight, pillRadius);
-    track.lineStyle(stroke.ui, color.inkBorder, 1);
-    track.strokeRoundedRect(-this.barWidth / 2, -this.barHeight / 2, this.barWidth, this.barHeight, pillRadius);
+    const pillRadius = clampRadius(radiusToken.full, this.barWidth, this.barHeight);
+    borderedRoundedRect(track, -this.barWidth / 2, -this.barHeight / 2, this.barWidth, this.barHeight, pillRadius, {
+      fill: color.uiSurface,
+      fillAlpha: 0.35,
+      border: color.inkBorder,
+      borderWidth: stroke.ui,
+    });
   }
 }

@@ -23,6 +23,7 @@ import {
   isConfirmComplete,
 } from '@render/ui/resetConfirm';
 import { Toggle } from '@render/ui/Toggle';
+import { borderedRoundedRect, fillLine } from '@render/ui/fillShapes';
 import { appInfo, color, layout, LAYOUT_EVENT, makeTextStyle, margin, radius, scrim, space, stroke, type } from '@render/ui/theme';
 
 const MODAL_DEPTH = 100;
@@ -61,7 +62,9 @@ export class SettingsScene extends Phaser.Scene {
       y: topRowY,
       width: 44,
       height: 44,
-      label: '←',
+      label: '',
+      icon: 'back',
+      iconSize: 22,
       variant: 'secondary',
       services: this.services,
       devId: 'settings-back',
@@ -83,8 +86,16 @@ export class SettingsScene extends Phaser.Scene {
     });
 
     const divider = this.add.graphics();
-    divider.lineStyle(stroke.ui, color.uiDisabled, 1);
-    divider.lineBetween(layout.safe.left + this.ui(margin), this.absY(292), layout.width - layout.safe.right - this.ui(margin), this.absY(292));
+    const dividerY = this.absY(292);
+    fillLine(
+      divider,
+      layout.safe.left + this.ui(margin),
+      dividerY,
+      layout.width - layout.safe.right - this.ui(margin),
+      dividerY,
+      stroke.ui,
+      color.uiDisabled,
+    );
 
     this.add.text(this.rowLabelX, this.absY(330), '進行をリセット', makeTextStyle(type.body, color.textPrimary)).setOrigin(0, 0.5);
     new Button(this, {
@@ -274,10 +285,11 @@ export class SettingsScene extends Phaser.Scene {
   /** @param width @param top @param height all in game px. */
   private addCard(width: number, top: number, height: number): void {
     const card = this.add.graphics().setDepth(MODAL_DEPTH);
-    card.fillStyle(color.uiSurface, 1);
-    card.fillRoundedRect((layout.width - width) / 2, top, width, height, radius.m);
-    card.lineStyle(stroke.ui, color.inkBorder, 1);
-    card.strokeRoundedRect((layout.width - width) / 2, top, width, height, radius.m);
+    borderedRoundedRect(card, (layout.width - width) / 2, top, width, height, radius.m, {
+      fill: color.uiSurface,
+      border: color.inkBorder,
+      borderWidth: stroke.ui,
+    });
     this.trackModal(card);
   }
 

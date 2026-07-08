@@ -19,6 +19,7 @@
 
 import type Phaser from 'phaser';
 import { goal } from '@tuning/TuningConstants';
+import { borderedPolygon, fillRing, type Vec2 } from '@render/ui/fillShapes';
 
 /**
  * TODO(tuning): §4.3 3-4 fixes the pop overshoot at scale 1.3 and adds a
@@ -177,17 +178,17 @@ export class StarBurstView {
     if (this.viewOptions.depth !== undefined) {
       graphics.setDepth(this.viewOptions.depth);
     }
-    graphics.fillStyle(this.viewOptions.filledColor, 1);
-    graphics.lineStyle(2, this.viewOptions.borderColor, 1);
-    const points = starPolygon(radius);
-    graphics.beginPath();
-    graphics.moveTo(points[0] ?? 0, points[1] ?? 0);
-    for (let i = 2; i < points.length; i += 2) {
-      graphics.lineTo(points[i] ?? 0, points[i + 1] ?? 0);
+    // Filled star + fill-only outset border (no strokePath; research §3).
+    const flat = starPolygon(radius);
+    const points: Vec2[] = [];
+    for (let i = 0; i < flat.length; i += 2) {
+      points.push({ x: flat[i] ?? 0, y: flat[i + 1] ?? 0 });
     }
-    graphics.closePath();
-    graphics.fillPath();
-    graphics.strokePath();
+    borderedPolygon(graphics, points, {
+      fill: this.viewOptions.filledColor,
+      border: this.viewOptions.borderColor,
+      borderWidth: 2,
+    });
     this.stars.push(graphics);
     return graphics;
   }
@@ -209,8 +210,8 @@ export class StarBurstView {
       ease: 'Quad.Out',
       onUpdate: () => {
         ring.clear();
-        ring.lineStyle(3, ringColor, proxy.a);
-        ring.strokeCircle(0, 0, proxy.r);
+        // Fill-only expanding ring (annulus) — no strokeCircle (research §3).
+        fillRing(ring, 0, 0, proxy.r, Math.max(0, proxy.r - 3), ringColor, proxy.a);
       },
       onComplete: () => this.removeRing(ring),
     });

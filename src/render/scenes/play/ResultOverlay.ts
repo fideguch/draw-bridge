@@ -17,6 +17,7 @@
 import Phaser from 'phaser';
 import type { FailCause } from '@engine/rules/Judge';
 import { Button } from '@render/ui/Button';
+import { borderedCircle } from '@render/ui/fillShapes';
 import type { GameServices } from '@render/ui/services';
 import { color, layout, makeTextStyle, scrim, stroke, type } from '@render/ui/theme';
 import { coinCounterPunch } from '@render/juice/RewardCountUp';
@@ -208,10 +209,11 @@ export class ResultOverlay {
 
   private addCoinCounter(cx: number, y: number): void {
     const icon = this.scene.add.graphics().setScrollFactor(0).setDepth(OVERLAY_DEPTH);
-    icon.fillStyle(color.coin, 1);
-    icon.fillCircle(cx - layout.ui(26), y, layout.ui(12));
-    icon.lineStyle(stroke.ui, color.coinStroke, 1);
-    icon.strokeCircle(cx - layout.ui(26), y, layout.ui(12));
+    borderedCircle(icon, cx - layout.ui(26), y, layout.ui(12), {
+      fill: color.coin,
+      border: color.coinStroke,
+      borderWidth: stroke.ui,
+    });
     this.track(icon);
 
     this.coinTextPos = { x: cx - layout.ui(6), y };

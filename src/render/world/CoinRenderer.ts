@@ -16,7 +16,7 @@
 import type Phaser from 'phaser';
 import type { Point } from '@engine/level/LevelSchema';
 import type { EngineEvents } from '@engine/EngineEvents';
-import { color, stroke as strokeToken } from '@render/ui/theme';
+import { color } from '@render/ui/theme';
 import { coin as coinTuning } from '@tuning/TuningConstants';
 import type { WorldToPixel } from './worldToPixel';
 
@@ -96,13 +96,19 @@ export class CoinRenderer {
   }
 
   private drawCoin(graphics: Phaser.GameObjects.Graphics): void {
+    // Two-tone coin drawn fill-only (no strokeCircle; research §3): a coinStroke
+    // rim + gold face + a coinStroke inner ring + gold centre. Radii are a fixed
+    // PROPORTION of the coin so the rim never eats the face on small world coins
+    // (matches the shop coin icon — icons.ts drawCoin).
+    const r = this.radiusPx;
+    graphics.fillStyle(color.coinStroke, 1);
+    graphics.fillCircle(0, 0, r);
     graphics.fillStyle(color.coin, 1);
-    graphics.fillCircle(0, 0, this.radiusPx);
-    graphics.lineStyle(strokeToken.game, color.coinStroke, 1);
-    graphics.strokeCircle(0, 0, this.radiusPx);
-    // Inner glyph ring so a collected coin reads as a coin at any size.
-    graphics.lineStyle(Math.max(2, this.radiusPx * 0.12), color.coinStroke, 1);
-    graphics.strokeCircle(0, 0, this.radiusPx * 0.45);
+    graphics.fillCircle(0, 0, r * 0.82);
+    graphics.fillStyle(color.coinStroke, 1);
+    graphics.fillCircle(0, 0, r * 0.42);
+    graphics.fillStyle(color.coin, 1);
+    graphics.fillCircle(0, 0, r * 0.3);
   }
 
   private spawnSparkles(x: number, y: number): void {

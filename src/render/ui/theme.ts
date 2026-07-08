@@ -125,12 +125,16 @@ export const type = {
 } as const satisfies Record<string, TypeToken>;
 
 /**
- * Rounded-gothic system stack (ui_design_brief §3.2). Bundled Fredoka / M PLUS
- * Rounded 1c are deferred (§9); no external/CDN font is loaded (NFR-012), so we
- * fall back to the platform rounded system faces.
+ * Rounded-gothic stack, ordered for CJK roundness (ui_design_brief §3.2, research
+ * §5). No CDN/bundled webfont (NFR-012 / ≤300 KB budget not spent), so we lean on
+ * the platform rounded faces: "Hiragino Maru Gothic ProN" ships on iOS and is the
+ * free rounded Japanese face (research §5 "iOS = free rounded Japanese"); "M PLUS
+ * Rounded 1c" / "Hiragino Sans" cover other platforms, then the system fallbacks.
+ * BootScene awaits document.fonts.ready before routing to Home so the first text
+ * bakes at settled metrics (no FOUT shift).
  */
 export const fontFamily =
-  '"Hiragino Maru Gothic ProN", "Yu Gothic UI", "M PLUS Rounded 1c", -apple-system, system-ui, sans-serif';
+  '"Hiragino Maru Gothic ProN", "M PLUS Rounded 1c", "Hiragino Sans", "Yu Gothic UI", -apple-system, system-ui, sans-serif';
 
 /** App metadata shown on the settings screen (SC-008). */
 export const appInfo = {
