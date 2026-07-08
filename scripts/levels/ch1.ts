@@ -15,6 +15,15 @@
  * platforms + ink-tight budgets defeat every straight rim-to-rim candidate while
  * a hand-tuned arch clears (proven pattern: tests/fixtures/gate-levels/ch1-l08).
  *
+ * PLAYABLE-WINDOW COMPACTION (2026-07-08, real-device "stage too small"): the
+ * framing (src/render/scenes/play/levelFraming.ts) fits spawn↔flag + 2 m pad, so
+ * the on-screen size is driven by how far spawn/flag sit from the gap. Genre hits
+ * (Draw Bridge) start the car ~2.5-3 m before the near rim and put the goal
+ * ~2-3.5 m after the far rim so the ACTION fills the screen. Every spawn/flag was
+ * pulled to that spacing; the GAP geometry and the candidate STROKES stay anchored
+ * near x=0 (so ink economy + the Gate 3 rim/straight defense are untouched), and
+ * the terrain runways keep their generous scenery extents (framing clips them).
+ *
  * Coordinates: world meters, y-up. Terrain polylines authored left->right with
  * top-side winding (Terrain.ts reverses internally). Chasm bottoms drop slightly
  * outward from each rim (matches the fixtures).
@@ -147,8 +156,9 @@ export const CH1_SOURCES: readonly LevelSource[] = [
     design: '1.8m gap · any-line-works',
     inkFeel: 'generous',
     terrain: twoPlatforms({ leftFar: -9, leftRim: -0.9, leftY: 0, rightRim: 0.9, rightY: 0, rightFar: 12, chasmY: -5 }),
-    vehicleSpawn: p(-5, 0.6),
-    goalFlag: flag(8, 0, 1.5, 2.5),
+    // Compacted: spawn 2.6 m before the near rim, flag 2.0 m past the far rim.
+    vehicleSpawn: p(-3.5, 0.6),
+    goalFlag: flag(2.9, 0, 1.5, 2.5),
     killY: -6,
     coins: coinArc(0, 0.9, 5, 0.5, 0.35),
     gimmickTags: [],
@@ -165,8 +175,8 @@ export const CH1_SOURCES: readonly LevelSource[] = [
     design: '2.5m gap · slight step · straight=3★',
     inkFeel: 'generous',
     terrain: twoPlatforms({ leftFar: -10, leftRim: -1.25, leftY: 0, rightRim: 1.25, rightY: 0.3, rightFar: 13, chasmY: -5 }),
-    vehicleSpawn: p(-6, 0.6),
-    goalFlag: flag(9, 0.3, 1.4, 2.4),
+    vehicleSpawn: p(-3.85, 0.6),
+    goalFlag: flag(3.25, 0.3, 1.4, 2.4),
     killY: -6,
     coins: coinArc(0, 1.1, 6, 0.5, 0.3),
     gimmickTags: [],
@@ -182,8 +192,10 @@ export const CH1_SOURCES: readonly LevelSource[] = [
     design: '3m gap · consolidation',
     inkFeel: 'standard',
     terrain: twoPlatforms({ leftFar: -10, leftRim: -1.5, leftY: 0, rightRim: 1.5, rightY: 0, rightFar: 13, chasmY: -5 }),
-    vehicleSpawn: p(-6, 0.6),
-    goalFlag: flag(9, 0, 1.3, 2.3),
+    // Extra runway (3.5 m): the wasteful high-bow "sloppy" alternative needs entry
+    // speed to clear the tall hump; the tight 3★ arch clears at less.
+    vehicleSpawn: p(-5.0, 0.6),
+    goalFlag: flag(3.5, 0, 1.3, 2.3),
     killY: -6,
     coins: coinArc(0, 1.0, 6, 0.5, 0.35),
     gimmickTags: [],
@@ -202,13 +214,15 @@ export const CH1_SOURCES: readonly LevelSource[] = [
       ...twoPlatforms({ leftFar: -11, leftRim: -2, leftY: 0, rightRim: 2, rightY: 0, rightFar: 14, chasmY: -5 }),
       pillar(0, -0.3, -5),
     ],
-    vehicleSpawn: p(-7, 0.6),
-    goalFlag: flag(10, 0, 1.3, 2.3),
+    // Shallow rest-on-pillar sag (bow -0.12): still loads the mid support but no
+    // longer stalls the car at the bridge lip, so genre runway (2.9 m) clears.
+    vehicleSpawn: p(-4.9, 0.6),
+    goalFlag: flag(4.0, 0, 1.3, 2.3),
     killY: -6,
     coins: coinArc(0, 0.9, 6, 0.5, 0.3),
     gimmickTags: [],
     strokes: [
-      { kind: '3star', role: 'rests-on-pillar', points: arch(-2.8, 0.1, 2.8, 0.1, -0.25) },
+      { kind: '3star', role: 'rests-on-pillar', points: arch(-2.8, 0.1, 2.8, 0.1, -0.12) },
       { kind: 'any', role: 'sag-wide', points: arch(-3.2, 0.15, 3.2, 0.15, -0.1) },
     ],
   },
@@ -219,8 +233,10 @@ export const CH1_SOURCES: readonly LevelSource[] = [
     design: '4.5m gap · low far bank · arch=3★',
     inkFeel: 'standard',
     terrain: twoPlatforms({ leftFar: -11, leftRim: -2.25, leftY: 0.4, rightRim: 2.25, rightY: -0.2, rightFar: 14, chasmY: -5.5 }),
-    vehicleSpawn: p(-7, 1.0),
-    goalFlag: flag(10, -0.2, 1.3, 2.4),
+    // Wide shallow arch (bridge left end at x=-5.2): spawn sits just behind it so
+    // the car is behind the bridge with a short flat runway before the climb.
+    vehicleSpawn: p(-5.5, 1.0),
+    goalFlag: flag(4.25, -0.2, 1.3, 2.4),
     killY: -6.5,
     coins: coinArc(0, 0.9, 7, 0.5, 0.4),
     gimmickTags: [],
@@ -237,13 +253,15 @@ export const CH1_SOURCES: readonly LevelSource[] = [
     inkFeel: 'generous',
     bonusMultiplier: 6,
     terrain: twoPlatforms({ leftFar: -12, leftRim: -1.0, leftY: 0, rightRim: 1.0, rightY: 0, rightFar: 20, chasmY: -5 }),
-    vehicleSpawn: p(-7, 0.6),
-    goalFlag: flag(16, 0, 1.5, 2.5),
+    // Bonus keeps a longer post-gap run than a standard level, but fills the
+    // multi-gap window budget (≤16 m) instead of the old 29 m sprawl.
+    vehicleSpawn: p(-3.6, 0.6),
+    goalFlag: flag(5.8, 0, 1.5, 2.5),
     killY: -6,
     coins: [
-      ...coinArc(0, 1.0, 5, 0.5, 0.35),
-      ...coinArc(6, 1.2, 6, 0.5, 0.6),
-      ...coinArc(11, 1.2, 6, 0.5, 0.6),
+      ...coinArc(0.3, 1.0, 5, 0.5, 0.35),
+      ...coinArc(2.8, 1.2, 6, 0.45, 0.55),
+      ...coinArc(4.8, 1.1, 5, 0.4, 0.45),
     ],
     gimmickTags: [],
     strokes: [{ kind: 'any', role: 'straight', points: line(-2.2, 0.15, 2.2, 0.15) }],
@@ -273,8 +291,9 @@ export const CH1_SOURCES: readonly LevelSource[] = [
         [13, 0],
       ],
     ],
-    vehicleSpawn: p(-7, 0.6),
-    goalFlag: flag(10, 0, 1.4, 2.4),
+    // Near rim -2.3, far rim 2.3: spawn 2.6 m before, flag 2.0 m after.
+    vehicleSpawn: p(-4.9, 0.6),
+    goalFlag: flag(4.3, 0, 1.4, 2.4),
     killY: -6,
     coins: [...coinArc(-1.6, 0.9, 3, 0.45, 0.25), ...coinArc(1.6, 0.9, 3, 0.45, 0.25)],
     gimmickTags: [],
@@ -287,8 +306,8 @@ export const CH1_SOURCES: readonly LevelSource[] = [
     design: '3.5m gap · uphill far bank',
     inkFeel: 'standard',
     terrain: twoPlatforms({ leftFar: -11, leftRim: -1.75, leftY: 0, rightRim: 1.75, rightY: 1.2, rightFar: 14, chasmY: -5 }),
-    vehicleSpawn: p(-7, 0.6),
-    goalFlag: flag(10, 1.2, 1.3, 2.3),
+    vehicleSpawn: p(-4.7, 0.6),
+    goalFlag: flag(3.75, 1.2, 1.3, 2.3),
     killY: -6,
     coins: coinArc(0.5, 1.4, 6, 0.5, 0.35),
     gimmickTags: [],
@@ -306,8 +325,10 @@ export const CH1_SOURCES: readonly LevelSource[] = [
     gimmickTags: ['anti-dominant'],
     maxTicks: 1800,
     terrain: twoPlatforms({ leftFar: -12, leftRim: -2.5, leftY: 0, rightRim: 2.5, rightY: 2, rightFar: 15, chasmY: -6 }),
-    vehicleSpawn: p(-8, 0.6),
-    goalFlag: flag(11, 2, 1.2, 2.2),
+    // Climb level: the motor-powered ramp arch clears at tight runway (probed),
+    // so spawn sits 2.7 m before the near rim; flag 2.0 m onto the raised bank.
+    vehicleSpawn: p(-5.2, 0.6),
+    goalFlag: flag(4.5, 2, 1.2, 2.2),
     killY: -8,
     coins: coinArc(0, 1.6, 6, 0.55, 0.4),
     // Tight efficient arch (firm-bridge rebuild 2026-07-08): a firm bridge lets
@@ -327,8 +348,10 @@ export const CH1_SOURCES: readonly LevelSource[] = [
       ...twoPlatforms({ leftFar: -11, leftRim: -2, leftY: 0, rightRim: 2, rightY: 0, rightFar: 14, chasmY: -5.5 }),
       pillar(0.6, -0.35, -5.5),
     ],
-    vehicleSpawn: p(-7, 0.6),
-    goalFlag: flag(10, 0, 1.3, 2.3),
+    // Offset-pillar V-dip stroke needs momentum to climb out (probed cliff at
+    // ~2.5 m): 3.5 m runway gives safe margin.
+    vehicleSpawn: p(-5.5, 0.6),
+    goalFlag: flag(4.0, 0, 1.3, 2.3),
     killY: -6.5,
     coins: coinArc(0.4, 0.9, 6, 0.5, 0.3),
     gimmickTags: [],
@@ -343,8 +366,8 @@ export const CH1_SOURCES: readonly LevelSource[] = [
     gimmickTags: ['anti-dominant'],
     maxTicks: 1800,
     terrain: twoPlatforms({ leftFar: -13, leftRim: -2.7, leftY: 0, rightRim: 2.7, rightY: 2.2, rightFar: 16, chasmY: -6 }),
-    vehicleSpawn: p(-8, 0.6),
-    goalFlag: flag(12, 2.2, 1.2, 2.2),
+    vehicleSpawn: p(-5.3, 0.6),
+    goalFlag: flag(4.7, 2.2, 1.0, 2.2),
     killY: -8,
     coins: coinArc(-0.2, 1.7, 7, 0.55, 0.45),
     // Tight efficient arch (firm-bridge rebuild): low overlap keeps the derived
@@ -359,13 +382,13 @@ export const CH1_SOURCES: readonly LevelSource[] = [
     inkFeel: 'generous',
     bonusMultiplier: 7,
     terrain: twoPlatforms({ leftFar: -12, leftRim: -1.2, leftY: 0.7, rightRim: 1.2, rightY: 0.3, rightFar: 20, chasmY: -5 }),
-    vehicleSpawn: p(-7, 1.3),
-    goalFlag: flag(16, 0.3, 1.5, 2.5),
+    vehicleSpawn: p(-3.8, 1.3),
+    goalFlag: flag(5.5, 0.3, 1.5, 2.5),
     killY: -6,
     coins: [
-      ...coinArc(0, 1.4, 5, 0.5, 0.4),
-      ...coinArc(6, 1.3, 6, 0.5, 0.6),
-      ...coinArc(11, 1.2, 6, 0.5, 0.6),
+      ...coinArc(0.2, 1.3, 5, 0.5, 0.4),
+      ...coinArc(2.6, 1.15, 6, 0.45, 0.55),
+      ...coinArc(4.6, 1.0, 5, 0.4, 0.45),
     ],
     gimmickTags: [],
     strokes: [{ kind: 'any', role: 'gentle-arch', points: arch(-2.8, 0.85, 2.8, 0.45, 0.3) }],
@@ -377,8 +400,9 @@ export const CH1_SOURCES: readonly LevelSource[] = [
     design: 'breather · downhill · small gap',
     inkFeel: 'generous',
     terrain: twoPlatforms({ leftFar: -12, leftRim: -1.5, leftY: 0.45, rightRim: 1.5, rightY: 0, rightFar: 14, chasmY: -5 }),
-    vehicleSpawn: p(-8, 1.05),
-    goalFlag: flag(10, 0, 1.4, 2.4),
+    // Wide downhill arch (left end x=-4): spawn just behind it.
+    vehicleSpawn: p(-4.3, 1.05),
+    goalFlag: flag(3.5, 0, 1.4, 2.4),
     killY: -6,
     coins: coinArc(0, 0.85, 6, 0.5, 0.35),
     gimmickTags: [],
@@ -393,8 +417,8 @@ export const CH1_SOURCES: readonly LevelSource[] = [
     gimmickTags: ['anti-dominant'],
     maxTicks: 1800,
     terrain: twoPlatforms({ leftFar: -12, leftRim: -2.6, leftY: 0, rightRim: 2.6, rightY: 2.2, rightFar: 15, chasmY: -6 }),
-    vehicleSpawn: p(-8, 0.6),
-    goalFlag: flag(11, 2.2, 1.2, 2.2),
+    vehicleSpawn: p(-5.3, 0.6),
+    goalFlag: flag(4.6, 2.2, 1.0, 2.2),
     killY: -8,
     coins: coinArc(-0.2, 1.7, 6, 0.55, 0.45),
     // Tight efficient arch (firm-bridge rebuild): steep-straight physics no
@@ -412,8 +436,10 @@ export const CH1_SOURCES: readonly LevelSource[] = [
       pillar(-0.3, -0.5, -6, 0.8, 0.5), // correct: high, near center
       pillar(1.7, -2.6, -6, 0.7, 0.45), // trap: too low to help
     ],
-    vehicleSpawn: p(-8, 0.6),
-    goalFlag: flag(11, 0, 1.3, 2.3),
+    // The high central pillar supports even the tall high-arch alternative, so it
+    // clears at genre runway (probed to spawn -4.7); -5.0 keeps safe margin.
+    vehicleSpawn: p(-5.0, 0.6),
+    goalFlag: flag(4.5, 0, 1.3, 2.3),
     killY: -8,
     coins: coinArc(-0.3, 0.9, 6, 0.5, 0.35),
     gimmickTags: [],
@@ -431,8 +457,8 @@ export const CH1_SOURCES: readonly LevelSource[] = [
     gimmickTags: ['anti-dominant'],
     maxTicks: 1800,
     terrain: twoPlatforms({ leftFar: -12, leftRim: -2.5, leftY: 0, rightRim: 2.5, rightY: 2, rightFar: 14, chasmY: -6 }),
-    vehicleSpawn: p(-8, 0.6),
-    goalFlag: flag(10, 2, 1.0, 1.9),
+    vehicleSpawn: p(-5.2, 0.6),
+    goalFlag: flag(4.5, 2, 1.0, 1.9),
     killY: -8,
     coins: coinArc(-0.2, 1.6, 5, 0.5, 0.35),
     // Tight efficient arch (firm-bridge rebuild): low-overlap arch pins the tight
@@ -448,8 +474,8 @@ export const CH1_SOURCES: readonly LevelSource[] = [
     gimmickTags: ['anti-dominant'],
     maxTicks: 1800,
     terrain: twoPlatforms({ leftFar: -13, leftRim: -2.7, leftY: 0, rightRim: 2.7, rightY: 2.2, rightFar: 18, chasmY: -6.5 }),
-    vehicleSpawn: p(-8, 0.6),
-    goalFlag: flag(14, 2.2, 1.2, 2.2),
+    vehicleSpawn: p(-5.2, 0.6),
+    goalFlag: flag(4.7, 2.2, 1.0, 2.2),
     killY: -8.5,
     coins: coinArc(-0.2, 1.7, 7, 0.55, 0.5),
     // Tight efficient boss arch (firm-bridge rebuild): low-overlap arch pins the
@@ -464,14 +490,14 @@ export const CH1_SOURCES: readonly LevelSource[] = [
     inkFeel: 'generous',
     bonusMultiplier: 8,
     terrain: twoPlatforms({ leftFar: -12, leftRim: -1.0, leftY: 0, rightRim: 1.0, rightY: 0, rightFar: 24, chasmY: -5 }),
-    vehicleSpawn: p(-7, 0.6),
-    goalFlag: flag(20, 0, 1.6, 2.6),
+    vehicleSpawn: p(-3.6, 0.6),
+    goalFlag: flag(5.8, 0, 1.6, 2.6),
     killY: -6,
     coins: [
-      ...coinArc(0, 1.0, 5, 0.5, 0.35),
-      ...coinArc(5, 1.2, 6, 0.5, 0.6),
-      ...coinArc(10, 1.2, 6, 0.5, 0.6),
-      ...coinArc(15, 1.2, 6, 0.5, 0.6),
+      ...coinArc(0.2, 1.0, 5, 0.45, 0.35),
+      ...coinArc(2.2, 1.2, 5, 0.4, 0.5),
+      ...coinArc(3.8, 1.2, 5, 0.4, 0.5),
+      ...coinArc(5.2, 1.1, 4, 0.35, 0.4),
     ],
     gimmickTags: [],
     strokes: [{ kind: 'any', role: 'straight', points: line(-2.2, 0.15, 2.2, 0.15) }],
