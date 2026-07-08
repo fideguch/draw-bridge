@@ -71,7 +71,7 @@
 - [x] T057 Draw-scene juice: draw loop sound (speed→volume 0.3-1.0/pitch 1.0-1.2, stops with finger, 30-50ms fades), pen dust particles, commit pop scale 1.0→1.06→1.0/120ms + commit sound + haptic (FR-010)
 - [x] T058 Launch juice: anticipation (rev pitch 1.0→1.4, rear squash 5-8°, wheel-spin smoke) → release (10-20 dust burst, front stretch 1.15/0.9→100ms, bass burst SFX, haptic); engine hum speed→pitch 1.0-1.5 with 0.25 gear steps (FR-011)
 - [x] T059 Creak/stress feedback: joint stress 0.6-1.0 → segment tint white→yellow→red + creak SFX volume/pitch + dust particles + weak haptic pulses; break: crack SFX + debris + trauma+=0.5 + broken-joint highlight (FR-006 render side, FR-008 cause highlight)
-- [x] T060 Goal 5-beat celebration in src/render/juice/GoalSequence.ts: hit-stop 80-120ms → timeScale 0.3 (0.3-0.5s real, physics fixedDelta linked, camera zoom 15-25%) → confetti 2-stage (2 cannons 40-60 each + 0.3s-delayed rain 60-100, rotation ±720°/s, gravity 0.2-0.4x, pop sounds ×2 50ms apart) → stars sequential 200-300ms (scale 0→1.3→1.0, C-E-G arpeggio, cymbal on 3rd, haptic ramp) → reward count-up 0.8-1.5s (tick pitch 1.0→1.3) + coin burst 10-30 → counter flight; ALL tap-skippable; Next active 1.5-2.5s with ±5% pulse (FR-012)
+- [x] T060 Goal 5-beat celebration in src/render/juice/GoalSequence.ts: hit-stop 80-120ms → timeScale 0.3 (0.3-0.5s real, physics fixedDelta linked, camera zoom 15-25%) → confetti 2-stage (2 cannons 40-60 each + 0.3s-delayed rain 60-100, rotation ±720°/s, gravity 0.2-0.4x, pop sounds ×2 50ms apart) → stars sequential 200-300ms (scale 0→1.3→1.0, C-E-G arpeggio, cymbal on 3rd, haptic ramp) → reward count-up 0.8-1.5s (tick pitch 1.0→1.3) + coin burst 10-30 → counter flight; ALL tap-skippable; Next active ≤1.0s (decoupled from afterglow; user directive 2026-07-08, was 1.5-2.5s) with scale-in pop + ±5% pulse (FR-012). Impact-first overhaul 2026-07-08 (research 10): t=0 screen flash + trauma 0.5 + zoom-kick + center burst + clear stinger; title bounce + sunburst rays + star sparkle.
 - [x] T061 [P] Fail experience: physics spectacle untouched, light dim + short sad SFX, Retry instant, cause highlight (broken joint / fall point / tip pose) (FR-013, FR-008)
 - [x] T062 Coin pickup: arc placements collectible during run, pop scale 1.0→1.3→0/150ms + 4-8 sparkles + pitch-ladder sound; level coins credit only on clear per BR-003 (FR-009)
 
@@ -111,7 +111,7 @@
 ## Phase 11: E2E, Contracts & Polish
 
 - [x] T092 Playwright E2E tests/e2e/l1-clear.spec.ts: real pointer-draw L1 → clear ≤25s; retry ≤1s; input→visual ≤100ms probe (NFR-002, NFR-003)
-- [x] T093 [P] Tempo contract test suite tests/e2e/tempo.spec.ts (first 3 levels 60-90s via scripted strokes, Next active 1.5-2.5s, celebration skippable)
+- [x] T093 [P] Tempo contract test suite tests/e2e/tempo.spec.ts (first 3 levels 60-90s via scripted strokes, Next active ≤1.0s (user directive 2026-07-08, was 1.5-2.5s), celebration skippable)
 - [x] T094 [P] Bundle audit: web ≤5MB gzip, dev-only modules absent from prod build (NFR-013); cold start ≤3s device / ≤5s web (NFR-006)
 - [x] T095 [P] Accessibility pass: touch targets ≥44pt, stress double-coding (color+particles+vibration), 12pt min text (NFR-009)
 - [ ] T096 juice checklist audit vs game_design §4 mandatory items = 100% (KPI-005) + ux_protocol.md full-screen device walkthrough (gatekeeper HG evidence)

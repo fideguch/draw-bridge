@@ -6,8 +6,9 @@
  * asserts the Phase 6 tempo contracts:
  *   - the whole three-level run completes well under 90 s wall-clock;
  *   - a clear→replay→clear loop cycle completes ≤ 40 s (KPI-004);
- *   - the goal celebration's Next button activates 1.5-2.5 s after the results
- *     panel appears (§4.3 3-7) — measured via the dev hook's resultNextReady;
+ *   - the goal celebration's Next button activates ≤1.0 s after the results panel
+ *     appears (user directive 2026-07-08: Next is decoupled from the afterglow so
+ *     it is tappable within 1 s of the clear) — measured via resultNextReady;
  *   - the celebration is tap-skippable: a tap mid-celebration jumps straight to
  *     an interactive results panel (§4.4 X-3).
  *
@@ -137,7 +138,7 @@ async function navigateToL1Drawing(page: Page): Promise<void> {
 
 const TIGHT: { intervals: number[] } = { intervals: [100, 100, 100] };
 
-test('tempo: l01→l03 via Next — celebration skippable, Next 1.5-2.5s, loop ≤40s, total ≤90s', async ({
+test('tempo: l01→l03 via Next — celebration skippable, Next ≤1.0s, loop ≤40s, total ≤90s', async ({
   page,
 }) => {
   test.setTimeout(120_000);
@@ -146,16 +147,49 @@ test('tempo: l01→l03 via Next — celebration skippable, Next 1.5-2.5s, loop �
   // ── L01: first clear ────────────────────────────────────────────────────────
   await navigateToL1Drawing(page);
   const loopStart = Date.now();
+
+  // Install a page-side timing recorder (rAF perf.now stamps) BEFORE clearing, so
+  // the Next-activation measurement is immune to poll/evaluate latency. That
+  // latency is large on the celebration frame — the goal juice runs the renderer
+  // slow under headless software-WebGL + serial CPU — and would otherwise dwarf
+  // the sub-second delay we are asserting.
+  await page.evaluate(() => {
+    // eslint-disable-next-line @typescript-eslint/naming-convention
+    const rec = ((window as unknown as { __tempo: { resultAt: number; readyAt: number } }).__tempo = {
+      resultAt: 0,
+      readyAt: 0,
+    });
+    const loop = (): void => {
+      // eslint-disable-next-line @typescript-eslint/naming-convention
+      const h = (window as unknown as { __inkbridge?: InkbridgeHook }).__inkbridge;
+      if (h?.state === 'result' && rec.resultAt === 0) rec.resultAt = performance.now();
+      if (h?.resultNextReady && rec.readyAt === 0) rec.readyAt = performance.now();
+      requestAnimationFrame(loop);
+    };
+    requestAnimationFrame(loop);
+  });
+
   await drawToClear(page, 'ch1-l01');
 
-  // Panel reveal → measure the Next activation window (§4.3 3-7).
+  // Panel reveal → the Next activation is DECOUPLED from the afterglow.
   await expect.poll(async () => (await hook(page)).state, { timeout: 10_000, ...TIGHT }).toBe('result');
-  const resultAt = Date.now();
   expect((await hook(page)).resultNextReady).toBe(false); // not active the instant the panel shows
   await expect.poll(async () => (await hook(page)).resultNextReady, { timeout: 6_000, ...TIGHT }).toBe(true);
-  const nextDelayMs = Date.now() - resultAt;
-  expect(nextDelayMs).toBeGreaterThanOrEqual(1_500); // must NOT activate early
-  expect(nextDelayMs).toBeLessThanOrEqual(3_000); // 2.5 s target + serial-CPU/poll slack
+
+  // Accurate page-side delta from panel reveal to Next-active. USER DIRECTIVE
+  // 2026-07-08: Next tappable within 1 s of the clear. It activates
+  // goal.nextActivateDelaySec (0.3 s) after the ~0.6 s panel envelope (that
+  // envelope is unit-fixed in juice-primitives.spec), so from the panel it is a
+  // small beat — [0.12, 1.0] s here. The floor guards against an instant/0-delay
+  // regression; the ceiling would fail the old 2.0 s behaviour. (Full clear→Next
+  // is ~0.9 s on 60fps hardware — the real-device gatekeeper step owns that.)
+  const nextDelayMs = await page.evaluate(() => {
+    // eslint-disable-next-line @typescript-eslint/naming-convention
+    const r = (window as unknown as { __tempo: { resultAt: number; readyAt: number } }).__tempo;
+    return Math.round(r.readyAt - r.resultAt);
+  });
+  expect(nextDelayMs).toBeGreaterThanOrEqual(120); // must NOT be instant (still a beat)
+  expect(nextDelayMs).toBeLessThanOrEqual(1_000); // ≤ 1 s (decoupled from the afterglow)
 
   // ── loop cycle: clear → replay → clear ≤ 40 s (KPI-004) ─────────────────────
   await tapButton(page, 'result-replay');

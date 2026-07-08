@@ -58,6 +58,11 @@ export class CameraDirector {
   private traumaLevel = 0;
   private zoomLevel: number;
   private targetZoomLevel: number;
+  // Transient impact "zoom-kick" (goal celebration L2): a multiplicative punch on
+  // top of the computed zoom that decays exponentially, so the base zoom lerp
+  // (slow-mo zoom-in / restore) is left untouched. See zoomKick().
+  private zoomKickAmount = 0;
+  private zoomKickTauMs = 120;
   private timeSec = 0;
 
   private getTarget: () => Vec2;
@@ -124,8 +129,20 @@ export class CameraDirector {
     this.targetZoomLevel = zoom;
   }
 
-  /** Snap zoom immediately (no lerp). */
+  /**
+   * Impact zoom-kick (goal celebration L2, research 10 §6.2): punch the applied
+   * zoom by `pct`% and let it decay back with `recoverMs` as the time-constant.
+   * Rides on TOP of the base zoom (slow-mo zoom-in) so the two never fight; the
+   * base zoom lerp state is untouched.
+   */
+  zoomKick(pct: number, recoverMs: number): void {
+    this.zoomKickAmount = pct / 100;
+    this.zoomKickTauMs = Math.max(1, recoverMs);
+  }
+
+  /** Snap zoom immediately (no lerp). Clears any in-flight zoom-kick. */
   setZoomImmediate(zoom: number): void {
+    this.zoomKickAmount = 0;
     this.zoomLevel = zoom;
     this.targetZoomLevel = zoom;
     this.camera.setZoom(zoom);
@@ -164,7 +181,15 @@ export class CameraDirector {
     this.traumaLevel = out.trauma;
     this.zoomLevel = out.zoom;
 
-    this.camera.setZoom(out.zoom);
+    // Apply the transient impact zoom-kick on top of the base zoom, decaying it
+    // exponentially (framerate-independent) toward 0.
+    if (this.zoomKickAmount !== 0) {
+      this.zoomKickAmount *= Math.exp(-deltaMs / this.zoomKickTauMs);
+      if (Math.abs(this.zoomKickAmount) < 1e-3) {
+        this.zoomKickAmount = 0;
+      }
+    }
+    this.camera.setZoom(out.zoom * (1 + this.zoomKickAmount));
     this.camera.centerOn(out.renderCenter.x, out.renderCenter.y);
     this.camera.setRotation(out.angle);
   }
@@ -176,6 +201,7 @@ export class CameraDirector {
     }
     this.kick = { x: 0, y: 0 };
     this.traumaLevel = 0;
+    this.zoomKickAmount = 0;
     this.timeSec = 0;
   }
 

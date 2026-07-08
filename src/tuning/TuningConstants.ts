@@ -203,8 +203,12 @@ export const camera = {
   traumaLand: 0.25,
   /** Trauma added on crash/break. */
   traumaCrash: 0.5,
-  /** Trauma added on goal. */
-  traumaGoal: 0.4,
+  /**
+   * Trauma added on goal. Impact-first celebration overhaul 2026-07-08
+   * (research 10 §6.2): 0.4 -> 0.5 — the goal is a top-tier moment, on par with
+   * traumaCrash (0.5). Range 0.4-0.5.
+   */
+  traumaGoal: 0.5,
   /** Speed zoom-out percentage. Range 10-20. */
   speedZoomOutPct: 15,
   /** Goal celebration zoom-in percentage. Range 15-25. */
@@ -329,10 +333,17 @@ export const goal = {
   hitStopMs: 100,
   /** Slow-motion time scale. Fixed. */
   slowTimeScale: 0.3,
-  /** Slow-motion hold in real seconds. Range 0.3-0.5. */
-  slowHoldSec: 0.4,
-  /** Slow-motion recovery in seconds. Range 0.2-0.3. */
-  slowRecoverSec: 0.25,
+  /**
+   * Slow-motion hold in real seconds. Range 0.3-0.5. Impact-first overhaul
+   * 2026-07-08 (research 10 §6.2): 0.4 -> 0.3 (shortest of the band) so the
+   * envelope tightens to 600 ms and the panel + Next arrive sooner.
+   */
+  slowHoldSec: 0.3,
+  /**
+   * Slow-motion recovery in seconds. Range 0.2-0.3. Impact-first overhaul
+   * 2026-07-08: 0.25 -> 0.2 (envelope 750 -> 600 ms).
+   */
+  slowRecoverSec: 0.2,
   /** Confetti cannon count per side. Range 40-60. */
   confettiCannonCount: 50,
   /** Confetti rain count. Range 60-100. */
@@ -355,12 +366,72 @@ export const goal = {
   coinFlightSec: 0.5,
   /** Coin flight stagger in ms. Range 20-40. */
   coinStaggerMs: 30,
-  /** Next button activation delay in seconds. Range 1.5-2.5. */
-  nextActivateDelaySec: 2.0,
+  /**
+   * Next button activation delay in seconds, measured from panel reveal.
+   * USER DIRECTIVE 2026-07-08: 2.0 -> 0.3 — "Next tappable within 1 s of clear".
+   * Next is now DECOUPLED from celebration completion: envelope 600 ms + this
+   * 300 ms = Next live @ ~900 ms (<= 1.0 s). The afterglow (stars / coins /
+   * confetti / sunburst) keeps playing behind the already-active panel.
+   * Range 0.15-1.0 (was 1.5-2.5). Contract mirrored in data-model.md +
+   * tests/e2e/tempo.spec.ts (learnings.md T2: prevent contract-impl drift).
+   */
+  nextActivateDelaySec: 0.3,
   /** Next button pulse scale in +/- percent. Fixed. */
   nextPulseScalePct: 5,
   /** Next button pulse period in seconds. Fixed. */
   nextPulsePeriodSec: 0.8,
+
+  // ── impact-first celebration overhaul (research 10 §6.2, 2026-07-08) ────────
+  /** L1 screen-flash duration in ms. Range 90-120. */
+  flashMs: 100,
+  /** L1 screen-flash peak alpha (cream, not pure white — 純白は硬い). Range 0.35-0.5. */
+  flashPeakAlpha: 0.45,
+  /** L2 camera zoom-kick magnitude at impact, percent. Range 4-8. */
+  zoomKickPct: 6,
+  /** L2 camera zoom-kick recovery time-constant in ms. Range 100-160. */
+  zoomKickRecoverMs: 120,
+  /** L7 title "クリア！" bounce overshoot scale. Range 1.1-1.2. */
+  titlePopScale: 1.15,
+  /** L7 title bounce duration in ms. Range 220-300. */
+  titlePopMs: 260,
+  /** L9 result scrim fade-in duration in ms. Range 120-180. */
+  scrimFadeInMs: 150,
+  /** L13 Next button scale-in start scale. Range 0.85-0.95. */
+  nextPopScale: 0.9,
+  /** L13 Next button scale-in duration in ms. Range 140-200. */
+  nextPopMs: 160,
+  /** L8 sunburst ray count radiating behind the panel. Range 12-16. */
+  sunburstRayCount: 14,
+  /**
+   * L8 sunburst alpha (static gold rays). Range 0.2-0.5. Own-eyes 2026-07-08:
+   * the rays are drawn STATIC — a large Graphics that is tweened (rotation or an
+   * alpha swell) rendered blank under the software-WebGL path, so rotation/swell
+   * were dropped and this is set directly. 0.28 read as invisible; 0.4 gives a
+   * legible gold radiance behind the title.
+   */
+  sunburstMaxAlpha: 0.4,
+  /** L5 center-burst piece count from the flag at impact. Range 20-32. */
+  centerBurstCount: 28,
+  /** L5 center-burst min speed in px/s. */
+  centerBurstSpeedMinPx: 240,
+  /** L5 center-burst max speed in px/s. */
+  centerBurstSpeedMaxPx: 420,
+  /** L5/L10 burst + sparkle particle min life in ms. */
+  burstLifeMinMs: 300,
+  /** L5/L10 burst + sparkle particle max life in ms. */
+  burstLifeMaxMs: 600,
+  /** L10 star pop overshoot scale (promoted from StarBurst local 1.3). Range 1.3-1.4. */
+  starPopOvershoot: 1.4,
+  /** L10 star radius in px (promoted from StarBurst local 28). Range 28-32. */
+  starRadiusPx: 30,
+  /** L10 star sparkle particle count per pop (new). Range 4-8. */
+  starSparkleCount: 6,
+  /** L10 star sparkle min speed in px/s. */
+  starSparkleSpeedMinPx: 120,
+  /** L10 star sparkle max speed in px/s. */
+  starSparkleSpeedMaxPx: 280,
+  /** L6 confetti rain fall duration in ms (promoted from Confetti local 2500). Range 1800-2500. */
+  confettiRainFallMs: 2000,
 };
 
 /** Audio mixing (game_design §8.5) */

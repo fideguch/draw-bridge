@@ -154,7 +154,7 @@ All initial values transcribed from designs/game_design.md §8. Level-specific v
 | `camera.shakeMaxOffsetPx` | 20 px | 16–30 |
 | `camera.shakeMaxAngleDeg` | 7° | 5–10 |
 | `camera.shakeFreqHz` | 20 Hz | 15–25 |
-| `camera.traumaLaunch/Land/Crash/Goal` | 0.15 / 0.25 / 0.5 / 0.4 | land 0.2–0.3 |
+| `camera.traumaLaunch/Land/Crash/Goal` | 0.15 / 0.25 / 0.5 / 0.5 | land 0.2–0.3; Goal 0.4→0.5 (impact-first overhaul 2026-07-08, on par with Crash) |
 | `camera.speedZoomOutPct` | 15% | 10–20 |
 | `camera.goalZoomInPct` | 20% | 15–25 |
 
@@ -202,7 +202,7 @@ All initial values transcribed from designs/game_design.md §8. Level-specific v
 |---|---|---|
 | `goal.hitStopMs` | 100 ms | 80–120 |
 | `goal.slowTimeScale` | 0.3 | fixed |
-| `goal.slowHoldSec` / `slowRecoverSec` | 0.4 / 0.25 s | 0.3–0.5 / 0.2–0.3 |
+| `goal.slowHoldSec` / `slowRecoverSec` | 0.3 / 0.2 s | 0.3–0.5 / 0.2–0.3 (impact-first overhaul 2026-07-08: envelope 750→600 ms) |
 | `goal.confettiCannonCount` (each side) | 50 | 40–60 |
 | `goal.confettiRainCount` | 80 | 60–100 |
 | `goal.confettiGravityScale` | 0.3 | 0.2–0.4 |
@@ -212,8 +212,20 @@ All initial values transcribed from designs/game_design.md §8. Level-specific v
 | `goal.tickSoundIntervalMs` | 45 ms | 30–60 |
 | `goal.coinBurstCount` | 20 | 10–30 |
 | `goal.coinFlightSec` / `coinStaggerMs` | 0.5 s / 30 ms | 0.4–0.6 / 20–40 |
-| `goal.nextActivateDelaySec` | 2.0 s | 1.5–2.5 |
+| `goal.nextActivateDelaySec` | 0.3 s | 0.15–1.0 (**user directive 2026-07-08**: was 2.0 s / 1.5–2.5; Next decoupled from the afterglow — envelope 600 ms + 300 ms = tappable @ ~900 ms ≤ 1 s) |
 | `goal.nextPulseScalePct` / `nextPulsePeriodSec` | ±5% / 0.8 s | fixed |
+| **Impact-first overhaul 2026-07-08 (research 10 §6.2)** | | |
+| `goal.flashMs` / `flashPeakAlpha` | 100 ms / 0.45 | 90–120 / 0.35–0.5 (L1 cream screen flash) |
+| `goal.zoomKickPct` / `zoomKickRecoverMs` | 6% / 120 ms | 4–8 / 100–160 (L2 camera zoom-kick) |
+| `goal.titlePopScale` / `titlePopMs` | 1.15 / 260 ms | 1.1–1.2 / 220–300 (L7 title bounce) |
+| `goal.scrimFadeInMs` | 150 ms | 120–180 (L9) |
+| `goal.nextPopScale` / `nextPopMs` | 0.9 / 160 ms | 0.85–0.95 / 140–200 (L13 Next scale-in) |
+| `goal.sunburstRayCount` / `sunburstMaxAlpha` | 14 / 0.4 | 12–16 / 0.2–0.5 (L8 sunburst; STATIC gold rays — rotation/alpha-swell dropped, they rendered blank on the large Graphics under software-WebGL; 0.28→0.4 per own-eyes) |
+| `goal.centerBurstCount` / `centerBurstSpeedMinPx` / `centerBurstSpeedMaxPx` | 28 / 240 / 420 px/s | 20–32 (L5 center burst) |
+| `goal.burstLifeMinMs` / `burstLifeMaxMs` | 300 / 600 ms | (L5/L10 particle life) |
+| `goal.starPopOvershoot` / `starRadiusPx` / `starSparkleCount` | 1.4 / 30 px / 6 | 1.3–1.4 / 28–32 / 4–8 (L10; promoted from StarBurst locals 1.3 / 28) |
+| `goal.starSparkleSpeedMinPx` / `starSparkleSpeedMaxPx` | 120 / 280 px/s | (L10 sparkle) |
+| `goal.confettiRainFallMs` | 2000 ms | 1800–2500 (L6; promoted from Confetti local 2500) |
 | `audio.bgmDuckDb` / `bgmDuckAttackSec` | −7.5 dB / 0.2 s | −6..−9 / fixed |
 | `audio.maxSameSfxVoices` | 3 | fixed (NFR-014) |
 
@@ -253,7 +265,7 @@ Idle → Drawing → Solidify → Anticipation → Running → Goal | Fail → R
 | Anticipation → Running | `launch.anticipationSec` 0.4 s elapsed (fixed, non-skippable) | 0.3–0.5 s | rev pitch 1.0→1.4, squash 0.92/1.08, wheel-spin smoke; at release: 15 dust + stretch 1.15/0.9 + bass SFX + haptic `launch` + camera kick 12 px |
 | Running → Goal | referencePoint ∈ goalFlag rect (clear beats same-tick fail) | — | 5-beat celebration 3–4 s (hit-stop → slow-mo → confetti → stars → count-up), BGM duck −7.5 dB; any tap skips all |
 | Running → Fail | killY / tipOver 0.5 s / ticks > maxTicks | — | light dim + one short sad SFX + cause highlight persists (fracture/fall point/chassis) |
-| Goal → Result | celebration complete or tap skip | ≤ 4 s | Next activates after 2.0 s (1.5–2.5), ±5% pulse @0.8 s; Replay alongside |
+| Goal → Result | panel reveal (~600 ms) — decoupled from the afterglow | ≤ 1 s to tappable Next | **user directive 2026-07-08**: Next activates 0.3 s after the panel (≤ 1 s from clear, was 1.5–2.5 s), scale-in pop + ±5% pulse @0.8 s; Replay alongside; stars/coins/confetti/sunburst play on behind the active panel |
 | Fail → Result | immediate | — | Retry immediately active; only Retry + home accept input |
 | Result(clear) → Next | Next tapped | level transition ≤ 1 s | — |
 | Result(fail) → Idle (same level) | Retry tapped | ≤ 1 s to playable | — |

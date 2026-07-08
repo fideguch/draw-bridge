@@ -217,6 +217,12 @@ function createGameServices(): GameServices {
           const mod = engineHumModulation(speedRatio01);
           playIf(SFX.engineHum, { volume: mod.volume, pitchSemitones: mod.pitchSemitones });
         },
+        goalImpact: () => {
+          // Impact-first clear cue (research 10 §7.2): rising stinger + heavy
+          // THUD, fired at t=0 alongside the confetti pops.
+          playIf(SFX.goalStinger);
+          attemptHaptics.onLanding(); // .heavy / THUD
+        },
         duckBgm: () => audioBus.duck(),
         unduckBgm: () => audioBus.unduck(),
         goalStarBeat: (index) => {

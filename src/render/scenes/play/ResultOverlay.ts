@@ -21,11 +21,18 @@ import { borderedCircle } from '@render/ui/fillShapes';
 import type { GameServices } from '@render/ui/services';
 import { color, layout, makeTextStyle, scrim, stroke, type } from '@render/ui/theme';
 import { coinCounterPunch } from '@render/juice/RewardCountUp';
+import { SunburstView } from '@render/juice/SunburstView';
 import { goal } from '@tuning/TuningConstants';
 
-/** Depths above the HUD (InkBarView sits at 1000). */
-const OVERLAY_DEPTH = 2000;
-const OVERLAY_BUTTON_DEPTH = 2001;
+/**
+ * Depths above the HUD (InkBarView sits at 1000). The clear shell layers, back to
+ * front: scrim → sunburst rays (L8) → content (title / coin) → buttons. The
+ * GoalSequence confetti / coin-burst sit above all of these (2100+).
+ */
+const SCRIM_DEPTH = 2000;
+const SUNBURST_DEPTH = 2001;
+const OVERLAY_DEPTH = 2002;
+const OVERLAY_BUTTON_DEPTH = 2003;
 
 export interface ClearShellData {
   readonly hasNext: boolean;
@@ -54,6 +61,7 @@ export class ResultOverlay {
   private coinText: Phaser.GameObjects.Text | null = null;
   private coinTextPos = { x: 0, y: 0 };
   private nextButton: Button | null = null;
+  private sunburst: SunburstView | null = null;
   private skipHandler: (() => void) | null = null;
 
   constructor(scene: Phaser.Scene, services: GameServices) {
@@ -76,14 +84,37 @@ export class ResultOverlay {
     const panelY = layout.height * 0.42;
 
     this.skipHandler = data.onSkip;
-    this.addScrim();
-    this.track(
-      this.scene.add
-        .text(cx, panelY - layout.ui(96), 'クリア！', makeTextStyle(type.display, color.textInverse))
-        .setOrigin(0.5)
-        .setScrollFactor(0)
-        .setDepth(OVERLAY_DEPTH),
-    );
+    this.addScrim(goal.scrimFadeInMs); // L9: dim fades in to stage the panel
+
+    // L8 sunburst rays radiating from behind the title cluster (above the scrim,
+    // below the content). Centred on the title/stars so the convergence sits
+    // behind the focal text.
+    this.sunburst = new SunburstView(this.scene, { color: color.star, depth: SUNBURST_DEPTH });
+    this.sunburst.show(cx, panelY - layout.ui(40), Math.max(layout.width, layout.height));
+
+    // L7 title "クリア！" scale-bounce (Back.Out pop → Quad.Out settle) — no more
+    // limp static reveal.
+    const title = this.scene.add
+      .text(cx, panelY - layout.ui(96), 'クリア！', makeTextStyle(type.display, color.textInverse))
+      .setOrigin(0.5)
+      .setScrollFactor(0)
+      .setDepth(OVERLAY_DEPTH);
+    title.setScale(0);
+    this.scene.tweens.add({
+      targets: title,
+      scale: goal.titlePopScale,
+      duration: goal.titlePopMs * 0.6,
+      ease: 'Back.Out',
+      onComplete: () => {
+        this.scene.tweens.add({
+          targets: title,
+          scale: 1,
+          duration: goal.titlePopMs * 0.4,
+          ease: 'Quad.Out',
+        });
+      },
+    });
+    this.track(title);
     this.addCoinCounter(cx, panelY + layout.ui(40));
 
     const replay = this.makeButton({
@@ -162,13 +193,30 @@ export class ResultOverlay {
     });
   }
 
-  /** Enable Next and start its ±5% pulse (§4.3 3-7). */
+  /**
+   * Enable Next with a scale-in pop (L13, 0.9→1.0 Back.Out) then its ±5% pulse
+   * (§4.3 3-7). The pop draws the eye to the freshly-tappable button now that it
+   * arrives early (~0.9 s from clear) instead of after the whole celebration.
+   */
   activateNext(): void {
     const next = this.nextButton;
     if (next === null) {
       return;
     }
     next.setEnabled(true);
+    this.scene.tweens.killTweensOf(next);
+    next.setScale(goal.nextPopScale);
+    this.scene.tweens.add({
+      targets: next,
+      scale: 1,
+      duration: goal.nextPopMs,
+      ease: 'Back.Out',
+      onComplete: () => this.startNextPulse(next),
+    });
+  }
+
+  /** The steady ±5% breathing pulse that follows the Next scale-in pop. */
+  private startNextPulse(next: Button): void {
     this.scene.tweens.add({
       targets: next,
       scale: 1 + goal.nextPulseScalePct / 100,
@@ -184,6 +232,8 @@ export class ResultOverlay {
     this.skipHandler = null;
     this.coinText = null;
     this.nextButton = null;
+    this.sunburst?.destroy();
+    this.sunburst = null;
     for (const object of this.objects) {
       this.scene.tweens.killTweensOf(object);
       object.destroy();
@@ -197,13 +247,20 @@ export class ResultOverlay {
 
   // ── internals ───────────────────────────────────────────────────────────────
 
-  private addScrim(): void {
+  private addScrim(fadeInMs = 0): void {
     const rect = this.scene.add
       .rectangle(layout.width / 2, layout.height / 2, layout.width, layout.height, scrim.color, scrim.alpha)
       .setScrollFactor(0)
-      .setDepth(OVERLAY_DEPTH)
+      .setDepth(SCRIM_DEPTH)
       .setInteractive({ useHandCursor: false });
     rect.on('pointerup', () => this.skipHandler?.());
+    // L9: the clear path fades the dim in (alpha 0 → scrim.alpha) to stage the
+    // panel; fail keeps its instant dim (fadeInMs 0). Alpha never gates the hit
+    // area, so tap-skip works throughout the fade.
+    if (fadeInMs > 0) {
+      rect.setAlpha(0);
+      this.scene.tweens.add({ targets: rect, alpha: scrim.alpha, duration: fadeInMs, ease: 'Quad.Out' });
+    }
     this.track(rect);
   }
 

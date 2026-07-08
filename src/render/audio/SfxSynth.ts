@@ -34,6 +34,7 @@ export const SFX = {
   confettiPop: 'confettiPop',
   engineHum: 'engineHum',
   cymbal: 'cymbal',
+  goalStinger: 'goalStinger',
 } as const;
 
 export type SfxKey = (typeof SFX)[keyof typeof SFX];
@@ -261,6 +262,30 @@ export function engineHum(ctx: AudioContextLike, params: ToneParams = {}): Audio
   return buffer;
 }
 
+/**
+ * Goal stinger — a bright rising major arpeggio (C–E–G–C octave) that stamps the
+ * clear "切断面" at t=0 (impact-first overhaul 2026-07-08, research 10 §7.2). Sits
+ * above the ducked BGM; a swelling amplitude sells the ascent.
+ */
+export function goalStinger(ctx: AudioContextLike, params: ToneParams = {}): AudioBufferLike {
+  const duration = params.durationSec ?? 0.38;
+  const amplitude = params.amplitude ?? 0.5;
+  const { buffer, data, sampleRate } = createMono(ctx, duration);
+  const notes = [NOTE_HZ.c5, NOTE_HZ.e5, NOTE_HZ.g5, NOTE_HZ.c5 * 2];
+  const noteDur = duration / notes.length;
+  for (let i = 0; i < data.length; i++) {
+    const t = i / sampleRate;
+    const index = Math.min(notes.length - 1, Math.floor(t / noteDur));
+    const localT = t - index * noteDur;
+    const freq = notes[index] ?? NOTE_HZ.c5;
+    const noteEnv = attackRelease(localT, noteDur, 0.006, noteDur * 0.5);
+    const swell = 0.6 + 0.4 * (t / duration);
+    const tone = Math.sin(TWO_PI * freq * t) + Math.sin(TWO_PI * freq * 2 * t) * 0.3;
+    data[i] = tone * noteEnv * swell * amplitude * 0.5;
+  }
+  return buffer;
+}
+
 /** Cymbal — bright decaying noise crash for the 3rd goal star (§4.3 3-4). */
 export function cymbal(ctx: AudioContextLike, params: ToneParams = {}): AudioBufferLike {
   const duration = params.durationSec ?? 0.4;
@@ -302,5 +327,6 @@ export function buildSfxLibrary(ctx: AudioContextLike): Map<SfxKey, AudioBufferL
     [SFX.confettiPop, confettiPop(ctx)],
     [SFX.engineHum, engineHum(ctx)],
     [SFX.cymbal, cymbal(ctx)],
+    [SFX.goalStinger, goalStinger(ctx)],
   ]);
 }

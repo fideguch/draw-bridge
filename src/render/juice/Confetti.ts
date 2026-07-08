@@ -31,7 +31,6 @@ const CONFETTI_CANNON_MIN_ANGLE_DEG = 45;
 const CONFETTI_CANNON_MAX_ANGLE_DEG = 70;
 const CONFETTI_CANNON_POP_STAGGER_MS = 50;
 const CONFETTI_RAIN_DELAY_MS = 300;
-const CONFETTI_RAIN_FALL_MS = 2500;
 const CONFETTI_CANNON_SPEED_PX = 620;
 const CONFETTI_BASE_GRAVITY_PX = 1400;
 const CONFETTI_SWAY_AMPLITUDE_PX = 22;
@@ -115,7 +114,7 @@ export function confettiRainPieces(
   count: number,
   widthPx: number,
   palette: readonly number[],
-  fallMs: number = CONFETTI_RAIN_FALL_MS,
+  fallMs: number = goal.confettiRainFallMs,
   rng: Rng = Math.random,
 ): ConfettiRainPiece[] {
   const n = Math.max(0, Math.floor(count));
@@ -204,7 +203,7 @@ export class ConfettiCelebration {
         return;
       }
       const width = this.options.widthPx ?? this.scene.scale.width;
-      for (const flake of confettiRainPieces(goal.confettiRainCount, width, this.palette, CONFETTI_RAIN_FALL_MS, this.rng)) {
+      for (const flake of confettiRainPieces(goal.confettiRainCount, width, this.palette, goal.confettiRainFallMs, this.rng)) {
         this.spawnRainPiece(flake);
       }
     });
@@ -251,7 +250,7 @@ export class ConfettiCelebration {
       targets: rect,
       delay: flake.delayMs,
       alpha: 0,
-      duration: CONFETTI_RAIN_FALL_MS,
+      duration: goal.confettiRainFallMs,
       onComplete: () => this.removePiece(rect),
     });
     this.animateBallistic(

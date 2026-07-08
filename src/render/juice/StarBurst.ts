@@ -20,16 +20,15 @@
 import type Phaser from 'phaser';
 import { goal } from '@tuning/TuningConstants';
 import { borderedPolygon, fillRing, type Vec2 } from '@render/ui/fillShapes';
+import { ParticleBurst } from '@render/juice/ParticleBurst';
 
 /**
- * TODO(tuning): §4.3 3-4 fixes the pop overshoot at scale 1.3 and adds a
- * shockwave ring, neither of which has a TuningConstants field (goal.starPopMs
- * is only the duration; coin.popScale 1.3 belongs to the coin pickup). Local
- * provisionals until the goal group carries them.
+ * Pop overshoot + star radius are now authored fields (goal.starPopOvershoot /
+ * goal.starRadiusPx — celebration overhaul 2026-07-08, research 10 §6.2, promoted
+ * from the old local provisionals 1.3 / 28). The shockwave geometry + star gap
+ * have no authored field yet, so those stay local provisionals.
  */
-const STAR_POP_OVERSHOOT_SCALE = 1.3;
 const STAR_SETTLE_SCALE = 1.0;
-const STAR_RADIUS_PX = 28;
 const STAR_GAP_PX = 76;
 const SHOCKWAVE_MAX_RADIUS_PX = 64;
 const SHOCKWAVE_MS = 320;
@@ -97,6 +96,9 @@ export class StarBurstView {
   // into a destroyed ring.
   private readonly ringTweens = new Map<Phaser.GameObjects.Graphics, Phaser.Tweens.Tween>();
   private readonly timers: Phaser.Time.TimerEvent[] = [];
+  // Sparkle burst fired per star pop (L10, research 10 §3) — a short full-circle
+  // spray in the star colour. Reused across pops; swept on clear().
+  private readonly sparkle: ParticleBurst;
   private onBeat?: (index: number) => void;
   private revealedCount = 0;
   private totalCount = 0;
@@ -104,6 +106,12 @@ export class StarBurstView {
   constructor(scene: Phaser.Scene, options: StarBurstViewOptions) {
     this.scene = scene;
     this.viewOptions = options;
+    this.sparkle = new ParticleBurst(scene, {
+      ...(options.depth !== undefined ? { depth: options.depth } : {}),
+      gravityPx: 0,
+      lifeMsMin: goal.burstLifeMinMs,
+      lifeMsMax: goal.burstLifeMaxMs,
+    });
   }
 
   /**
@@ -115,7 +123,7 @@ export class StarBurstView {
     this.onBeat = options.onBeat;
     this.totalCount = count;
     this.revealedCount = 0;
-    const radius = this.viewOptions.starRadiusPx ?? STAR_RADIUS_PX;
+    const radius = this.viewOptions.starRadiusPx ?? goal.starRadiusPx;
     const first = anchor.x - ((count - 1) * STAR_GAP_PX) / 2;
 
     for (const step of starRevealSchedule(count)) {
@@ -156,7 +164,7 @@ export class StarBurstView {
     star.setVisible(true);
     this.scene.tweens.add({
       targets: star,
-      scale: STAR_POP_OVERSHOOT_SCALE,
+      scale: goal.starPopOvershoot,
       duration: goal.starPopMs * 0.6,
       ease: 'Back.Out',
       onComplete: () => {
@@ -169,6 +177,13 @@ export class StarBurstView {
       },
     });
     this.spawnShockwave(x, y, radius);
+    // L10 sparkle: a short full-circle spray in the star colour for extra "豪華".
+    this.sparkle.emit(x, y, {
+      count: goal.starSparkleCount,
+      color: this.viewOptions.filledColor,
+      speedPxMin: goal.starSparkleSpeedMinPx,
+      speedPxMax: goal.starSparkleSpeedMaxPx,
+    });
     this.onBeat?.(index);
   }
 
@@ -244,6 +259,7 @@ export class StarBurstView {
     }
     this.rings.length = 0;
     this.ringTweens.clear();
+    this.sparkle.destroy();
     this.revealedCount = 0;
     this.totalCount = 0;
   }

@@ -78,6 +78,12 @@ export interface AttemptJuice {
   engineHum(speedRatio01: number): void;
 
   // ── goal celebration cues (§4.3) ──────────────────────────────────────────
+  /**
+   * Goal impact at t=0 (impact-first overhaul 2026-07-08, research 10 §7.2): the
+   * clear stinger (rising jingle) + a heavy THUD haptic, layered over the confetti
+   * pops so the "切断面" has its own dedicated audio+touch cue.
+   */
+  goalImpact(): void;
   /** Duck the BGM bus for the celebration (§4.3 3-8). */
   duckBgm(): void;
   /** Restore the BGM bus after the celebration. */
