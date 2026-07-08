@@ -1,8 +1,12 @@
 import Phaser from 'phaser';
+import { Capacitor } from '@capacitor/core';
 import { EngineEvents } from '@engine/EngineEvents';
 import { Economy } from '@meta/Economy';
 import { SaveManager } from '@meta/SaveManager';
+import { STORAGE_KEY_MAIN } from '@meta/SaveData';
 import { WebHaptics, WebStorage } from '@platform/web';
+import { CapacitorHaptics, CapacitorStorage } from '@platform/capacitor';
+import type { HapticsInterface, StorageInterface } from '@platform/interfaces';
 import { AudioBus } from '@render/audio/AudioBus';
 import { SfxPlayer } from '@render/audio/SfxPlayer';
 import type { PlayOptions } from '@render/audio/SfxPlayer';
@@ -20,12 +24,14 @@ import { SettingsScene } from '@render/scenes/SettingsScene';
 import { ShopScene } from '@render/scenes/ShopScene';
 import { SERVICES_KEY } from '@render/ui/services';
 import type { AttemptJuice, GameServices } from '@render/ui/services';
+import { skyCssColor } from '@render/ui/theme';
+import { effectiveDpr, LAYOUT_EVENT, readSafeAreaInsets, updateLayout } from '@render/ui/layout';
 
-// Portrait design basis (plan.md Technical Context): 390x844.
-const DESIGN_WIDTH = 390;
-const DESIGN_HEIGHT = 844;
 const TARGET_FPS = 60;
-const BACKGROUND_COLOR = '#101216';
+// Sky (not dark) so there is no dark flash before the first scene paints.
+const BACKGROUND_COLOR = skyCssColor;
+/** Debounce (ms) for resize/orientation storms (iOS address-bar, rotation). */
+const RELAYOUT_DEBOUNCE_MS = 120;
 
 /**
  * COMPOSITION ROOT. eslint `boundaries` forbids `render → meta`, so the render
@@ -34,14 +40,39 @@ const BACKGROUND_COLOR = '#101216';
  * injects it on `game.registry` for BootScene (which runs first) to consume.
  */
 function createGameServices(): GameServices {
-  const storage = new WebStorage();
+  // S4: pick platform implementations by RUNTIME. On iOS/Android the WebView's
+  // navigator.vibrate is a no-op, so haptics must go through @capacitor/haptics,
+  // and persistence must use native Preferences (localStorage is not durable in
+  // a Capacitor shell). On the web build the browser implementations are used.
+  const isNative = Capacitor.isNativePlatform();
+  const storage: StorageInterface = isNative ? new CapacitorStorage() : new WebStorage();
+  const haptics: HapticsInterface = isNative ? new CapacitorHaptics() : new WebHaptics();
   const saveManager = new SaveManager(storage);
   const economy = new Economy(saveManager);
 
-  const webHaptics = new WebHaptics();
+  // One-time native migration: earlier test builds wrote the save to localStorage;
+  // copy it into Preferences once (before the first load) so progress is not lost.
+  const migrateLegacyStorage = async (): Promise<void> => {
+    if (!isNative) {
+      return;
+    }
+    try {
+      const existing = await storage.get(STORAGE_KEY_MAIN);
+      if (existing !== null) {
+        return;
+      }
+      const legacy = typeof localStorage !== 'undefined' ? localStorage.getItem(STORAGE_KEY_MAIN) : null;
+      if (legacy !== null) {
+        await storage.set(STORAGE_KEY_MAIN, legacy);
+      }
+    } catch {
+      // best-effort — migration must never block boot (FR-021 owns the load path)
+    }
+  };
+
   // Meta screens don't wire real engine events (Phase 5 does); the router is
   // used here only as the FR-014 settings gate for UI-moment haptics.
-  const hapticsRouter = new HapticsRouter(webHaptics, new EngineEvents());
+  const hapticsRouter = new HapticsRouter(haptics, new EngineEvents());
 
   // A real AudioContext structurally satisfies AudioContextLike (WebAudioTypes
   // header) — the cast bridges lib.dom's stricter node variance.
@@ -66,10 +97,11 @@ function createGameServices(): GameServices {
     },
     uiHaptic: () => {
       if (hapticsRouter.isEnabled) {
-        webHaptics.impact('confirm');
+        haptics.impact('confirm');
       }
     },
     loadSave: async () => {
+      await migrateLegacyStorage();
       const result = await saveManager.load();
       applyLoadedSettings();
       if (result.corruption !== null && result.corruption.needsUserNotification) {
@@ -160,7 +192,7 @@ function createGameServices(): GameServices {
           }
         }),
       ];
-      const attemptHaptics = new HapticsRouter(webHaptics, events, {
+      const attemptHaptics = new HapticsRouter(haptics, events, {
         enabled: saveManager.getData().settings.haptics,
       });
       attemptHaptics.attach();
@@ -221,21 +253,73 @@ const META_SCENES = [BootScene, HomeScene, LevelSelectScene, ShopScene, Settings
 const shouldBootSpike =
   import.meta.env.DEV && new URLSearchParams(window.location.search).get('spike') === '1';
 
+// ── DPR-native, full-bleed surface (research 08_mobile_quality §1/§2) ─────────
+// Phaser 4 does NO DPR handling and RESIZE mode can never be crisp (backing =
+// CSS px). The only full-bleed + crisp pattern is Scale.NONE with the backing
+// store sized in DEVICE pixels (width/height = cssSize × DPR) and zoom = 1/DPR
+// so the CSS display size stays the real viewport. A manual resize listener
+// (below) keeps it correct across iOS address-bar / rotation changes.
+function cssViewport(): { width: number; height: number } {
+  const vv = typeof window !== 'undefined' ? window.visualViewport : null;
+  return {
+    width: Math.round(vv?.width ?? window.innerWidth),
+    height: Math.round(vv?.height ?? window.innerHeight),
+  };
+}
+
+const initialDpr = effectiveDpr();
+const initialCss = cssViewport();
+const initialGameW = Math.round(initialCss.width * initialDpr);
+const initialGameH = Math.round(initialCss.height * initialDpr);
+
 const game = new Phaser.Game({
   type: Phaser.AUTO,
   parent: 'app',
   backgroundColor: BACKGROUND_COLOR,
   scale: {
-    mode: Phaser.Scale.FIT,
-    autoCenter: Phaser.Scale.CENTER_BOTH,
-    width: DESIGN_WIDTH,
-    height: DESIGN_HEIGHT,
+    mode: Phaser.Scale.NONE,
+    width: initialGameW,
+    height: initialGameH,
+    zoom: 1 / initialDpr,
+  },
+  render: {
+    // Suppress half-pixel bleed on the DPR-scaled backing store (research §2.2).
+    // antialias is left at its WebGL default (true) so scaled textures stay smooth.
+    roundPixels: true,
   },
   fps: {
     target: TARGET_FPS,
   },
   scene: shouldBootSpike ? [] : META_SCENES,
 });
+
+// Seed the ONE dynamic layout source synchronously — before any scene create()
+// runs on the next tick — so every scene reads a live game-pixel geometry.
+updateLayout(initialGameW, initialGameH, initialDpr, readSafeAreaInsets());
+
+// ── relayout on resize / orientation / visualViewport (research §1.2) ─────────
+function applyLayout(): void {
+  const dpr = effectiveDpr();
+  const css = cssViewport();
+  const gameW = Math.round(css.width * dpr);
+  const gameH = Math.round(css.height * dpr);
+  game.scale.setZoom(1 / dpr);
+  game.scale.resize(gameW, gameH);
+  updateLayout(gameW, gameH, dpr, readSafeAreaInsets());
+  // Scenes subscribe to this to re-anchor (menu scenes restart; PlayScene re-frames).
+  game.events.emit(LAYOUT_EVENT);
+}
+
+let relayoutTimer: ReturnType<typeof setTimeout> | undefined;
+function scheduleRelayout(): void {
+  if (relayoutTimer !== undefined) {
+    clearTimeout(relayoutTimer);
+  }
+  relayoutTimer = setTimeout(applyLayout, RELAYOUT_DEBOUNCE_MS);
+}
+window.addEventListener('resize', scheduleRelayout);
+window.visualViewport?.addEventListener('resize', scheduleRelayout);
+window.addEventListener('orientationchange', scheduleRelayout);
 
 if (shouldBootSpike) {
   void import('./debug/SpikeScene').then((module) => {

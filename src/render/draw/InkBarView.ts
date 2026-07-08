@@ -16,13 +16,13 @@
 
 import type Phaser from 'phaser';
 import type { InkZone } from '@engine/rules/InkBudget';
-import { color, radius as radiusToken, safeArea, screen } from '@render/ui/theme';
+import { color, layout, radius as radiusToken, stroke } from '@render/ui/theme';
 import { ink } from '@tuning/TuningConstants';
 import { inkZoneOf } from '@render/world/renderColors';
 
-/** Design bar dimensions (ui_design_brief §6.3): 234×14pt pill. */
-const DEFAULT_BAR_WIDTH = 234;
-const DEFAULT_BAR_HEIGHT = 14;
+/** Design bar dimensions (ui_design_brief §6.3): 234×14pt pill (ui-scaled to game px). */
+const DEFAULT_BAR_WIDTH_DESIGN = 234;
+const DEFAULT_BAR_HEIGHT_DESIGN = 14;
 /** HUD depth above the world, below modals. */
 const HUD_DEPTH = 1000;
 
@@ -57,10 +57,10 @@ export class InkBarView {
 
   constructor(scene: Phaser.Scene, options: InkBarViewOptions = {}) {
     this.scene = scene;
-    this.barWidth = options.width ?? DEFAULT_BAR_WIDTH;
-    this.barHeight = options.height ?? DEFAULT_BAR_HEIGHT;
-    this.baseX = options.x ?? screen.width / 2;
-    const y = options.y ?? safeArea.top + this.barHeight / 2 + 24;
+    this.barWidth = options.width ?? layout.ui(DEFAULT_BAR_WIDTH_DESIGN);
+    this.barHeight = options.height ?? layout.ui(DEFAULT_BAR_HEIGHT_DESIGN);
+    this.baseX = options.x ?? layout.width / 2;
+    const y = options.y ?? layout.safe.top + this.barHeight / 2 + layout.ui(24);
 
     this.container = scene.add.container(this.baseX, y);
     this.container.setScrollFactor(0);
@@ -107,7 +107,7 @@ export class InkBarView {
     this.container.x = this.baseX;
     this.scene.tweens.add({
       targets: this.container,
-      x: this.baseX + ink.depleteShakePx,
+      x: this.baseX + layout.ui(ink.depleteShakePx),
       duration: ink.depleteShakeMs / 6,
       yoyo: true,
       repeat: 2,
@@ -133,7 +133,7 @@ export class InkBarView {
     const pillRadius = Math.min(radiusToken.full, this.barHeight / 2);
     track.fillStyle(color.uiSurface, 0.35);
     track.fillRoundedRect(-this.barWidth / 2, -this.barHeight / 2, this.barWidth, this.barHeight, pillRadius);
-    track.lineStyle(2, color.inkBorder, 1);
+    track.lineStyle(stroke.ui, color.inkBorder, 1);
     track.strokeRoundedRect(-this.barWidth / 2, -this.barHeight / 2, this.barWidth, this.barHeight, pillRadius);
   }
 }

@@ -11,7 +11,7 @@
 
 import Phaser from 'phaser';
 import { getServices, type SaveNotice } from '@render/ui/services';
-import { color, makeTextStyle, screen, type } from '@render/ui/theme';
+import { color, layout, makeTextStyle, type } from '@render/ui/theme';
 
 /** Registry key where BootScene leaves a one-shot save-restore notice. */
 export const SAVE_NOTICE_KEY = 'saveNotice';
@@ -24,7 +24,7 @@ export class BootScene extends Phaser.Scene {
   create(): void {
     this.cameras.main.setBackgroundColor(color.sky);
     this.add
-      .text(screen.width / 2, screen.height / 2, 'InkBridge（仮）', makeTextStyle(type.h1, color.textPrimary))
+      .text(layout.width / 2, layout.height / 2, 'InkBridge（仮）', makeTextStyle(type.h1, color.textPrimary))
       .setOrigin(0.5);
     void this.boot();
   }

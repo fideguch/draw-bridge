@@ -7,6 +7,9 @@
  * →ト in order from shuffled character buttons; the 実行 button only enables on
  * an exact match. In-canvas taps avoid a DOM-input overlay's letterbox offset
  * and any katakana IME friction, and the matcher is a pure, tested function.
+ *
+ * DPR-native: rows are anchored below the safe-area top; design offsets/sizes go
+ * through `layout.ui()` (research §2.3). Re-anchors on the layout event.
  */
 
 import Phaser from 'phaser';
@@ -20,9 +23,8 @@ import {
   isConfirmComplete,
 } from '@render/ui/resetConfirm';
 import { Toggle } from '@render/ui/Toggle';
-import { appInfo, color, makeTextStyle, radius, safeArea, scrim, screen, space, stroke, type } from '@render/ui/theme';
+import { appInfo, color, layout, LAYOUT_EVENT, makeTextStyle, margin, radius, scrim, space, stroke, type } from '@render/ui/theme';
 
-const ROW_LABEL_X = safeArea.margin + space.space2;
 const MODAL_DEPTH = 100;
 
 export class SettingsScene extends Phaser.Scene {
@@ -36,30 +38,44 @@ export class SettingsScene extends Phaser.Scene {
     super('Settings');
   }
 
+  private ui(n: number): number {
+    return layout.ui(n);
+  }
+
+  /** Absolute design Y (measured from the 47pt design inset) → game px. */
+  private absY(designY: number): number {
+    return layout.safe.top + this.ui(designY - 47);
+  }
+
+  private get rowLabelX(): number {
+    return layout.safe.left + this.ui(margin + space.space2);
+  }
+
   create(): void {
     this.services = getServices(this);
     this.cameras.main.setBackgroundColor(color.sky);
 
-    const topRowY = safeArea.top + space.space4 + 22;
+    const topRowY = layout.safe.top + this.ui(space.space4 + 22);
     new Button(this, {
-      x: safeArea.margin + 22,
+      x: layout.safe.left + this.ui(margin + 22),
       y: topRowY,
       width: 44,
       height: 44,
       label: '←',
       variant: 'secondary',
       services: this.services,
+      devId: 'settings-back',
       onClick: () => this.scene.start('Home'),
     });
-    this.add.text(safeArea.margin + 66, topRowY, '設定', makeTextStyle(type.h1, color.textPrimary)).setOrigin(0, 0.5);
+    this.add.text(layout.safe.left + this.ui(margin + 66), topRowY, '設定', makeTextStyle(type.h1, color.textPrimary)).setOrigin(0, 0.5);
 
-    this.buildToggleRow('サウンド', 180, this.services.isSoundEnabled(), (enabled) => {
+    this.buildToggleRow('サウンド', this.absY(180), this.services.isSoundEnabled(), (enabled) => {
       void this.services.setSoundEnabled(enabled);
       if (enabled) {
         this.services.playTap(); // OFF→ON confirm sound (ux_protocol SC-008)
       }
     });
-    this.buildToggleRow('ハプティクス', 240, this.services.isHapticsEnabled(), (enabled) => {
+    this.buildToggleRow('ハプティクス', this.absY(240), this.services.isHapticsEnabled(), (enabled) => {
       void this.services.setHapticsEnabled(enabled);
       if (enabled) {
         this.services.uiHaptic(); // OFF→ON confirm vibration
@@ -68,12 +84,12 @@ export class SettingsScene extends Phaser.Scene {
 
     const divider = this.add.graphics();
     divider.lineStyle(stroke.ui, color.uiDisabled, 1);
-    divider.lineBetween(safeArea.margin, 292, screen.width - safeArea.margin, 292);
+    divider.lineBetween(layout.safe.left + this.ui(margin), this.absY(292), layout.width - layout.safe.right - this.ui(margin), this.absY(292));
 
-    this.add.text(ROW_LABEL_X, 330, '進行をリセット', makeTextStyle(type.body, color.textPrimary)).setOrigin(0, 0.5);
+    this.add.text(this.rowLabelX, this.absY(330), '進行をリセット', makeTextStyle(type.body, color.textPrimary)).setOrigin(0, 0.5);
     new Button(this, {
-      x: screen.width - safeArea.margin - 66,
-      y: 330,
+      x: layout.width - layout.safe.right - this.ui(margin + 66),
+      y: this.absY(330),
       width: 132,
       height: 48,
       label: 'リセット',
@@ -82,17 +98,27 @@ export class SettingsScene extends Phaser.Scene {
       onClick: () => this.openConfirm1(),
     });
 
-    this.add.text(ROW_LABEL_X, 420, 'クレジット', makeTextStyle(type.body, color.textPrimary)).setOrigin(0, 0);
-    this.add.text(ROW_LABEL_X, 448, appInfo.credits, makeTextStyle(type.caption, color.textSecondary)).setOrigin(0, 0);
+    this.add.text(this.rowLabelX, this.absY(420), 'クレジット', makeTextStyle(type.body, color.textPrimary)).setOrigin(0, 0);
+    this.add.text(this.rowLabelX, this.absY(448), appInfo.credits, makeTextStyle(type.caption, color.textSecondary)).setOrigin(0, 0);
     this.add
-      .text(ROW_LABEL_X, 512, `バージョン ${appInfo.version}`, makeTextStyle(type.caption, color.textSecondary))
+      .text(this.rowLabelX, this.absY(512), `バージョン ${appInfo.version}`, makeTextStyle(type.caption, color.textSecondary))
       .setOrigin(0, 0);
+
+    this.subscribeLayout();
+  }
+
+  private subscribeLayout(): void {
+    const onLayout = (): void => {
+      this.scene.restart();
+    };
+    this.game.events.on(LAYOUT_EVENT, onLayout);
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.game.events.off(LAYOUT_EVENT, onLayout));
   }
 
   private buildToggleRow(label: string, y: number, initial: boolean, onChange: (enabled: boolean) => void): void {
-    this.add.text(ROW_LABEL_X, y, label, makeTextStyle(type.body, color.textPrimary)).setOrigin(0, 0.5);
+    this.add.text(this.rowLabelX, y, label, makeTextStyle(type.body, color.textPrimary)).setOrigin(0, 0.5);
     new Toggle(this, {
-      x: screen.width - safeArea.margin - 30,
+      x: layout.width - layout.safe.right - this.ui(margin + 14),
       y,
       initial,
       services: this.services,
@@ -105,17 +131,17 @@ export class SettingsScene extends Phaser.Scene {
   private openConfirm1(): void {
     this.closeModal();
     this.addScrim();
-    this.addCard(300, 220, 176);
+    this.addCard(this.ui(300), this.absY(220), this.ui(176));
     this.trackModal(
       this.add
-        .text(screen.width / 2, 262, '本当にリセットしますか？', makeTextStyle(type.h2, color.textPrimary))
+        .text(layout.width / 2, this.absY(262), '本当にリセットしますか？', makeTextStyle(type.h2, color.textPrimary))
         .setOrigin(0.5)
         .setDepth(MODAL_DEPTH + 1),
     );
     this.trackModal(
       new Button(this, {
-        x: screen.width / 2 - 72,
-        y: 336,
+        x: layout.width / 2 - this.ui(72),
+        y: this.absY(336),
         width: 120,
         height: 48,
         label: 'キャンセル',
@@ -126,8 +152,8 @@ export class SettingsScene extends Phaser.Scene {
     );
     this.trackModal(
       new Button(this, {
-        x: screen.width / 2 + 72,
-        y: 336,
+        x: layout.width / 2 + this.ui(72),
+        y: this.absY(336),
         width: 120,
         height: 48,
         label: '続ける',
@@ -142,33 +168,33 @@ export class SettingsScene extends Phaser.Scene {
     this.closeModal();
     this.typedSequence = '';
     this.addScrim();
-    this.addCard(340, 232, 356);
+    this.addCard(this.ui(340), this.absY(232), this.ui(356));
 
     this.trackModal(
       this.add
-        .text(screen.width / 2, 272, '全ての星とコインが消えます', makeTextStyle(type.body, color.uiDanger))
+        .text(layout.width / 2, this.absY(272), '全ての星とコインが消えます', makeTextStyle(type.body, color.uiDanger))
         .setOrigin(0.5)
         .setDepth(MODAL_DEPTH + 1),
     );
     this.trackModal(
       this.add
-        .text(screen.width / 2, 308, '「リセット」を順にタップ', makeTextStyle(type.caption, color.textSecondary))
+        .text(layout.width / 2, this.absY(308), '「リセット」を順にタップ', makeTextStyle(type.caption, color.textSecondary))
         .setOrigin(0.5)
         .setDepth(MODAL_DEPTH + 1),
     );
 
     this.progressText = this.add
-      .text(screen.width / 2, 344, this.progressLabel(), makeTextStyle(type.h2, color.textPrimary))
+      .text(layout.width / 2, this.absY(344), this.progressLabel(), makeTextStyle(type.h2, color.textPrimary))
       .setOrigin(0.5)
       .setDepth(MODAL_DEPTH + 1);
     this.trackModal(this.progressText);
 
-    this.buildCharButtons(400);
+    this.buildCharButtons(this.absY(400));
 
     this.trackModal(
       new Button(this, {
-        x: screen.width / 2 - 78,
-        y: 476,
+        x: layout.width / 2 - this.ui(78),
+        y: this.absY(476),
         width: 120,
         height: 48,
         label: 'キャンセル',
@@ -178,8 +204,8 @@ export class SettingsScene extends Phaser.Scene {
       }).setDepth(MODAL_DEPTH + 1),
     );
     this.executeButton = new Button(this, {
-      x: screen.width / 2 + 78,
-      y: 476,
+      x: layout.width / 2 + this.ui(78),
+      y: this.absY(476),
       width: 120,
       height: 48,
       label: 'リセット実行',
@@ -194,17 +220,17 @@ export class SettingsScene extends Phaser.Scene {
 
   private buildCharButtons(y: number): void {
     const shuffled = Phaser.Utils.Array.Shuffle([...RESET_CONFIRM_CHARS]);
-    const gap = 12;
-    const buttonSize = 56;
+    const gap = this.ui(12);
+    const buttonSize = this.ui(56);
     const total = shuffled.length * buttonSize + (shuffled.length - 1) * gap;
-    const startX = screen.width / 2 - total / 2 + buttonSize / 2;
+    const startX = layout.width / 2 - total / 2 + buttonSize / 2;
     shuffled.forEach((char, index) => {
       this.trackModal(
         new Button(this, {
           x: startX + index * (buttonSize + gap),
           y,
-          width: buttonSize,
-          height: buttonSize,
+          width: 56,
+          height: 56,
           label: char,
           variant: 'secondary',
           fontSize: type.h2.size,
@@ -239,18 +265,19 @@ export class SettingsScene extends Phaser.Scene {
 
   private addScrim(): void {
     const rect = this.add
-      .rectangle(screen.width / 2, screen.height / 2, screen.width, screen.height, scrim.color, scrim.alpha)
+      .rectangle(layout.width / 2, layout.height / 2, layout.width, layout.height, scrim.color, scrim.alpha)
       .setDepth(MODAL_DEPTH)
       .setInteractive();
     this.trackModal(rect);
   }
 
+  /** @param width @param top @param height all in game px. */
   private addCard(width: number, top: number, height: number): void {
     const card = this.add.graphics().setDepth(MODAL_DEPTH);
     card.fillStyle(color.uiSurface, 1);
-    card.fillRoundedRect((screen.width - width) / 2, top, width, height, radius.m);
+    card.fillRoundedRect((layout.width - width) / 2, top, width, height, radius.m);
     card.lineStyle(stroke.ui, color.inkBorder, 1);
-    card.strokeRoundedRect((screen.width - width) / 2, top, width, height, radius.m);
+    card.strokeRoundedRect((layout.width - width) / 2, top, width, height, radius.m);
     this.trackModal(card);
   }
 

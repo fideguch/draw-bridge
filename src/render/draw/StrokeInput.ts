@@ -51,7 +51,7 @@ interface ScreenPoint {
 
 export class StrokeInput {
   private readonly scene: Phaser.Scene;
-  private readonly transform: WorldToPixel;
+  private transform: WorldToPixel;
   private readonly camera: Phaser.Cameras.Scene2D.Camera;
   private readonly minVertexDistancePx: number;
   private readonly canDraw: () => boolean;
@@ -69,6 +69,11 @@ export class StrokeInput {
     this.minVertexDistancePx = options.minVertexDistancePx ?? draw.minPointDistPx;
     this.canDraw = options.canDraw ?? ((): boolean => true);
     this.callbacks = options.callbacks ?? {};
+  }
+
+  /** Swap the metre↔pixel transform (device resize re-frames the world, T045). */
+  setTransform(transform: WorldToPixel): void {
+    this.transform = transform;
   }
 
   /** Start listening for pointer events. Idempotent. */

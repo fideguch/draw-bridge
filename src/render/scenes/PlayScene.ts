@@ -50,7 +50,7 @@ import { Button } from '@render/ui/Button';
 import { CHAPTER1_TILES } from '@render/ui/levelCatalog';
 import { getServices } from '@render/ui/services';
 import type { AttemptJuice, GameServices } from '@render/ui/services';
-import { color, makeTextStyle, safeArea, screen, space, type } from '@render/ui/theme';
+import { color, layout, LAYOUT_EVENT, makeTextStyle, margin, space, type } from '@render/ui/theme';
 import { camera as cameraTuning, car, draw, launch, physics, speedLines as speedLinesTuning } from '@tuning/TuningConstants';
 import { setDevPlayState, setDevResultNextReady, setDevStrokePointCount, setWorldToGame } from '@render/devhook';
 import type { DevHookPlayState } from '@render/devhook';
@@ -165,7 +165,9 @@ export class PlayScene extends Phaser.Scene {
   private hasFiredDepleted = false;
   private juice: AttemptJuice | null = null;
   private readonly cameraJuiceUnsubs: Array<() => void> = [];
-  private readonly centerPx: Vec2 = { x: screen.width / 2, y: screen.height / 2 };
+  // Set from the live layout in create() (game px). The camera follows this fixed
+  // centre so the framed overview never scrolls (SC-003).
+  private centerPx: Vec2 = { x: 0, y: 0 };
 
   // Continuous-juice cadence clocks + a last-tip sample for the draw scrub speed.
   private drawSoundAtMs = 0;
@@ -220,9 +222,8 @@ export class PlayScene extends Phaser.Scene {
       return; // loud error scene already drawn
     }
     this.level = level;
-    this.transform = new WorldToPixel(
-      framingFor(level, { width: screen.width, height: screen.height, margin: FRAME_MARGIN_PX }),
-    );
+    this.centerPx = { x: layout.width / 2, y: layout.height / 2 };
+    this.transform = new WorldToPixel(framingFor(level, this.framingViewport()));
     this.sim = new GameSimulation(level, { upgrades: this.readUpgrades() });
 
     const cam = this.cameras.main;
@@ -262,7 +263,7 @@ export class PlayScene extends Phaser.Scene {
       sizePxMin: DEBRIS_SIZE_MIN_PX,
       sizePxMax: DEBRIS_SIZE_MAX_PX,
     });
-    this.speedLines = new SpeedLines(this, { widthPx: screen.width, heightPx: screen.height, color: color.inkLine, depth: DEPTH.hud - 1 });
+    this.speedLines = new SpeedLines(this, { widthPx: layout.width, heightPx: layout.height, color: color.inkLine, depth: DEPTH.hud - 1 });
 
     this.buildWorldRenderers();
     this.strokeRenderer = new StrokeRenderer(this, { transform: this.transform, depth: DEPTH.stroke });
@@ -297,6 +298,59 @@ export class PlayScene extends Phaser.Scene {
 
     setWorldToGame((wx, wy) => this.worldToGame(wx, wy));
     this.beginDrawing();
+    this.subscribeLayout();
+  }
+
+  /**
+   * Framing viewport in game px (research §2.3 — real gameSize makes the world
+   * crisp). Safe-area top is folded into the inset so the overview clears the
+   * notch + home indicator; content still centres in the remaining area.
+   */
+  private framingViewport(): { width: number; height: number; margin: number } {
+    return {
+      width: layout.width,
+      height: layout.height,
+      margin: layout.ui(FRAME_MARGIN_PX) + layout.safe.top,
+    };
+  }
+
+  /**
+   * Re-anchor on a device resize (iOS address-bar / rotation). Portrait is locked
+   * natively, so this is a small height delta: recompute the fixed centre + framing,
+   * rebuild the transform-bound world renderers, and re-place the HUD — WITHOUT
+   * resetting the running attempt (the sim state is untouched).
+   */
+  private subscribeLayout(): void {
+    const onLayout = (): void => this.relayout();
+    this.game.events.on(LAYOUT_EVENT, onLayout);
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.game.events.off(LAYOUT_EVENT, onLayout));
+  }
+
+  private relayout(): void {
+    if (this.sim === null || this.level === null || this.isTornDown) {
+      return;
+    }
+    this.centerPx = { x: layout.width / 2, y: layout.height / 2 };
+    this.transform = new WorldToPixel(framingFor(this.level, this.framingViewport()));
+    this.director.reset(this.centerPx);
+    this.director.follow(() => this.centerPx);
+    this.director.setZoomImmediate(this.cameras.main.zoom);
+    // World renderers + stroke/ink views are bound to the transform — rebuild them.
+    this.buildWorldRenderers();
+    if (this.sim.renderChain !== null && this.playState !== 'drawing') {
+      this.bridge?.destroy();
+      this.bridge = new BridgeRenderer(this, this.sim.renderChain, this.transform, {
+        stressTracker: this.sim.renderStressTracker ?? undefined,
+        depth: DEPTH.bridge,
+      });
+    }
+    this.strokeRenderer?.destroy();
+    this.strokeRenderer = new StrokeRenderer(this, { transform: this.transform, depth: DEPTH.stroke });
+    this.inkBar?.destroy();
+    this.inkBar = new InkBarView(this);
+    this.inkBar.update(this.sim.inkState.ratio, this.sim.inkState.zone);
+    this.strokeInput?.setTransform(this.transform);
+    this.buildHudRestart();
   }
 
   /** Goal flag centre in world metres (confetti + coin-burst anchor). */
@@ -380,14 +434,14 @@ export class PlayScene extends Phaser.Scene {
   private showLoadError(levelId: string, errors: readonly string[]): void {
     console.error('PlayScene: level load failed', levelId, errors);
     this.add
-      .text(screen.width / 2, screen.height * 0.4, 'レベルを読み込めませんでした', makeTextStyle(type.h2, color.uiDanger))
+      .text(layout.width / 2, layout.height * 0.4, 'レベルを読み込めませんでした', makeTextStyle(type.h2, color.uiDanger))
       .setOrigin(0.5);
     this.add
-      .text(screen.width / 2, screen.height * 0.4 + space.space8, levelId, makeTextStyle(type.body, color.textSecondary))
+      .text(layout.width / 2, layout.height * 0.4 + layout.ui(space.space8), levelId, makeTextStyle(type.body, color.textSecondary))
       .setOrigin(0.5);
     new Button(this, {
-      x: screen.width / 2,
-      y: screen.height * 0.4 + space.space8 * 2,
+      x: layout.width / 2,
+      y: layout.height * 0.4 + layout.ui(space.space8 * 2),
       width: 200,
       height: 56,
       label: '一覧へもどる',
@@ -420,9 +474,10 @@ export class PlayScene extends Phaser.Scene {
   }
 
   private buildHudRestart(): void {
+    this.hudRestart?.destroy();
     this.hudRestart = new Button(this, {
-      x: screen.width - safeArea.margin - 22,
-      y: safeArea.top + space.space4 + 22,
+      x: layout.width - layout.safe.right - layout.ui(margin + 22),
+      y: layout.safe.top + layout.ui(space.space4 + 22),
       width: 44,
       height: 44,
       label: '↺',
@@ -539,7 +594,7 @@ export class PlayScene extends Phaser.Scene {
     // Confirm pop (§4.1 1-6): scale 1.0→1.06→1.0 flash of the committed line.
     playCommitPop(this, committedPixels, {
       color: color.inkLine,
-      lineWidthPx: (draw.lineWidthScreenPct / 100) * screen.width,
+      lineWidthPx: (draw.lineWidthScreenPct / 100) * layout.width,
       depth: DEPTH.stroke,
     });
     const chain = sim.renderChain;

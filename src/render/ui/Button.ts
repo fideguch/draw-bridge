@@ -6,12 +6,16 @@
  * - Press feedback = hard-shadow collapse + 4pt down-shift (§3.4 shadowButton).
  * - On activate it drives the shared feedback through GameServices: first-gesture
  *   audio unlock, tap SFX, and a light UI haptic (SC-001 "タップ音1種").
+ *
+ * DPR-native: callers pass POSITION (x/y) in game px (computed from `layout`) and
+ * SIZE (width/height/fontSize/cornerRadius) in 390-design units — the button
+ * ui-scales those to game px so it renders 1:1 crisp on every device (research §2).
  */
 
 import Phaser from 'phaser';
 import { registerDevButton } from '../devhook';
 import type { GameServices } from './services';
-import { color, makeTextStyle, minTouchTarget, radius, shadowOffsetY, stroke, type } from './theme';
+import { color, layout, makeTextStyle, minTouchTarget, radius, shadowOffsetY, stroke, type } from './theme';
 
 export type ButtonVariant = 'primary' | 'secondary' | 'danger';
 
@@ -60,6 +64,10 @@ export class Button extends Phaser.GameObjects.Container {
   private readonly options: ButtonOptions;
   private readonly variant: ButtonVariant;
   private readonly corner: number;
+  /** Body + hit dimensions + press shift, ui-scaled to game px once at build. */
+  private readonly uiWidth: number;
+  private readonly uiHeight: number;
+  private readonly shadowShift: number;
   private isEnabled = true;
   private isPressed = false;
 
@@ -67,7 +75,17 @@ export class Button extends Phaser.GameObjects.Container {
     super(scene, options.x, options.y);
     this.options = options;
     this.variant = options.variant ?? 'primary';
-    this.corner = options.cornerRadius ?? (options.height >= 60 ? radius.l : radius.m);
+    // radius.l / radius.m are already ui-scaled (game px); the height threshold
+    // compares in design space so the "big button" cutoff is device-independent.
+    this.corner =
+      options.cornerRadius !== undefined
+        ? layout.ui(options.cornerRadius)
+        : options.height >= 60
+          ? radius.l
+          : radius.m;
+    this.uiWidth = layout.ui(options.width);
+    this.uiHeight = layout.ui(options.height);
+    this.shadowShift = layout.ui(shadowOffsetY);
 
     this.shadow = scene.add.graphics();
     this.bodyGfx = scene.add.graphics();
@@ -77,8 +95,8 @@ export class Button extends Phaser.GameObjects.Container {
     this.face = scene.add.container(0, 0, [this.bodyGfx, this.label]);
     this.add([this.shadow, this.face]);
 
-    const hitWidth = Math.max(options.width, minTouchTarget);
-    const hitHeight = Math.max(options.height, minTouchTarget);
+    const hitWidth = layout.ui(Math.max(options.width, minTouchTarget));
+    const hitHeight = layout.ui(Math.max(options.height, minTouchTarget));
     this.setSize(hitWidth, hitHeight);
     this.setInteractive(
       new Phaser.Geom.Rectangle(-hitWidth / 2, -hitHeight / 2, hitWidth, hitHeight),
@@ -124,7 +142,7 @@ export class Button extends Phaser.GameObjects.Container {
       return;
     }
     this.isPressed = true;
-    this.face.y = shadowOffsetY;
+    this.face.y = this.shadowShift;
     this.shadow.setVisible(false);
   }
 
@@ -151,14 +169,14 @@ export class Button extends Phaser.GameObjects.Container {
 
   private redraw(): void {
     const s = styleFor(this.variant, this.isEnabled);
-    const w = this.options.width;
-    const h = this.options.height;
+    const w = this.uiWidth;
+    const h = this.uiHeight;
     const left = -w / 2;
     const top = -h / 2;
 
     this.shadow.clear();
     this.shadow.fillStyle(s.shadow, 1);
-    this.shadow.fillRoundedRect(left, top + shadowOffsetY, w, h, this.corner);
+    this.shadow.fillRoundedRect(left, top + this.shadowShift, w, h, this.corner);
 
     this.bodyGfx.clear();
     this.bodyGfx.fillStyle(s.fill, 1);

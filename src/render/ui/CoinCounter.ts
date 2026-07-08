@@ -9,10 +9,11 @@
 
 import Phaser from 'phaser';
 import { formatCoins } from './format';
-import { color, makeTextStyle, radius, space, stroke, type } from './theme';
+import { color, layout, makeTextStyle, radius, space, stroke, type } from './theme';
 
-const PILL_HEIGHT = 32;
-const COIN_RADIUS = 8;
+// Design px (ui_design_brief §6.0) — ui-scaled to game px on read.
+const PILL_HEIGHT_DESIGN = 32;
+const COIN_RADIUS_DESIGN = 8;
 
 export class CoinCounter extends Phaser.GameObjects.Container {
   private readonly pill: Phaser.GameObjects.Graphics;
@@ -39,25 +40,29 @@ export class CoinCounter extends Phaser.GameObjects.Container {
   }
 
   private redraw(): void {
-    const pad = space.space3;
-    const gap = space.space2;
+    const pad = layout.ui(space.space3);
+    const gap = layout.ui(space.space2);
+    const coinRadius = layout.ui(COIN_RADIUS_DESIGN);
+    const pillHeight = layout.ui(PILL_HEIGHT_DESIGN);
     const textWidth = this.label.width;
-    const contentWidth = pad + COIN_RADIUS * 2 + gap + textWidth + pad;
+    const contentWidth = pad + coinRadius * 2 + gap + textWidth + pad;
     const left = -contentWidth;
+    // Clamp the pill radius to half the height (radius.full is ui-scaled huge).
+    const pill = Math.min(radius.full, pillHeight / 2);
 
     this.pill.clear();
     this.pill.fillStyle(color.uiSurface, 1);
-    this.pill.fillRoundedRect(left, -PILL_HEIGHT / 2, contentWidth, PILL_HEIGHT, radius.full);
+    this.pill.fillRoundedRect(left, -pillHeight / 2, contentWidth, pillHeight, pill);
     this.pill.lineStyle(stroke.ui, color.inkBorder, 1);
-    this.pill.strokeRoundedRect(left, -PILL_HEIGHT / 2, contentWidth, PILL_HEIGHT, radius.full);
+    this.pill.strokeRoundedRect(left, -pillHeight / 2, contentWidth, pillHeight, pill);
 
-    const coinCenterX = left + pad + COIN_RADIUS;
+    const coinCenterX = left + pad + coinRadius;
     this.coinIcon.clear();
     this.coinIcon.fillStyle(color.coin, 1);
-    this.coinIcon.fillCircle(coinCenterX, 0, COIN_RADIUS);
+    this.coinIcon.fillCircle(coinCenterX, 0, coinRadius);
     this.coinIcon.lineStyle(stroke.ui, color.coinStroke, 1);
-    this.coinIcon.strokeCircle(coinCenterX, 0, COIN_RADIUS);
+    this.coinIcon.strokeCircle(coinCenterX, 0, coinRadius);
 
-    this.label.setX(coinCenterX + COIN_RADIUS + gap);
+    this.label.setX(coinCenterX + coinRadius + gap);
   }
 }

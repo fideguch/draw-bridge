@@ -4,17 +4,27 @@
  *
  * Colors are stored Phaser-native (0xRRGGBB numbers) since Graphics fill/stroke
  * take numbers; `toCssColor` derives the '#rrggbb' string a Text style needs, so
- * each color has a single source of truth. Layout tokens (spacing, radius, safe
- * area) are the 4pt-grid values from ui_design_brief §3.3/§3.4/§6.
+ * each color has a single source of truth.
+ *
+ * DPR-native layout (research 08_mobile_quality §2.3): the canvas backing store
+ * is DEVICE pixels, so all UI geometry is expressed as `layout.ui(designUnit)`.
+ * `stroke`/`radius` are live getters that ui-scale on read (so world + UI line
+ * widths and corners stay DPR-crisp with zero per-call-site scaling), and
+ * `makeTextStyle` ui-scales the font size. Positions/extents come from the live
+ * `layout` (re-exported here) — see src/render/ui/layout.ts.
  */
 
 import Phaser from 'phaser';
+import { layout } from './layout';
 
-/** Design basis frame (ui_design_brief §1 "基準フレーム 390×844pt"). */
-export const screen = { width: 390, height: 844 } as const;
-
-/** Safe-area insets + screen margin (ui_design_brief §1 / §6.0). */
-export const safeArea = { top: 47, bottom: 34, margin: 16 } as const;
+export {
+  layout,
+  screen,
+  DESIGN,
+  DESIGN_MARGIN as margin,
+  LAYOUT_EVENT,
+} from './layout';
+export type { SafeInsets } from './layout';
 
 /** Color palette (ui_design_brief §3.1). Phaser-native 0xRRGGBB. */
 export const color = {
@@ -47,10 +57,13 @@ export const color = {
   textInverse: 0xffffff,
 } as const;
 
+/** Sky color as a '#rrggbb' string (index.html / camera background — no dark flash). */
+export const skyCssColor = '#a8e4ff';
+
 /** Modal / result scrim — rgba(20,18,43,0.6) (ui_design_brief §3.1 colorUiSurfaceDim). */
 export const scrim = { color: 0x14122b, alpha: 0.6 } as const;
 
-/** Spacing (4pt grid, ui_design_brief §3.3). */
+/** Spacing (4pt grid, ui_design_brief §3.3). Design px — scale through layout.ui(). */
 export const space = {
   space1: 4,
   space2: 8,
@@ -61,16 +74,38 @@ export const space = {
   space12: 48,
 } as const;
 
-/** Radius (ui_design_brief §3.4). */
-export const radius = { s: 8, m: 12, l: 20, full: 999 } as const;
+/** Radius (ui_design_brief §3.4), live getters → game px (DPR-crisp corners). */
+const RADIUS_DESIGN = { s: 8, m: 12, l: 20, full: 999 } as const;
+export const radius = {
+  get s(): number {
+    return layout.ui(RADIUS_DESIGN.s);
+  },
+  get m(): number {
+    return layout.ui(RADIUS_DESIGN.m);
+  },
+  get l(): number {
+    return layout.ui(RADIUS_DESIGN.l);
+  },
+  get full(): number {
+    return layout.ui(RADIUS_DESIGN.full);
+  },
+};
 
-/** Stroke widths (ui_design_brief §3.4). */
-export const stroke = { game: 3, ui: 2 } as const;
+/** Stroke widths (ui_design_brief §3.4), live getters → game px (DPR-crisp lines). */
+const STROKE_DESIGN = { game: 3, ui: 2 } as const;
+export const stroke = {
+  get game(): number {
+    return layout.ui(STROKE_DESIGN.game);
+  },
+  get ui(): number {
+    return layout.ui(STROKE_DESIGN.ui);
+  },
+};
 
-/** Button hard-shadow offset (ui_design_brief §3.4 shadowButton). */
+/** Button hard-shadow offset (design px, ui_design_brief §3.4 shadowButton). */
 export const shadowOffsetY = 4;
 
-/** Minimum touch target (ui_design_brief §4, WCAG). */
+/** Minimum touch target (design px, ui_design_brief §4, WCAG). */
 export const minTouchTarget = 44;
 
 export interface TypeToken {
@@ -78,7 +113,7 @@ export interface TypeToken {
   readonly bold: boolean;
 }
 
-/** Typography scale (ui_design_brief §3.2). */
+/** Typography scale (ui_design_brief §3.2). Sizes are design px (ui-scaled in makeTextStyle). */
 export const type = {
   display: { size: 40, bold: true },
   h1: { size: 28, bold: true },
@@ -109,7 +144,11 @@ export function toCssColor(value: number): string {
   return `#${value.toString(16).padStart(6, '0')}`;
 }
 
-/** Build a Phaser Text style from a type token + color (keeps scenes declarative). */
+/**
+ * Build a Phaser Text style from a type token + color (keeps scenes declarative).
+ * The font size is ui-scaled to game px so glyphs bake at the device resolution
+ * and render 1:1 crisp (research §4.1 — Text.resolution left at the default 1).
+ */
 export function makeTextStyle(
   token: TypeToken,
   colorValue: number,
@@ -117,7 +156,7 @@ export function makeTextStyle(
 ): Phaser.Types.GameObjects.Text.TextStyle {
   return {
     fontFamily,
-    fontSize: `${token.size}px`,
+    fontSize: `${Math.round(layout.ui(token.size))}px`,
     fontStyle: token.bold ? 'bold' : 'normal',
     color: toCssColor(colorValue),
     ...extra,

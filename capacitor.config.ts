@@ -7,8 +7,8 @@ const config: CapacitorConfig = {
   // Portrait-only orientation is enforced natively:
   // - ios/App/App/Info.plist  (UISupportedInterfaceOrientations = portrait)
   // - android AndroidManifest (android:screenOrientation="portrait")
-  // Letterbox/background behind the WebView matches index.html.
-  backgroundColor: '#101216',
+  // Sky background behind the WebView matches index.html (full-bleed, no dark flash).
+  backgroundColor: '#a8e4ff',
   ios: {
     contentInset: 'never',
   },

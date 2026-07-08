@@ -18,7 +18,7 @@ import Phaser from 'phaser';
 import type { FailCause } from '@engine/rules/Judge';
 import { Button } from '@render/ui/Button';
 import type { GameServices } from '@render/ui/services';
-import { color, makeTextStyle, scrim, screen, space, type } from '@render/ui/theme';
+import { color, layout, makeTextStyle, scrim, stroke, type } from '@render/ui/theme';
 import { coinCounterPunch } from '@render/juice/RewardCountUp';
 import { goal } from '@tuning/TuningConstants';
 
@@ -71,31 +71,31 @@ export class ResultOverlay {
    */
   showClearShell(data: ClearShellData): void {
     this.hide();
-    const cx = screen.width / 2;
-    const panelY = screen.height * 0.42;
+    const cx = layout.width / 2;
+    const panelY = layout.height * 0.42;
 
     this.skipHandler = data.onSkip;
     this.addScrim();
     this.track(
       this.scene.add
-        .text(cx, panelY - 96, 'クリア！', makeTextStyle(type.display, color.textInverse))
+        .text(cx, panelY - layout.ui(96), 'クリア！', makeTextStyle(type.display, color.textInverse))
         .setOrigin(0.5)
         .setScrollFactor(0)
         .setDepth(OVERLAY_DEPTH),
     );
-    this.addCoinCounter(cx, panelY + 40);
+    this.addCoinCounter(cx, panelY + layout.ui(40));
 
     const replay = this.makeButton({
-      x: cx - 92,
-      y: panelY + 128,
+      x: cx - layout.ui(92),
+      y: panelY + layout.ui(128),
       label: 'Replay',
       variant: 'secondary',
       devId: 'result-replay',
       onClick: data.onReplay,
     });
     const next = this.makeButton({
-      x: cx + 92,
-      y: panelY + 128,
+      x: cx + layout.ui(92),
+      y: panelY + layout.ui(128),
       label: data.hasNext ? 'つぎへ' : '一覧へ',
       variant: 'primary',
       devId: 'result-next',
@@ -110,22 +110,22 @@ export class ResultOverlay {
   /** Fail result: dim + cause hint + Retry (self-contained, no celebration). */
   showFail(data: FailOverlayData): void {
     this.hide();
-    const cx = screen.width / 2;
-    const panelY = screen.height * 0.4;
+    const cx = layout.width / 2;
+    const panelY = layout.height * 0.4;
 
     this.addScrim();
     this.track(
-      this.scene.add.text(cx, panelY - 40, 'ざんねん', makeTextStyle(type.h1, color.textInverse)).setOrigin(0.5),
+      this.scene.add.text(cx, panelY - layout.ui(40), 'ざんねん', makeTextStyle(type.h1, color.textInverse)).setOrigin(0.5),
     );
     this.track(
       this.scene.add
-        .text(cx, panelY + 8, FAIL_HINT[data.cause], makeTextStyle(type.body, color.textInverse))
+        .text(cx, panelY + layout.ui(8), FAIL_HINT[data.cause], makeTextStyle(type.body, color.textInverse))
         .setOrigin(0.5),
     );
     this.track(
       this.makeButton({
         x: cx,
-        y: panelY + 84,
+        y: panelY + layout.ui(84),
         label: 'Retry',
         variant: 'primary',
         devId: 'result-retry',
@@ -198,7 +198,7 @@ export class ResultOverlay {
 
   private addScrim(): void {
     const rect = this.scene.add
-      .rectangle(screen.width / 2, screen.height / 2, screen.width, screen.height, scrim.color, scrim.alpha)
+      .rectangle(layout.width / 2, layout.height / 2, layout.width, layout.height, scrim.color, scrim.alpha)
       .setScrollFactor(0)
       .setDepth(OVERLAY_DEPTH)
       .setInteractive({ useHandCursor: false });
@@ -209,14 +209,14 @@ export class ResultOverlay {
   private addCoinCounter(cx: number, y: number): void {
     const icon = this.scene.add.graphics().setScrollFactor(0).setDepth(OVERLAY_DEPTH);
     icon.fillStyle(color.coin, 1);
-    icon.fillCircle(cx - 26, y, 12);
-    icon.lineStyle(2, color.coinStroke, 1);
-    icon.strokeCircle(cx - 26, y, 12);
+    icon.fillCircle(cx - layout.ui(26), y, layout.ui(12));
+    icon.lineStyle(stroke.ui, color.coinStroke, 1);
+    icon.strokeCircle(cx - layout.ui(26), y, layout.ui(12));
     this.track(icon);
 
-    this.coinTextPos = { x: cx - 6, y };
+    this.coinTextPos = { x: cx - layout.ui(6), y };
     this.coinText = this.scene.add
-      .text(cx - 6, y, '0', makeTextStyle(type.h2, color.textInverse))
+      .text(cx - layout.ui(6), y, '0', makeTextStyle(type.h2, color.textInverse))
       .setOrigin(0, 0.5)
       .setScrollFactor(0)
       .setDepth(OVERLAY_DEPTH);

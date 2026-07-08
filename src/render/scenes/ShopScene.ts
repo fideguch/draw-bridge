@@ -4,6 +4,9 @@
  * disables + shows the shortfall when the balance is short (ui_design_brief §6.7,
  * ux_protocol SC-007, FR-019, trust pattern P5). Purchase is immediate, no
  * confirm dialog, double-tap-safe.
+ *
+ * DPR-native: cards fill the live width; design offsets/sizes go through
+ * `layout.ui()` (research §2.3). Re-anchors on the layout event.
  */
 
 import Phaser from 'phaser';
@@ -13,17 +16,17 @@ import { CoinCounter } from '@render/ui/CoinCounter';
 import { formatCoins } from '@render/ui/format';
 import { getServices } from '@render/ui/services';
 import type { GameServices, UpgradeAxisId } from '@render/ui/services';
-import { color, makeTextStyle, radius, safeArea, screen, space, stroke, type } from '@render/ui/theme';
+import { color, layout, LAYOUT_EVENT, makeTextStyle, margin, radius, space, stroke, type } from '@render/ui/theme';
 
 interface AxisCard {
   readonly axis: UpgradeAxisId;
   readonly label: string;
   readonly perLevelPct: number;
+  /** Card top edge in game px. */
   readonly top: number;
 }
 
-const CARD_LEFT = 16;
-const CARD_WIDTH = 358;
+// Design px (ui_design_brief §6.7) — ui-scaled to game px at use sites.
 const CARD_HEIGHT = 180;
 const CARD_GAP = 24;
 const FIRST_CARD_TOP = 124;
@@ -38,33 +41,57 @@ export class ShopScene extends Phaser.Scene {
     super('Shop');
   }
 
+  private ui(n: number): number {
+    return layout.ui(n);
+  }
+
+  private get cardLeft(): number {
+    return this.ui(margin);
+  }
+
+  private get cardWidth(): number {
+    return layout.width - 2 * this.ui(margin);
+  }
+
   create(): void {
     this.services = getServices(this);
     this.cameras.main.setBackgroundColor(color.sky);
 
-    const topRowY = safeArea.top + space.space4 + 22;
+    const topRowY = layout.safe.top + this.ui(space.space4 + 22);
     new Button(this, {
-      x: safeArea.margin + 22,
+      x: layout.safe.left + this.ui(margin + 22),
       y: topRowY,
       width: 44,
       height: 44,
       label: '←',
       variant: 'secondary',
       services: this.services,
+      devId: 'shop-back',
       onClick: () => this.scene.start('Home'),
     });
     this.add
-      .text(safeArea.margin + 66, topRowY, 'ショップ', makeTextStyle(type.h1, color.textPrimary))
+      .text(layout.safe.left + this.ui(margin + 66), topRowY, 'ショップ', makeTextStyle(type.h1, color.textPrimary))
       .setOrigin(0, 0.5);
-    this.coinCounter = new CoinCounter(this, screen.width - safeArea.margin, topRowY, this.services.getBalance());
+    this.coinCounter = new CoinCounter(this, layout.width - layout.safe.right - this.ui(margin), topRowY, this.services.getBalance());
 
     this.renderCards();
+    this.subscribeLayout();
+  }
+
+  private subscribeLayout(): void {
+    const onLayout = (): void => {
+      this.scene.restart();
+    };
+    this.game.events.on(LAYOUT_EVENT, onLayout);
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.game.events.off(LAYOUT_EVENT, onLayout));
   }
 
   private get cards(): readonly AxisCard[] {
+    const firstTop = layout.safe.top + this.ui(FIRST_CARD_TOP - 47);
+    const stride = this.ui(CARD_HEIGHT + CARD_GAP);
     return [
-      { axis: 'inkCapacity', label: 'インク量', perLevelPct: economy.inkPerLevelPct, top: FIRST_CARD_TOP },
-      { axis: 'engineSpeed', label: '車速', perLevelPct: economy.speedPerLevelPct, top: FIRST_CARD_TOP + CARD_HEIGHT + CARD_GAP },
+      { axis: 'inkCapacity', label: 'インク量', perLevelPct: economy.inkPerLevelPct, top: firstTop },
+      { axis: 'engineSpeed', label: '車速', perLevelPct: economy.speedPerLevelPct, top: firstTop + stride },
     ];
   }
 
@@ -82,17 +109,20 @@ export class ShopScene extends Phaser.Scene {
   private renderCard(card: AxisCard): void {
     const level = this.services.getUpgradeLevel(card.axis);
     const isMaxed = level >= economy.maxUpgradeLevel;
+    const cardLeft = this.cardLeft;
+    const cardWidth = this.cardWidth;
+    const cardHeight = this.ui(CARD_HEIGHT);
 
     const bg = this.add.graphics();
     bg.fillStyle(color.uiSurface, 1);
-    bg.fillRoundedRect(CARD_LEFT, card.top, CARD_WIDTH, CARD_HEIGHT, radius.m);
+    bg.fillRoundedRect(cardLeft, card.top, cardWidth, cardHeight, radius.m);
     bg.lineStyle(stroke.ui, color.inkBorder, 1);
-    bg.strokeRoundedRect(CARD_LEFT, card.top, CARD_WIDTH, CARD_HEIGHT, radius.m);
+    bg.strokeRoundedRect(cardLeft, card.top, cardWidth, cardHeight, radius.m);
     this.track(bg);
 
     this.track(
       this.add
-        .text(CARD_LEFT + space.space4, card.top + 18, card.label, makeTextStyle(type.h2, color.textPrimary))
+        .text(cardLeft + this.ui(space.space4), card.top + this.ui(18), card.label, makeTextStyle(type.h2, color.textPrimary))
         .setOrigin(0, 0.5),
     );
     this.renderPips(card, level);
@@ -103,7 +133,7 @@ export class ShopScene extends Phaser.Scene {
       : `効果: +${current}% → 次Lv +${(level + 1) * card.perLevelPct}%`;
     this.track(
       this.add
-        .text(CARD_LEFT + space.space4, card.top + 78, effect, makeTextStyle(type.body, color.textSecondary))
+        .text(cardLeft + this.ui(space.space4), card.top + this.ui(78), effect, makeTextStyle(type.body, color.textSecondary))
         .setOrigin(0, 0),
     );
 
@@ -112,11 +142,11 @@ export class ShopScene extends Phaser.Scene {
 
   private renderPips(card: AxisCard, level: number): void {
     const g = this.add.graphics();
-    const pipGap = 20;
-    const pipRadius = 6;
-    const blockRight = CARD_LEFT + CARD_WIDTH - space.space4;
+    const pipGap = this.ui(20);
+    const pipRadius = this.ui(6);
+    const blockRight = this.cardLeft + this.cardWidth - this.ui(space.space4);
     const startX = blockRight - (economy.maxUpgradeLevel - 1) * pipGap;
-    const y = card.top + 18;
+    const y = card.top + this.ui(18);
     for (let i = 0; i < economy.maxUpgradeLevel; i += 1) {
       const x = startX + i * pipGap;
       if (i < level) {
@@ -130,14 +160,14 @@ export class ShopScene extends Phaser.Scene {
     this.track(g);
     this.track(
       this.add
-        .text(startX - space.space3, y, `Lv${level}`, makeTextStyle(type.h2, color.textPrimary))
+        .text(startX - this.ui(space.space3), y, `Lv${level}`, makeTextStyle(type.h2, color.textPrimary))
         .setOrigin(1, 0.5),
     );
   }
 
   private renderPriceButton(card: AxisCard, level: number, isMaxed: boolean): void {
-    const centerX = screen.width / 2;
-    const centerY = card.top + 132;
+    const centerX = layout.width / 2;
+    const centerY = card.top + this.ui(132);
     if (isMaxed) {
       this.track(
         new Button(this, {
@@ -174,7 +204,7 @@ export class ShopScene extends Phaser.Scene {
     if (!isAffordable) {
       this.track(
         this.add
-          .text(centerX, centerY + 34, `あと ${formatCoins(price - balance)}`, makeTextStyle(type.caption, color.uiDanger))
+          .text(centerX, centerY + this.ui(34), `あと ${formatCoins(price - balance)}`, makeTextStyle(type.caption, color.uiDanger))
           .setOrigin(0.5),
       );
     }
