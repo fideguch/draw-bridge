@@ -19,7 +19,7 @@
 
 - Classes/types/interfaces: PascalCase (no `I` prefix). Files: match main export (`BridgeChain.ts`).
 - Variables/functions: camelCase. Booleans: `is/has/should` prefix. Constants: UPPER_SNAKE only for true compile-time constants.
-- Domain vocabulary is fixed by UL (designs/ubiquitous_language.md): `Stroke` (pre-solidify), `BridgeChain` (post-solidify), `Segment`, `stress` (0-1), `break`, `Anticipation`, `launch`, `GoalFlag`, `starRating`, `inkCapacityLv`, `engineSpeedLv`, `Chapter`, `BonusLevel`, `GhostSolution`, `killY`, `VehicleReferencePoint` (chassis AABB center).
+- Domain vocabulary is fixed by UL (designs/ubiquitous_language.md): `Stroke` (pre-solidify), `BridgeChain` (post-solidify), `Segment`, `stress` (0-1), `break`, `Anticipation`, `launch`, `GoalFlag`, `starRating`, `inkCapacityLv`, `engineSpeedLv`, `Chapter`, `BonusLevel`, `GhostSolution`, `killY`, `VehicleReferencePoint` (chassis AABB center), `強化` (upgrade-entry label — never 「ショップ」, coin-only economy, UL-026).
 - Forbidden identifiers: `DrawBridge` (competitor name), `stage` (use `level`), mixing `stroke`/`bridge` semantics.
 
 ## 3. Levels & Events (offline game — no DB/API)
