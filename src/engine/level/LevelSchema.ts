@@ -47,6 +47,16 @@ export const ROCK_MAX_RADIUS_M = 5;
  * a dynamic circle at {x, y} with the given `radius`; `density` overrides the
  * TuningConstants default; `initialVelocity` (m/s) seeds a roll/throw. Absent
  * `rocks` == a level with no rocks (fully backward compatible, schemaVersion 1).
+ *
+ * TRIGGERED SPAWN (`triggerCarX`, optional): when present, the rock's body is NOT
+ * created at run start — it is deterministically created the tick the car's
+ * VehicleReferencePoint.x FIRST reaches `triggerCarX` (GameSimulation.step ->
+ * RockHazard.updateTriggers). This synchronises the rock's fall/roll with the
+ * car's arrival so a naive line is genuinely intercepted (user round-6: rocks
+ * that "spawn too early and miss"). Before the trigger the rock is ARMED (drawn
+ * as a translucent warning at its spawn, not yet physical — it has no body, so it
+ * contributes nothing to the state hash and touches nothing). Absent
+ * `triggerCarX` == the classic spawn-at-run-start rock (unchanged).
  */
 export interface Rock {
   readonly x: number;
@@ -54,6 +64,7 @@ export interface Rock {
   readonly radius: number;
   readonly density?: number;
   readonly initialVelocity?: Point;
+  readonly triggerCarX?: number;
 }
 
 /** Bottom-left anchored rectangle (y-up). */
@@ -160,7 +171,7 @@ const LEVEL_KEYS = new Set([
   'dangerZones',
 ]);
 
-const ROCK_KEYS = new Set(['x', 'y', 'radius', 'density', 'initialVelocity']);
+const ROCK_KEYS = new Set(['x', 'y', 'radius', 'density', 'initialVelocity', 'triggerCarX']);
 
 const GHOST_KEYS = new Set(['kind', 'stroke', 'sampleEveryTicks', 'samples', 'result']);
 const RESULT_KEYS = new Set(['outcome', 'ticks', 'finalPos', 'inkConsumed', 'starRating']);
@@ -246,6 +257,10 @@ function parseRock(value: unknown, path: string, errors: string[]): Rock | undef
   if (rawVelocity !== undefined) {
     initialVelocity = parsePoint(rawVelocity, `${path}.initialVelocity`, errors);
   }
+  const triggerCarX = value['triggerCarX'];
+  if (triggerCarX !== undefined && !isFiniteNumber(triggerCarX)) {
+    errors.push(`${path}.triggerCarX: expected a finite number when present (the car-x that spawns the rock)`);
+  }
 
   if (errors.length > before) {
     return undefined;
@@ -256,6 +271,7 @@ function parseRock(value: unknown, path: string, errors: string[]): Rock | undef
     radius: radius as number,
     ...(density !== undefined ? { density: density as number } : {}),
     ...(initialVelocity !== undefined ? { initialVelocity } : {}),
+    ...(triggerCarX !== undefined ? { triggerCarX: triggerCarX as number } : {}),
   };
 }
 

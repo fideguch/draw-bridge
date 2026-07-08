@@ -52,6 +52,10 @@ export const color = {
   rockDark: 0x3f3b46, // dark base disc / outline (reads as stone shadow)
   rockFill: 0x7b7683, // mid slate-grey body
   rockLight: 0xa9a4b3, // lighter facet highlights (rotation legibility)
+  // Triggered-rock ARMED warning (RockRenderer, pre-spawn): a translucent amber
+  // "incoming" pulse + a bright "!" aura so the player SEES the threat coming (fairness).
+  rockWarn: 0xffb020, // amber warning wash (drawn translucent, pulsing)
+  rockWarnCore: 0xfff3d6, // bright cream "!" glyph core
   // DangerZone hazard band (DangerZoneRenderer) — the unmistakable "danger" language:
   // translucent red fill + darker-red diagonal hatch stripes + a thin red border.
   hazardFill: 0xff3b30, // translucent red wash (drawn at low fillAlpha)

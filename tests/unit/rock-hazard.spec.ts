@@ -85,9 +85,10 @@ function minRockYOverRun(level: Level, stroke: readonly Point[], ticks: number):
 
 describe('RockHazard — spawn + render observation', () => {
   it('reserves well under the phaser-box2d world budget', () => {
-    // 9 fresh worlds across this file (spawn 1, velocity 1, determinism 2,
-    // negative-control 1, shield 2, crush 2) — keep the budget guard honest.
-    expect(9).toBeLessThanOrEqual(SPIKE_WORLD_BUDGET);
+    // 15 fresh worlds across this file (spawn 1, velocity 1, determinism 2,
+    // negative-control 1, shield 2, crush 2, triggered: liveTick 2 + preHash 2 +
+    // determinism 2) — keep the budget guard honest.
+    expect(15).toBeLessThanOrEqual(SPIKE_WORLD_BUDGET);
   });
 
   it('spawns one body per level rock at its authored position (after settle, unmoved)', () => {
@@ -181,5 +182,69 @@ describe('RockHazard — collision (line is a shield/deflector)', () => {
 
     expect(clean.outcome).toBe('clear'); // no rock → the car crosses
     expect(crushed.outcome).toBe('fail'); // the rock lands in its path → fail
+  });
+});
+
+describe('RockHazard — triggered spawn (round-6 rocks[].triggerCarX)', () => {
+  /** Step to the tick a triggered rock transitions armed -> live; -1 if never. */
+  function firstLiveTick(level: Level, stroke: readonly Point[]): number {
+    const sim = new GameSimulation(level, { method: 'chain' });
+    try {
+      // Before the trigger the rock is ARMED: it is counted + rendered (at spawn)
+      // but has NO physical body, so it is inert to physics and the state hash.
+      expect(sim.renderRocks.count).toBe(1);
+      expect(sim.renderRocks.renderState()[0]?.armed).toBe(true);
+      expect(sim.renderRocks.bodyIds).toHaveLength(0);
+      sim.commitStroke(stroke);
+      let liveTick = -1;
+      let outcome = sim.outcome;
+      while (outcome === null) {
+        outcome = sim.step();
+        if (liveTick < 0 && sim.renderRocks.renderState()[0]?.armed === false) {
+          liveTick = sim.currentTick;
+        }
+      }
+      return liveTick;
+    } finally {
+      sim.destroy();
+    }
+  }
+
+  it('an armed rock spawns at the EXACT tick the car reaches triggerCarX — identical across two runs', () => {
+    // Car launches from the left runUp and drives right over the gap; the rock is
+    // armed until the reference x first reaches triggerCarX (mid-run).
+    const level = spikeLevelWithRocks(4, [{ x: 0, y: 5, radius: 0.3, triggerCarX: -2 }]);
+    const a = firstLiveTick(level, arcStroke(4));
+    const b = firstLiveTick(level, arcStroke(4));
+    expect(a).toBeGreaterThan(0); // fired only after the car travelled to triggerCarX
+    expect(a).toBe(b); // pure function of the reference x -> the same tick both runs
+  });
+
+  it('pre-trigger stateHash is BYTE-IDENTICAL to a world without the triggered rock (armed == no body)', () => {
+    // A trigger far to the right so it does not fire in the first N ticks. The armed
+    // rock adds no body, so the world hash must match a rock-free run tick-for-tick.
+    const withArmed = spikeLevelWithRocks(4, [{ x: 3, y: 6, radius: 0.3, triggerCarX: 3 }]);
+    const withoutRock = buildSpikeLevel(4, { runUpM: 6, flagOffsetM: 5 });
+    const hashAfter = (level: Level): string => {
+      const sim = new GameSimulation(level, { method: 'chain' });
+      try {
+        sim.commitStroke(arcStroke(4));
+        for (let i = 0; i < 20; i++) sim.step(); // 20 ticks: still pre-trigger
+        expect(sim.renderRocks.renderState()[0]?.armed ?? true).toBe(true); // not yet fired
+        return simulationInternals(sim).world.stateHash();
+      } finally {
+        sim.destroy();
+      }
+    };
+    expect(hashAfter(withArmed)).toBe(hashAfter(withoutRock));
+  });
+
+  it('two fresh runs of a triggered-rock level produce ONE identical final stateHash + outcome', () => {
+    const level = spikeLevelWithRocks(4, [{ x: 0, y: 5, radius: 0.3, triggerCarX: -2 }]);
+    const a = runFreshToOutcome(level, arcStroke(4));
+    const b = runFreshToOutcome(level, arcStroke(4));
+    expect(a.outcome).toBe(b.outcome);
+    expect(a.ticks).toBe(b.ticks);
+    expect(a.hash).toBe(b.hash); // triggered body creation is bit-reproducible
   });
 });

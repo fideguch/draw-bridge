@@ -28,6 +28,13 @@ export interface RockPath {
   readonly points: readonly Point[];
   /** Rock radius (world m). */
   readonly radius: number;
+  /**
+   * TRIGGERED spawn car-x (round-6): when set, the rock's body is created the tick
+   * the car's reference x first reaches this value (it is ARMED at its spawn until
+   * then). The card draws a HOLLOW dashed spawn + a "触発" note + a vertical trigger
+   * line at this x, so the timed nature is legible.
+   */
+  readonly triggerCarX?: number;
 }
 
 export interface CardData {
@@ -363,6 +370,21 @@ function renderRocks(data: CardData, proj: (x: number, y: number) => [number, nu
         `<circle cx="${sx}" cy="${sy}" r="${fmt(rp.radius)}" fill="none" stroke="${COLORS.rockPath}" ` +
           `stroke-width="0.06" stroke-dasharray="0.14 0.1" opacity="0.85"/>`,
       );
+      // TRIGGERED spawn note: a "触発" tag at the hollow spawn + a vertical trigger
+      // line at the car-x that arms it (the timing the round-6 mechanic adds).
+      if (rp.triggerCarX !== undefined) {
+        const tagSize = Math.min(0.5, Math.max(0.26, rp.radius * 0.8));
+        parts.push(
+          `<text x="${sx}" y="${fmt(sy - rp.radius - 0.18)}" font-size="${fmt(tagSize)}" font-weight="700" ` +
+            `text-anchor="middle" fill="${COLORS.rockArrow}">触発 x=${rp.triggerCarX.toFixed(1)}</text>`,
+        );
+        const [tx, tyTop] = proj(rp.triggerCarX, start.y);
+        const [, tyBot] = proj(rp.triggerCarX, 0);
+        parts.push(
+          `<line x1="${tx}" y1="${tyTop}" x2="${tx}" y2="${tyBot}" stroke="${COLORS.trajectory}" ` +
+            `stroke-width="0.05" stroke-dasharray="0.12 0.12" opacity="0.7"/>`,
+        );
+      }
       // Exit-direction arrowhead (skip when the rock never really moved).
       const dir = endDirection(pts);
       if (dir !== null) parts.push(rockArrow(final, dir, rp.radius, proj));

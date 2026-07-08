@@ -49,8 +49,11 @@ function loadLevel(id: string, levelsDir: string): Level {
  * centre — the falling/rolling arc the drawn line has to shield/deflect (the
  * point of the shield levels). Mirrors recordGhostTrajectory's harness but reads
  * the live RockHazard (renderRocks), which the trajectory recorder's onTick does
- * not expose. Rocks spawn AT run start (post-settle) at their authored position,
- * so the first sample is the spawn and the last is the final resting/exit point.
+ * not expose. A classic rock spawns AT run start (post-settle) at its authored
+ * position; a TRIGGERED rock stays ARMED at its spawn (renderState reports the
+ * spawn pose while armed) until the car reaches triggerCarX, then falls — so the
+ * recorded path shows the spawn dwell followed by the timed drop/roll. The first
+ * sample is the spawn and the last is the final resting/exit point.
  * Deterministic + reuses the caller's recycled world (32-slot cap discipline).
  */
 function recordRockPaths(level: Level, strokePts: readonly Point[], world: World): RockPath[] {
@@ -80,7 +83,14 @@ function recordRockPaths(level: Level, strokePts: readonly Point[], world: World
       }
     }
     const radii = rocks.radii;
-    return points.map((pts, i) => ({ points: pts, radius: radii[i] ?? 0 }));
+    return points.map((pts, i) => {
+      const triggerCarX = level.rocks?.[i]?.triggerCarX;
+      return {
+        points: pts,
+        radius: radii[i] ?? 0,
+        ...(triggerCarX !== undefined ? { triggerCarX } : {}),
+      };
+    });
   } finally {
     simulation.destroy();
   }

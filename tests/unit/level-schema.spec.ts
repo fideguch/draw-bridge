@@ -372,6 +372,19 @@ describe('validateLevel — optional rocks[] hazards', () => {
     expectErrors(validateLevel(json));
   });
 
+  it('accepts a triggered rock (finite triggerCarX)', () => {
+    const json = cloneFixture();
+    json['rocks'] = [{ x: 0, y: 5, radius: 0.4, triggerCarX: -2.5 }];
+    const level = expectOk(validateLevel(json));
+    expect(level.rocks?.[0]).toEqual({ x: 0, y: 5, radius: 0.4, triggerCarX: -2.5 });
+  });
+
+  it.each([Number.NaN, Number.POSITIVE_INFINITY, '−2'])('rejects a non-finite triggerCarX (%p)', (triggerCarX) => {
+    const json = cloneFixture();
+    json['rocks'] = [{ x: 0, y: 2, radius: 0.4, triggerCarX }];
+    expectErrors(validateLevel(json));
+  });
+
   it('rejects an unknown key inside a rock (additionalProperties: false)', () => {
     const json = cloneFixture();
     json['rocks'] = [{ x: 0, y: 2, radius: 0.4, bounce: true }];

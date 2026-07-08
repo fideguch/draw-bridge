@@ -66,10 +66,16 @@ async function hook(page: Page): Promise<Snapshot> {
 }
 
 async function tapButton(page: Page, id: string): Promise<void> {
-  const rect = await page.evaluate(
-    (buttonId) => (window as unknown as HookWindow).__inkbridge?.buttonRect(buttonId) ?? null,
-    id,
-  );
+  // Poll for the button's rect: a result overlay (clear/fail) registers its buttons
+  // one render frame AFTER the engine flips to 'result', so a same-tick tap races the
+  // registration. Wait up to 5 s for the rect instead of throwing on the first miss.
+  const readRect = (): Promise<{ x: number; y: number; width: number; height: number } | null> =>
+    page.evaluate(
+      (buttonId) => (window as unknown as HookWindow).__inkbridge?.buttonRect(buttonId) ?? null,
+      id,
+    );
+  await expect.poll(async () => (await readRect()) !== null, { timeout: 5_000 }).toBe(true);
+  const rect = await readRect();
   if (!rect) throw new Error(`button not registered: ${id}`);
   await page.mouse.click(rect.x + rect.width / 2, rect.y + rect.height / 2);
 }

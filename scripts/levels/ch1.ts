@@ -180,7 +180,13 @@ export const CH1_SOURCES: readonly LevelSource[] = [
     goalFlag: flag(1.0, 0, 1, 2),
     killY: -3,
     coins: coinCount(5),
-    rocks: [{ x: 0.3, y: 7, radius: 0.4, density: 5 }],
+    // TRIGGERED spawn (round-6): the rock now falls the instant the car launches so
+    // it descends onto the car's lane as it passes (was: fell during settle, landed
+    // far too early). FLAT-FLOOR CAVEAT: the car rides continuous ground to a near
+    // goal, so a rock HIT no longer fails it (a wide car shrugs off a boulder on flat
+    // ground) — this level stays on the hazard-relevance advisory (see hazardRelevance.ts):
+    // converting the hit into a loss needs an arch-over-pit geometry (out of rock-param scope).
+    rocks: [{ x: 0.3, y: 7, radius: 0.4, density: 5, triggerCarX: -4.3 }],
     strokes: [{ kind: 'any', role: 'roof-vault', points: spline([p(-2.2, 2.78), p(0.2, 2.5), p(2.4, 2.15)]) }],
   },
 
@@ -272,7 +278,11 @@ export const CH1_SOURCES: readonly LevelSource[] = [
     goalFlag: flag(4, 0, 1, 2),
     killY: -3.5,
     coins: coinCount(5),
-    rocks: [{ x: 5.6, y: 4.9, radius: 0.38, density: 3, initialVelocity: { x: -1.0, y: 0 } }],
+    // TRIGGERED spawn: the rock starts rolling off the mesa when the car nears, so its
+    // descent onto the lower lane is timed to the car (was: rolled off before arrival).
+    // FLAT-FLOOR CAVEAT: the lower lane is continuous ground to the goal, so the fallen
+    // rock cannot fail the car — stays on the hazard-relevance advisory (needs a pit).
+    rocks: [{ x: 5.6, y: 4.9, radius: 0.38, density: 3, initialVelocity: { x: -1.0, y: 0 }, triggerCarX: -3.0 }],
     strokes: [{ kind: 'any', role: 'stop-wall', points: spline([p(1.2, 2.5), p(1.32, 3.05), p(1.24, 3.6)]) }],
   },
 
@@ -294,7 +304,11 @@ export const CH1_SOURCES: readonly LevelSource[] = [
     goalFlag: flag(1.2, 0, 1, 2),
     killY: -4,
     coins: coinCount(5),
-    rocks: [{ x: -2.5, y: 5.6, radius: 0.38, density: 3, initialVelocity: { x: 3.5, y: 0 } }],
+    // TRIGGERED spawn: the rock is thrown from upper-left when the car nears, timed to
+    // arc into the car's path (was: thrown before arrival). FLAT-FLOOR CAVEAT: the lane
+    // is continuous ground to a near goal, so the hit cannot fail the car — stays on the
+    // hazard-relevance advisory (needs an arch-over-pit geometry, out of rock-param scope).
+    rocks: [{ x: -2.5, y: 5.6, radius: 0.38, density: 3, initialVelocity: { x: 3.5, y: 0 }, triggerCarX: -3.8 }],
     strokes: [{ kind: 'any', role: 'deflect-chute', points: spline([p(-0.5, 3.35), p(1.2, 1.8), p(3.0, 0.3)]) }],
   },
 
@@ -431,7 +445,11 @@ export const CH1_SOURCES: readonly LevelSource[] = [
     goalFlag: flag(4.4, 0, 1, 2),
     killY: -3.5,
     coins: coinCount(5),
-    rocks: [{ x: 6.2, y: 4.1, radius: 0.38, density: 3, initialVelocity: { x: -1.5, y: 0 } }],
+    // TRIGGERED spawn ("確定した瞬間に発進" — the design's timed rock): the rock launches
+    // when the car nears so it rolls off the far ledge as the car approaches the goal.
+    // FLAT-FLOOR CAVEAT: continuous lower lane to the goal, so the fallen rock cannot fail
+    // the car — stays on the hazard-relevance advisory (needs a pit under the drop point).
+    rocks: [{ x: 6.2, y: 4.1, radius: 0.38, density: 3, initialVelocity: { x: -1.5, y: 0 }, triggerCarX: -3.0 }],
     strokes: [{ kind: 'any', role: 'timed-wall', points: spline([p(3.9, 2.6), p(4.0, 3.15), p(3.92, 3.7)]) }],
   },
 
@@ -454,7 +472,11 @@ export const CH1_SOURCES: readonly LevelSource[] = [
     goalFlag: flag(5, 0, 1, 2),
     killY: -5.5,
     coins: coinCount(5),
-    rocks: [{ x: 0.5, y: 5.5, radius: 0.34, density: 3 }],
+    // TRIGGERED spawn (round-6, GENUINELY relevant): the rock drops over the LEFT pit the
+    // instant the car launches, timed so a naive/idle car (which drives off the left rim
+    // into the pit) is struck as it falls — the M-stroke seal instead sheds it into the pit
+    // and the car clears. Machine-verified by the hazard-relevance gate (NOT on the advisory).
+    rocks: [{ x: -2.0, y: 5.5, radius: 0.45, density: 2, triggerCarX: -4.0 }],
     strokes: [
       {
         kind: '3star',
@@ -511,7 +533,10 @@ export const CH1_SOURCES: readonly LevelSource[] = [
     killY: -4.5,
     coins: coinCount(9),
     gimmickTags: [],
-    rocks: [{ x: 0.5, y: 4, radius: 0.3, density: 2 }],
+    // TRIGGERED spawn (round-6, GENUINELY relevant): the slow rock drops just left of the
+    // dome apex as the car launches, timed so a naive straight (which sags into the pit) is
+    // struck as it falls; the firm dome sheds it clear. Machine-verified (NOT on the advisory).
+    rocks: [{ x: -0.5, y: 4, radius: 0.3, density: 2, triggerCarX: -3.2 }],
     strokes: [{ kind: 'any', role: 'dome-reprise', points: arch(-2.7, 0.06, 2.7, 0.06, 1.05) }],
   },
 ];

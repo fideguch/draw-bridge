@@ -22,13 +22,23 @@
  * negative control: a rock placed beyond reach fails this gate). Determinism +
  * world budget: all attempts recycle ONE shared World (phaser-box2d 32-slot cap).
  *
- * ADVISORY ALLOWLIST: some SHIPPED rock levels currently fail this gate (the user
- * reports rocks that never hit). Redesigning those levels is the NEXT phase's job
- * (owned by scripts/levels/), NOT this engine phase. To keep `npm run gates`
- * green (18/18) while the failure list drives the redesign, the ids in
- * HAZARD_RELEVANCE_ADVISORY_OFF are reported as advisory WARNINGS instead of
- * errors. Each entry MUST be justified (it is evidence the level needs a hazard
- * that actually intersects the car), and removed once the level is redesigned.
+ * ROUND-6 STATUS (triggered rock spawns). The TRIGGERED spawn mechanism
+ * (`rocks[].triggerCarX`, GameSimulation.updateTriggers) times each rock's
+ * fall/roll to the car's arrival, so it now INTERCEPTS the naive car instead of
+ * finishing its motion during the pre-launch settle. This makes the WIDE-PIT
+ * shield levels (L14, B3) GENUINELY relevant (the rock knocks the crossing/falling
+ * naive car into the pit) — they are HARD-ENFORCED and no longer advisory.
+ *
+ * REMAINING ADVISORY (HAZARD_RELEVANCE_ADVISORY_OFF, 4 flat-floor levels). The
+ * triggered rock now HITS the car on these too, but a hit cannot be converted into
+ * a LOSS: their car lane is CONTINUOUS FLAT GROUND to a near goal, and a wide car
+ * on flat ground shrugs off a boulder (no pit to fall into, no wall to be pinned
+ * against — machine-swept: no radius/density/velocity/trigger yields a fail). The
+ * honest fix is a GEOMETRY redesign (an arch-over-pit like L10, so the rock knocks
+ * the car into a pit), which is OUT OF the round-6 "rock params only" scope. Until
+ * then these 4 report their failure as an advisory WARNING (build stays green) — the
+ * TIMING/visibility is fixed (the rock now arrives with a warning pulse), the
+ * lethality awaits the redesign. Negative controls stay hard errors.
  */
 
 import type { Level, Point } from '../../src/engine/level/LevelSchema';
@@ -51,29 +61,21 @@ export const HAZARD_RELEVANCE_WINDOW_TICKS = 45;
 const ROCK_CONTACT_SKIN_M = 0.1;
 
 /**
- * Shipped levels whose hazard-relevance failure is ADVISORY (warning, not a CI
- * error) pending the level redesign phase. See module header. Measured over
- * levels/*.json (2026-07-09, round-6 A1): each id below is a level whose rock does
- * NOT currently intersect the car's spatiotemporal path — direct machine evidence
- * for the user's "石が当たらない" complaint, and the redesign work-list.
- *
- * NOTE: ch1-l15 is DELIBERATELY absent — its rolling rocks DO hit the naive car
- * (the gate passes it), so it needs no advisory. Every id here must be removed
- * once its level is redesigned so the rock genuinely reaches the car.
+ * Flat-floor levels whose hazard-relevance failure is ADVISORY (warning, not a CI
+ * error) pending a GEOMETRY redesign (see module header). The triggered rock now
+ * HITS the naive car, but the continuous-flat-ground lane + near goal means the hit
+ * cannot become a loss (machine-swept over radius/density/velocity/trigger: no rock
+ * param fails the car). Each needs an arch-over-pit so the rock knocks the car into
+ * a pit — out of the "rock params only" round-6 scope. Shrunk from 6 to 4: the
+ * wide-pit shields L14 and B3 are now GENUINELY relevant (triggered rock -> naive
+ * car falls into the pit) and were removed from this list. Every id here MUST be
+ * removed once its geometry carries a real fall/pin the rock can trigger.
  */
 export const HAZARD_RELEVANCE_ADVISORY_OFF: ReadonlySet<string> = new Set<string>([
-  // round-6 phase C redesign: the DangerZone-carrying levels (L6/L9/L11/L12/L15/B2)
-  // and the dome-dual L10 (its falling rock crushes the naive flat straight while the
-  // firm dome sheds it) are now GENUINELY relevant — removed from this list. The
-  // entries below are shield-static/dynamic ROLES whose rolling/falling rock does not
-  // intersect a naive car on the continuous-floor lane (the car has already passed /
-  // the rock rolls behind it) — thematic hazards pending a timed-spawn mechanic.
-  'ch1-l04', // shield-static: rock drops but the intended roof shields; no baseline is hit
-  'ch1-l07', // shield-dynamic: rock rolls off the mesa but misses the car's timing
-  'ch1-l08', // catch-redirect: rock never reaches the car on a naive line
-  'ch1-l13', // shield-timed: rock timing does not intersect the naive car
-  'ch1-l14', // catch+seal fusion: the rock is shed off-path; the seal carries the level
-  'ch1-b3', // dome-dual bonus: slow rock lands off the car's path
+  'ch1-l04', // roof-vault shield: rock hits, but the flat lane to the near goal survives it
+  'ch1-l07', // stop-wall shield: rock falls onto the continuous lower lane; car drives on
+  'ch1-l08', // deflect-chute: rock arcs into the flat lane to a near goal; no pit to fall into
+  'ch1-l13', // timed-wall shield: rock drops on the continuous lower lane; car drives on
 ]);
 
 let relevanceWorld: World | undefined;
@@ -98,11 +100,14 @@ interface HazardTrackedRun {
   readonly hasRock: boolean;
 }
 
-/** True when any rock's disc intersects any car AABB (chassis / wheels). */
+/** True when any LIVE rock's disc intersects any car AABB (chassis / wheels). */
 function rockTouchesCar(rocks: RockHazard, vehicle: Vehicle): boolean {
   const states = rocks.renderState();
   const boxes = vehicle.occupiedAABBs();
   for (const s of states) {
+    if (s.armed) {
+      continue; // an armed (pre-trigger) rock has no body — it touches nothing
+    }
     for (const box of boxes) {
       const nx = Math.min(Math.max(s.x, box.minX), box.maxX);
       const ny = Math.min(Math.max(s.y, box.minY), box.maxY);

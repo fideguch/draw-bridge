@@ -9,16 +9,27 @@
  * tipOver / fall / timeout judgement through ordinary physics. The drawn line is
  * therefore a shield/deflector: catch or wall off the rock and the car survives.
  *
- * DETERMINISM: rocks are created deterministically from the level data (same
- * order, same bodies) and are tracked by World, so they participate in
- * World.stateHash exactly like every other body. GameSimulation spawns them once
- * per attempt in build(); an argument-free reset() rebuilds the identical set.
- * A level with no `rocks` creates zero bodies — byte-identical to a pre-rock
- * world (the determinism negative control).
+ * TRIGGERED SPAWN (round-6, `rocks[].triggerCarX`): a classic rock is created at
+ * run start (in the constructor); a TRIGGERED rock is created LATER — the tick the
+ * car's reference x first reaches `triggerCarX` (GameSimulation.step calls
+ * updateTriggers). Until then the rock is ARMED: it has NO body (so it is inert to
+ * physics and the state hash) but reports a render state at its spawn so the
+ * renderer can warn the player. This synchronises the rock's fall/roll with the
+ * car's arrival — the fix for "石が早く落ちて当たらない" (round-6). Slot order (spawn
+ * order) is fixed; a triggered rock's body simply appears at its slot when armed.
+ *
+ * DETERMINISM: bodies are created deterministically from the level data. Classic
+ * rocks are created in constructor order; a triggered rock is created the exact
+ * tick `carX >= triggerCarX` first holds — carX is a pure function of the sim
+ * state, so the trigger tick, the created body, and thus World.stateHash are
+ * bit-reproducible. Before any trigger fires the hash is unchanged from a world
+ * carrying only the classic rocks (the armed rock adds no body). An argument-free
+ * reset() rebuilds the identical armed set; a level with no `rocks` creates zero
+ * bodies — byte-identical to a pre-rock world (the determinism negative control).
  *
  * SURFACE properties (density fallback / friction / restitution) come from
- * TuningConstants; per-rock position, radius, optional density and initial
- * velocity come from the level JSON.
+ * TuningConstants; per-rock position, radius, optional density, initial velocity,
+ * and triggerCarX come from the level JSON.
  */
 
 import {
@@ -36,12 +47,25 @@ import type { World } from './World';
 import { CATEGORY_ROCK, MASK_ALL } from './CollisionCategories';
 import { rock as rockTuning } from '@tuning/TuningConstants';
 
-/** Live render observation for one rock (world meters + radians). */
+/**
+ * Live render observation for one rock (world meters + radians). `armed` is true
+ * for a triggered rock still waiting for its trigger: it is drawn as a warning at
+ * its spawn but has NO body (angle is 0, it never moves, it touches nothing).
+ */
 export interface RockRenderState {
   readonly x: number;
   readonly y: number;
   readonly angle: number;
   readonly radius: number;
+  readonly armed: boolean;
+}
+
+/** One rock's lifecycle: an authored spec + its body once (or if) it is created. */
+interface RockSlot {
+  readonly spec: Rock;
+  readonly radius: number;
+  /** null == armed (triggered, not yet spawned); set once the body is created. */
+  bodyId: b2BodyId | null;
 }
 
 function rockShapeDef(density: number): b2ShapeDef {
@@ -55,41 +79,75 @@ function rockShapeDef(density: number): b2ShapeDef {
 }
 
 export class RockHazard {
-  /** Rock bodies in level order (render + hash order). */
-  readonly bodyIds: readonly b2BodyId[];
-  /** Per-rock radius in world meters, same order as bodyIds (renderer + tests). */
-  readonly radii: readonly number[];
-
+  /** Every rock's slot in spawn (level) order — render + hash + trigger order. */
+  private readonly slots: readonly RockSlot[];
   private readonly world: World;
   private isDestroyed = false;
 
   constructor(world: World, rocks: readonly Rock[]) {
     this.world = world;
-    const bodyIds: b2BodyId[] = [];
-    const radii: number[] = [];
-    for (const spec of rocks) {
-      bodyIds.push(this.createRock(spec));
-      radii.push(spec.radius);
-    }
-    this.bodyIds = bodyIds;
-    this.radii = radii;
+    // A rock WITHOUT triggerCarX spawns now (classic behaviour, unchanged body
+    // order); a rock WITH triggerCarX stays armed until updateTriggers() fires it.
+    this.slots = rocks.map((spec) => ({
+      spec,
+      radius: spec.radius,
+      bodyId: spec.triggerCarX === undefined ? this.createRock(spec) : null,
+    }));
   }
 
-  /** Number of live rocks. */
+  /** Total rock slots (armed + live) — stable for the whole attempt. */
   get count(): number {
-    return this.bodyIds.length;
+    return this.slots.length;
   }
 
-  /** Live poses + radii (headless tests / debug; renderer reads bodies directly). */
+  /** Live (physical) rock body ids in slot order — armed rocks are omitted. */
+  get bodyIds(): readonly b2BodyId[] {
+    const ids: b2BodyId[] = [];
+    for (const slot of this.slots) {
+      if (slot.bodyId !== null) {
+        ids.push(slot.bodyId);
+      }
+    }
+    return ids;
+  }
+
+  /** Per-slot radius in world meters, same order as the slots (renderer + tests). */
+  get radii(): readonly number[] {
+    return this.slots.map((slot) => slot.radius);
+  }
+
+  /**
+   * Create any ARMED (triggered) rock whose triggerCarX the car has now reached.
+   * Called once per tick by GameSimulation with the current reference x. Firing
+   * is monotone-safe (idempotent once a slot has a body) and deterministic: the
+   * exact tick `carX >= triggerCarX` first holds is a pure function of sim state.
+   */
+  updateTriggers(carX: number): void {
+    for (const slot of this.slots) {
+      if (slot.bodyId === null && slot.spec.triggerCarX !== undefined && carX >= slot.spec.triggerCarX) {
+        slot.bodyId = this.createRock(slot.spec);
+      }
+    }
+  }
+
+  /**
+   * Live poses + radii for every slot (headless tests / debug / atlas; the game's
+   * RockRenderer reads this too). Armed slots report their spawn pose with
+   * `armed: true` (drawn as a warning); live slots read the body transform.
+   */
   renderState(): readonly RockRenderState[] {
-    return this.bodyIds.map((bodyId, i) => {
-      const position = b2Body_GetPosition(bodyId);
-      const rotation = b2Body_GetRotation(bodyId);
+    return this.slots.map((slot) => {
+      if (slot.bodyId === null) {
+        return { x: slot.spec.x, y: slot.spec.y, angle: 0, radius: slot.radius, armed: true };
+      }
+      const position = b2Body_GetPosition(slot.bodyId);
+      const rotation = b2Body_GetRotation(slot.bodyId);
       return {
         x: position.x,
         y: position.y,
         angle: Math.atan2(rotation.s, rotation.c),
-        radius: this.radii[i] as number,
+        radius: slot.radius,
+        armed: false,
       };
     });
   }
@@ -103,8 +161,10 @@ export class RockHazard {
     if (this.isDestroyed) {
       return;
     }
-    for (const bodyId of this.bodyIds) {
-      this.world.destroyBody(bodyId);
+    for (const slot of this.slots) {
+      if (slot.bodyId !== null) {
+        this.world.destroyBody(slot.bodyId);
+      }
     }
     this.isDestroyed = true;
   }

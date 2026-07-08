@@ -558,6 +558,13 @@ export class GameSimulation {
     this.stressTracker?.update(physics.fixedDt);
 
     const referencePoint = this.vehicle.referencePoint();
+    // Triggered rocks (round-6): create any armed rock the moment the car reaches
+    // its authored triggerCarX, so its fall/roll is timed to intercept the car (a
+    // no-op for classic rocks, which have no triggerCarX). Deterministic — the
+    // trigger tick is a pure function of the reference x. Placed here (after the
+    // step, from the same referencePoint the observers see) so the new body enters
+    // the world registry last and begins moving next tick.
+    this.rockHazard.updateTriggers(referencePoint.x);
     for (const index of this.coinTracker.update(referencePoint)) {
       this.events.emit('coinCollected', { index, position: this.level.coins[index] as Point });
     }

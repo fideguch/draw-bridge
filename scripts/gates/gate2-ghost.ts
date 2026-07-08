@@ -163,9 +163,11 @@ export function gate2Check(loaded: { json: unknown }): {
     );
   }
 
-  // Gate 2.6 (hazard-relevance): a rock / DangerZone must intersect the car's
-  // path. Advisory-off levels report their failure as a WARNING so CI stays green
-  // pending the level redesign (see hazardRelevance.ts header).
+  // Gate 2.6 (hazard-relevance): a rock / DangerZone MUST intersect the car's
+  // spatiotemporal path. Hard error for all levels EXCEPT the 4 flat-floor shields
+  // on HAZARD_RELEVANCE_ADVISORY_OFF, whose triggered rock now HITS the car but
+  // cannot fail it on flat ground (needs a geometry redesign — see hazardRelevance.ts).
+  // The wide-pit shields L14/B3 are hard-enforced (triggered rock -> naive car falls in).
   const relevance = hazardRelevanceCheck(level);
   if (relevance.errors.length > 0) {
     if (HAZARD_RELEVANCE_ADVISORY_OFF.has(level.id)) {
