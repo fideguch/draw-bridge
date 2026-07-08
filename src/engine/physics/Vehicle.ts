@@ -53,6 +53,14 @@ import { car, economy, launch, physics, fail } from '@tuning/TuningConstants';
 
 export type VehiclePhase = 'idle' | 'anticipation' | 'running';
 
+/** World-space axis-aligned bounding box (metres). */
+export interface Aabb {
+  readonly minX: number;
+  readonly minY: number;
+  readonly maxX: number;
+  readonly maxY: number;
+}
+
 export interface VehicleOptions {
   /** Engine speed upgrade level, 0..economy.maxUpgradeLevel (FR-019). */
   readonly engineSpeedLv?: number;
@@ -139,6 +147,19 @@ export class Vehicle {
   referencePoint(): Point {
     const aabb = b2Body_ComputeAABB(this.chassisId);
     return { x: (aabb.lowerBoundX + aabb.upperBoundX) / 2, y: (aabb.lowerBoundY + aabb.upperBoundY) / 2 };
+  }
+
+  /**
+   * World-space AABBs the car physically occupies: chassis + both wheels — the
+   * DangerZone overlap test surface (Judge FailCause 'hazard'). "Car (chassis or
+   * wheels) overlapping a zone" is exactly any of these three boxes touching the
+   * zone rect. Read-only (b2Body_ComputeAABB), so Render/gates may sample it.
+   */
+  occupiedAABBs(): readonly Aabb[] {
+    return [this.chassisId, this.wheelIds[0], this.wheelIds[1]].map((bodyId) => {
+      const aabb = b2Body_ComputeAABB(bodyId);
+      return { minX: aabb.lowerBoundX, minY: aabb.lowerBoundY, maxX: aabb.upperBoundX, maxY: aabb.upperBoundY };
+    });
   }
 
   /** [rear, front] wheel angular velocities in rad/s. */

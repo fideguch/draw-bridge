@@ -268,6 +268,7 @@ export class GameSimulation {
       goalFlag: level.goalFlag,
       killY: level.killY,
       ...(level.maxTicks !== undefined ? { maxTicks: level.maxTicks } : {}),
+      ...(level.dangerZones !== undefined ? { dangerZones: level.dangerZones } : {}),
     });
     this.chain = null;
     this.stressTracker = null;
@@ -363,6 +364,41 @@ export class GameSimulation {
   /** The built bridge chain, or null before commit / after reset (read-only). */
   get renderChain(): BridgeChain | null {
     return this.chain;
+  }
+
+  /**
+   * The LIVE world-space polyline through the settled BridgeChain's capsule
+   * endpoints — the physically-truthful bridge shape at this instant (atlas
+   * physical-truth deliverable). A settled chain physically CANNOT lie inside
+   * solids, so this line never penetrates terrain, unlike the raw authored
+   * stroke. Empty before commit / after reset.
+   *
+   * For 'chain' each body maps 1:1 to a segment (body origin == segment
+   * midpoint), so liveSegmentEndpoint is exact. For the rigid 'compound'
+   * fallback the build-time segments are returned unchanged (the atlas always
+   * uses the default 'chain' method, so this branch is never exercised there).
+   */
+  renderChainPolyline(): Point[] {
+    const chain = this.chain;
+    if (chain === null || chain.segments.length === 0) {
+      return [];
+    }
+    const segments = chain.segments;
+    const n = segments.length;
+    if (chain.method === 'chain' && chain.bodies.length === n) {
+      const points: Point[] = [
+        liveSegmentEndpoint(chain.bodies[0] as b2BodyId, segments[0] as StrokeSegment, 'a'),
+      ];
+      for (let i = 0; i < n; i++) {
+        points.push(liveSegmentEndpoint(chain.bodies[i] as b2BodyId, segments[i] as StrokeSegment, 'b'));
+      }
+      return points;
+    }
+    const points: Point[] = [(segments[0] as StrokeSegment).a];
+    for (const segment of segments) {
+      points.push(segment.b);
+    }
+    return points;
   }
 
   /** The stress tracker for the current chain, or null (compound/pre-commit). */

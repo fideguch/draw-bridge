@@ -20,9 +20,10 @@
  * must never commit UNCLIPPED THROUGH terrain (the F1 fallback) — that would
  * mean testing a line no player could draw; such a candidate fails the gate.
  */
-import { validateLevel, type Level, type Point, type Polyline } from '../../src/engine/level/LevelSchema';
+import { validateLevel, type Level, type Point } from '../../src/engine/level/LevelSchema';
 import { runScriptedAttempt } from '../../src/engine/replay/GhostPlayer';
 import { World } from '../../src/engine/physics/World';
+import { detectRims, lerpPoint } from './rims';
 import { parseCliOptions, resolveLevelFiles, runGate } from './lib';
 
 /**
@@ -37,8 +38,6 @@ function getBotWorld(): World {
   return botWorld;
 }
 
-/** Rim detection Δx (contract §5 initial value). */
-const RIM_PROBE_DX = 0.2;
 /** Candidate endpoint height offsets in meters (contract §5 initial set). */
 const HEIGHT_OFFSETS = [0, 0.5, 1.0] as const;
 /**
@@ -50,46 +49,6 @@ const HEIGHT_OFFSETS = [0, 0.5, 1.0] as const;
  * approximation must include overlapped straights.
  */
 const OVERLAP_EXTENSIONS = [0, 1.0, 2.0] as const;
-
-/** True when some terrain segment covers x-range (x, x+dx] (or [x-dx, x) when dx<0). */
-function terrainCoversX(terrain: readonly Polyline[], x: number, dx: number): boolean {
-  const lo = Math.min(x + dx, x) + 1e-9;
-  const hi = Math.max(x + dx, x) - 1e-9;
-  for (const polyline of terrain) {
-    for (let i = 0; i + 1 < polyline.length; i++) {
-      const ax = polyline[i]![0];
-      const bx = polyline[i + 1]![0];
-      if (Math.max(ax, bx) >= lo + 1e-9 && Math.min(ax, bx) <= hi - 1e-9) return true;
-    }
-  }
-  return false;
-}
-
-/**
- * A = spawn-side rim: terrain vertex nearest beyond the spawn in travel
- * direction (+x towards the flag) with no terrain within Δx on its +x side.
- * B = goal-side rim: symmetric on the flag side (-x probe).
- */
-export function detectRims(level: Level): { rimA: Point; rimB: Point } | null {
-  const flagCenterX = level.goalFlag.x + level.goalFlag.width / 2;
-  const travelSign = flagCenterX >= level.vehicleSpawn.x ? 1 : -1;
-  const vertices: Point[] = [];
-  for (const polyline of level.terrain) {
-    for (const [x, y] of polyline) vertices.push({ x, y });
-  }
-  const spawnSide = vertices
-    .filter((v) => (v.x - level.vehicleSpawn.x) * travelSign >= 0)
-    .filter((v) => !terrainCoversX(level.terrain, v.x, RIM_PROBE_DX * travelSign))
-    .sort((a, b) => (a.x - b.x) * travelSign);
-  const goalSide = vertices
-    .filter((v) => (flagCenterX - v.x) * travelSign >= 0)
-    .filter((v) => !terrainCoversX(level.terrain, v.x, -RIM_PROBE_DX * travelSign))
-    .sort((a, b) => (b.x - a.x) * travelSign);
-  const rimA = spawnSide[0];
-  const rimB = goalSide[0];
-  if (!rimA || !rimB) return null;
-  return { rimA, rimB };
-}
 
 export function gate3Check(loaded: { json: unknown }): { errors: string[]; warnings?: string[] } {
   const parsed = validateLevel(loaded.json);
@@ -163,10 +122,6 @@ function classifyCandidate(levelId: string, tag: string, disposition: string, wa
   if (!process.env['VITEST']) {
     process.stderr.write(`gate3 ${levelId} candidate ${tag}: ${disposition}\n`);
   }
-}
-
-function lerpPoint(a: Point, b: Point, t: number): Point {
-  return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t };
 }
 
 // CLI execution — skipped under vitest so tests can import the check function.

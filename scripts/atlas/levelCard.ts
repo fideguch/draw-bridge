@@ -34,8 +34,17 @@ export interface CardData {
   readonly level: Level;
   /** Archetype / design label from the level source. */
   readonly design: string;
-  /** The intended ink stroke (primary ghost). */
+  /** The intended ink stroke (primary ghost) — the RAW authored line (fallback only). */
   readonly strokePts: readonly Point[];
+  /**
+   * The SETTLED bridge-chain shape (capsule-centre polyline read from the engine
+   * at the car-launch tick) — the physically-truthful "correct line" the atlas
+   * draws as the solid ink polyline (round-6: the raw authored stroke lies through
+   * terrain / gets shoved; a settled chain physically cannot be inside solids).
+   */
+  readonly settledChainLaunch: readonly Point[];
+  /** The settled chain sampled again at mid-crossing — the faint "pushed / shoved" line. */
+  readonly settledChainMid: readonly Point[];
   /** The driven reference-point path (per-tick). */
   readonly trajectory: readonly Point[];
   /** Per-coin collection order (1-based) along the route, or null if missed. */
@@ -59,7 +68,11 @@ const COLORS = {
   goalPole: '#555',
   goalFlag: '#2f9e44',
   ink: '#1f2d5a',
+  shove: '#8a93c4', // faint mid-crossing settled line (the "pushed / shoved" bridge)
   trajectory: '#f08c00',
+  hazardFill: '#ff3b30',
+  hazardStripe: '#c42a24',
+  hazardBorder: '#e0352b',
   coin: '#f5b301',
   coinEdge: '#a9760a',
   coinLabel: '#3a2a00',
@@ -107,7 +120,13 @@ function boundsOf(data: CardData): Bounds {
     }
   }
   for (const p of data.strokePts) add(p.x, p.y);
+  for (const p of data.settledChainLaunch) add(p.x, p.y);
+  for (const p of data.settledChainMid) add(p.x, p.y);
   for (const p of data.trajectory) add(p.x, p.y);
+  for (const z of data.level.dangerZones ?? []) {
+    add(z.x, z.y);
+    add(z.x + z.width, z.y + z.height);
+  }
   // killY is a required element; keep the drop visible but bounded so the deep
   // chasm never squashes the playfield (cap the shown depth 2.5 m below terrain).
   const lowestTerrain = Math.min(...level.terrain.flatMap((l) => l.map(([, y]) => y)));
@@ -205,6 +224,14 @@ function renderGoal(data: CardData, proj: (x: number, y: number) => [number, num
   );
 }
 
+/**
+ * Physically-truthful routes (round-6). The solid "正解の線" is the SETTLED bridge
+ * chain at the car-launch tick (`settledChainLaunch`) — NOT the raw authored
+ * stroke, which lies through terrain and gets shoved by the car. A faint second
+ * line is the same chain sampled at mid-crossing (`settledChainMid`), showing how
+ * far the car pushes it. The dashed orange line is the real driven car path.
+ * Falls back to the raw stroke only if the settled chain is unavailable.
+ */
 function renderRoutes(data: CardData, proj: (x: number, y: number) => [number, number]): string {
   const parts: string[] = [];
   if (data.trajectory.length >= 2) {
@@ -213,10 +240,63 @@ function renderRoutes(data: CardData, proj: (x: number, y: number) => [number, n
         `stroke-width="0.08" stroke-dasharray="0.28 0.2" stroke-linecap="round" opacity="0.9"/>`,
     );
   }
-  if (data.strokePts.length >= 2) {
+  // Faint mid-crossing settled shape (the "押されズレ" — pushed / shoved bridge).
+  if (data.settledChainMid.length >= 2) {
     parts.push(
-      `<polyline points="${polyPoints(data.strokePts, proj)}" fill="none" stroke="${COLORS.ink}" ` +
+      `<polyline points="${polyPoints(data.settledChainMid, proj)}" fill="none" stroke="${COLORS.shove}" ` +
+        `stroke-width="0.09" stroke-dasharray="0.18 0.14" stroke-linecap="round" opacity="0.85"/>`,
+    );
+  }
+  // Solid settled bridge at launch (the physically-real "正解の線").
+  const solid = data.settledChainLaunch.length >= 2 ? data.settledChainLaunch : data.strokePts;
+  if (solid.length >= 2) {
+    parts.push(
+      `<polyline points="${polyPoints(solid, proj)}" fill="none" stroke="${COLORS.ink}" ` +
         `stroke-width="0.13" stroke-linecap="round" stroke-linejoin="round"/>`,
+    );
+  }
+  return parts.join('\n');
+}
+
+/**
+ * DangerZone hazard bands: a translucent red rect + diagonal hatch + red border —
+ * the same "danger" language as the in-game DangerZoneRenderer (round-6). Drawn
+ * under the routes/car so the marked ground reads clearly.
+ */
+function renderDangerZones(
+  data: CardData,
+  b: Bounds,
+  proj: (x: number, y: number) => [number, number],
+): string {
+  const zones = data.level.dangerZones ?? [];
+  if (zones.length === 0) return '';
+  const parts: string[] = [];
+  for (const z of zones) {
+    const [x0, yTop] = proj(z.x, z.y + z.height);
+    const [x1, yBottom] = proj(z.x + z.width, z.y);
+    const w = fmt(x1 - x0);
+    const h = fmt(yBottom - yTop);
+    // Translucent fill.
+    parts.push(
+      `<rect x="${fmt(x0)}" y="${fmt(yTop)}" width="${w}" height="${h}" fill="${COLORS.hazardFill}" ` +
+        `fill-opacity="0.16"/>`,
+    );
+    // 45° diagonal hatch (x + y = c family), clipped to the rect.
+    const spacing = 0.32;
+    for (let c = x0 + yTop; c <= x1 + yBottom; c += spacing) {
+      const xa = Math.max(x0, c - yBottom);
+      const xb = Math.min(x1, c - yTop);
+      if (xa <= xb) {
+        parts.push(
+          `<line x1="${fmt(xa)}" y1="${fmt(c - xa)}" x2="${fmt(xb)}" y2="${fmt(c - xb)}" ` +
+            `stroke="${COLORS.hazardStripe}" stroke-width="0.05" opacity="0.55"/>`,
+        );
+      }
+    }
+    // Thin border.
+    parts.push(
+      `<rect x="${fmt(x0)}" y="${fmt(yTop)}" width="${w}" height="${h}" fill="none" ` +
+        `stroke="${COLORS.hazardBorder}" stroke-width="0.06"/>`,
     );
   }
   return parts.join('\n');
@@ -329,6 +409,7 @@ export function renderLevelSvg(data: CardData): string {
   const h = fmt(b.maxY - b.minY);
   const body = [
     renderTerrain(data, b, proj),
+    renderDangerZones(data, b, proj),
     renderKillY(data, b, proj),
     renderGoal(data, proj),
     renderRoutes(data, proj),

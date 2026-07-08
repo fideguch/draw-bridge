@@ -33,6 +33,7 @@ import { isFailsafeReset } from '@engine/rules/Judge';
 import type { FailCause } from '@engine/rules/Judge';
 import { BridgeRenderer } from '@render/world/BridgeRenderer';
 import { CoinRenderer } from '@render/world/CoinRenderer';
+import { DangerZoneRenderer } from '@render/world/DangerZoneRenderer';
 import { FlagRenderer } from '@render/world/FlagRenderer';
 import { RockRenderer } from '@render/world/RockRenderer';
 import { TerrainRenderer } from '@render/world/TerrainRenderer';
@@ -69,7 +70,7 @@ const LEVEL_JSON = import.meta.glob('/levels/*.json', { eager: true, import: 'de
 >;
 
 /** Draw-order layers (world below the HUD below the overlay). */
-const DEPTH = { terrain: 1, flag: 2, coins: 3, bridge: 4, rocks: 5, vehicle: 6, stroke: 7, hud: 1500 } as const;
+const DEPTH = { terrain: 1, danger: 2, flag: 3, coins: 4, bridge: 5, rocks: 6, vehicle: 7, stroke: 8, hud: 1500 } as const;
 
 /** Viewport inset for the level-fit framing (px). */
 const FRAME_MARGIN_PX = 40;
@@ -149,6 +150,7 @@ export class PlayScene extends Phaser.Scene {
   private speedLines!: SpeedLines;
 
   private terrain: TerrainRenderer | null = null;
+  private danger: DangerZoneRenderer | null = null;
   private coins: CoinRenderer | null = null;
   private flag: FlagRenderer | null = null;
   private rocks: RockRenderer | null = null;
@@ -495,6 +497,7 @@ export class PlayScene extends Phaser.Scene {
 
   private buildWorldRenderers(): void {
     this.terrain?.destroy();
+    this.danger?.destroy();
     this.coins?.destroy();
     this.flag?.destroy();
     this.rocks?.destroy();
@@ -505,6 +508,9 @@ export class PlayScene extends Phaser.Scene {
     const level = this.activeLevel;
     const sim = this.activeSim;
     this.terrain = new TerrainRenderer(this, level, this.transform, { depth: DEPTH.terrain });
+    // DangerZone bands sit just above terrain, below the flag/coins/car so the
+    // hazard reads as a marked patch of ground the car must avoid.
+    this.danger = new DangerZoneRenderer(this, level.dangerZones ?? [], this.transform, { depth: DEPTH.danger });
     this.flag = new FlagRenderer(this, level.goalFlag, this.transform, { depth: DEPTH.flag });
     this.coins = new CoinRenderer(this, level.coins, this.transform, {
       events: sim.events,
@@ -778,6 +784,7 @@ export class PlayScene extends Phaser.Scene {
 
   private renderFrame(): void {
     const alpha = this.lastAlpha;
+    this.danger?.update(alpha);
     this.bridge?.update(alpha);
     this.rocks?.update(alpha);
     this.vehicle?.update(alpha);
@@ -1090,6 +1097,7 @@ export class PlayScene extends Phaser.Scene {
     this.inkBar?.destroy();
     this.overlay?.destroy();
     this.terrain?.destroy();
+    this.danger?.destroy();
     this.coins?.destroy();
     this.flag?.destroy();
     this.rocks?.destroy();

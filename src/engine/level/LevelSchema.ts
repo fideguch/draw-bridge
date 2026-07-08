@@ -64,6 +64,16 @@ export interface Rect {
   readonly height: number;
 }
 
+/**
+ * A DangerZone hazard band (optional `dangerZones[]`): an axis-aligned,
+ * bottom-left anchored rectangle (same geometry as `Rect`). The CAR (chassis or
+ * a wheel) overlapping a zone fails the attempt with FailCause 'hazard' (Judge;
+ * clear-beats-fail per BR-009). Bridge segments and rocks passing through a zone
+ * are UNAFFECTED — a zone only kills the car. Additive schemaVersion 1 (absent ==
+ * none), fully backward compatible like `rocks`.
+ */
+export type DangerZone = Rect;
+
 /** `[x, y]` vertex pair as stored in level JSON polylines. */
 export type PolylinePoint = readonly [number, number];
 
@@ -119,6 +129,8 @@ export interface Level {
   readonly bonusMultiplier?: number;
   /** Rolling/falling rock hazards (optional; absent == none). */
   readonly rocks?: readonly Rock[];
+  /** DangerZone hazard bands — car overlap => FailCause 'hazard' (optional; absent == none). */
+  readonly dangerZones?: readonly DangerZone[];
 }
 
 export type LevelValidation =
@@ -145,6 +157,7 @@ const LEVEL_KEYS = new Set([
   'maxTicks',
   'bonusMultiplier',
   'rocks',
+  'dangerZones',
 ]);
 
 const ROCK_KEYS = new Set(['x', 'y', 'radius', 'density', 'initialVelocity']);
@@ -396,6 +409,7 @@ interface OptionalParts {
   readonly maxTicks?: number;
   readonly bonusMultiplier?: number;
   readonly rocks?: readonly Rock[];
+  readonly dangerZones?: readonly DangerZone[];
 }
 
 /** schemaVersion const + id pattern + optional filename match. Returns the id. */
@@ -554,7 +568,12 @@ function validateGhosts(json: Record<string, unknown>, errors: string[]): GhostS
  * so the assembled Level has NO rocks key (byte-identical to pre-rock levels).
  */
 function validateOptionalFields(json: Record<string, unknown>, rawId: unknown, errors: string[]): OptionalParts {
-  const parts: { maxTicks?: number; bonusMultiplier?: number; rocks?: readonly Rock[] } = {};
+  const parts: {
+    maxTicks?: number;
+    bonusMultiplier?: number;
+    rocks?: readonly Rock[];
+    dangerZones?: readonly DangerZone[];
+  } = {};
 
   const maxTicks = json['maxTicks'];
   if (maxTicks !== undefined && (!isInt(maxTicks) || maxTicks < MIN_MAX_TICKS)) {
@@ -588,6 +607,25 @@ function validateOptionalFields(json: Record<string, unknown>, rawId: unknown, e
         }
       }
       parts.rocks = rocks;
+    }
+  }
+
+  // dangerZones[] — same additive/optional model as rocks. Each entry is a Rect
+  // (parseRect enforces width/height > 0); absent leaves parts.dangerZones unset
+  // (byte-identical to a pre-DangerZone level).
+  const rawZones = json['dangerZones'];
+  if (rawZones !== undefined) {
+    if (!Array.isArray(rawZones)) {
+      errors.push('dangerZones: expected an array of {x, y, width, height} rects (may be empty, or omit the key)');
+    } else {
+      const zones: DangerZone[] = [];
+      for (const [i, entry] of rawZones.entries()) {
+        const parsed = parseRect(entry, `dangerZones[${i}]`, errors);
+        if (parsed !== undefined) {
+          zones.push(parsed);
+        }
+      }
+      parts.dangerZones = zones;
     }
   }
 

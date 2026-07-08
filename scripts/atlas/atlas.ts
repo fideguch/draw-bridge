@@ -86,6 +86,53 @@ function recordRockPaths(level: Level, strokePts: readonly Point[], world: World
   }
 }
 
+/**
+ * Re-drive the ghost and snapshot the SETTLED bridge-chain shape (capsule-centre
+ * polyline read from the engine) at the CAR-LAUNCH tick and again at MID-CROSSING
+ * (round-6 physical-truth atlas). The launch snapshot is the settled-but-unloaded
+ * bridge — the physically-real "correct line" (it cannot lie inside solids); the
+ * mid snapshot shows how far the car shoves it. Deterministic + reuses the
+ * recycled world. Returns empty polylines when the stroke does not commit.
+ */
+function recordSettledChain(
+  level: Level,
+  strokePts: readonly Point[],
+  world: World,
+): { launch: Point[]; mid: Point[] } {
+  const simulation = new GameSimulation(level, {
+    upgrades: { inkCapacityLv: 0, engineSpeedLv: 0 },
+    world,
+  });
+  try {
+    const commit = simulation.commitStroke(strokePts);
+    if (!commit.committed) return { launch: [], mid: [] };
+    // Launch tick: step through the anticipation countdown until the car starts
+    // running, then snapshot the settled (unloaded) chain shape.
+    let outcome = simulation.outcome;
+    while (simulation.phase === 'anticipation' && outcome === null) {
+      outcome = simulation.step();
+    }
+    const launch = simulation.renderChainPolyline();
+    // Mid-crossing tick: step until the car reference point passes the midpoint
+    // between spawn and goal (travel direction), then snapshot the shoved chain.
+    const spawnX = level.vehicleSpawn.x;
+    const goalX = level.goalFlag.x + level.goalFlag.width / 2;
+    const midX = (spawnX + goalX) / 2;
+    const travelSign = goalX >= spawnX ? 1 : -1;
+    let mid: Point[] = [];
+    while (outcome === null) {
+      outcome = simulation.step();
+      if (mid.length === 0 && (simulation.referencePoint().x - midX) * travelSign >= 0) {
+        mid = simulation.renderChainPolyline();
+      }
+    }
+    if (mid.length === 0) mid = simulation.renderChainPolyline(); // fallback: last shape
+    return { launch, mid };
+  } finally {
+    simulation.destroy();
+  }
+}
+
 /** Re-derive the primary ghost's driven route + coin collection order. */
 function cardDataFor(level: Level, design: string, world: World): CardData {
   const ghost = level.ghostSolutions[0];
@@ -108,10 +155,14 @@ function cardDataFor(level: Level, design: string, world: World): CardData {
     coinOrder[event.index] = order + 1;
   });
 
+  const settled = recordSettledChain(level, strokePts, world);
+
   return {
     level,
     design,
     strokePts,
+    settledChainLaunch: settled.launch,
+    settledChainMid: settled.mid,
     trajectory,
     coinOrder,
     rockPaths: recordRockPaths(level, strokePts, world),
@@ -122,12 +173,14 @@ function cardDataFor(level: Level, design: string, world: World): CardData {
 
 const LEGEND = `<section class="legend">
   <h1>InkBridge — 全18ステージ ルート&コイン アトラス</h1>
-  <p>各ステージの「正解ルート（想定ストローク）」「実走トラジェクトリ」「コインの配置と獲得順」を確認できます。コインは実エンジンで再生した車の基準点（車体中心）経路上に自動配置され、コインゲート（Gate 2）が100%回収を機械保証しています。</p>
+  <p>各ステージの「安定後の橋（描いた線が物理で落ち着いた本当の形）」「実走トラジェクトリ」「コインの配置と獲得順」を確認できます。実線は<b>描いた生ストロークではなく、エンジンで発進時に安定させた橋チェーンの形</b>です（安定後の橋は物理的に地面へ潜れないため、地面貫通の嘘が出ません）。薄い線は走行中に車へ押されてズレた同じ橋です。</p>
   <ul class="keys">
     <li><span class="sw car"></span>スタート車両</li>
     <li><span class="sw goal"></span>ゴール旗 / 判定ゾーン</li>
-    <li><span class="sw ink"></span>正解ストローク（描く線）</li>
-    <li><span class="sw traj"></span>実走トラジェクトリ（車体中心の軌跡）</li>
+    <li><span class="sw ink"></span>安定後の橋（発進時の実形状＝正解の線）</li>
+    <li><span class="sw shove"></span>押されズレ（走行中の橋の形）</li>
+    <li><span class="sw traj"></span>走行路（車体中心の軌跡）</li>
+    <li><span class="sw hazard"></span>危険地帯（触れると失敗・赤ハッチ）</li>
     <li><span class="sw coin"></span>コイン（番号=獲得順、全て金=100%回収）</li>
     <li><span class="sw miss"></span>未回収コイン（×印・本来ゼロ）</li>
     <li><span class="sw kill"></span>killY（落下ライン）</li>
@@ -151,7 +204,9 @@ const STYLE = `
   .sw.car { background: #1c6fb4; }
   .sw.goal { background: #2f9e44; }
   .sw.ink { background: #1f2d5a; height: 5px; border-radius: 3px; }
+  .sw.shove { background: repeating-linear-gradient(90deg, #8a93c4 0 4px, transparent 4px 7px); height: 5px; }
   .sw.traj { background: repeating-linear-gradient(90deg, #f08c00 0 5px, transparent 5px 9px); height: 5px; }
+  .sw.hazard { background: repeating-linear-gradient(45deg, #ff3b30 0 3px, #c42a24 3px 6px); opacity: 0.7; border: 1px solid #e0352b; }
   .sw.coin { background: #f5b301; border: 1px solid #a9760a; border-radius: 50%; width: 14px; height: 14px; }
   .sw.miss { background: #e03131; clip-path: polygon(20% 0,50% 30%,80% 0,100% 20%,70% 50%,100% 80%,80% 100%,50% 70%,20% 100%,0 80%,30% 50%,0 20%); }
   .sw.kill { background: repeating-linear-gradient(90deg, #e03131 0 5px, transparent 5px 8px); height: 4px; }

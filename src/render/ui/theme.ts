@@ -52,6 +52,11 @@ export const color = {
   rockDark: 0x3f3b46, // dark base disc / outline (reads as stone shadow)
   rockFill: 0x7b7683, // mid slate-grey body
   rockLight: 0xa9a4b3, // lighter facet highlights (rotation legibility)
+  // DangerZone hazard band (DangerZoneRenderer) — the unmistakable "danger" language:
+  // translucent red fill + darker-red diagonal hatch stripes + a thin red border.
+  hazardFill: 0xff3b30, // translucent red wash (drawn at low fillAlpha)
+  hazardStripe: 0xd42a24, // darker-red diagonal hatch (fill-quad stripes)
+  hazardBorder: 0xff3b30, // thin solid red border
   coin: 0xffe14d,
   coinStroke: 0x8c6d1f,
   star: 0xffe14d,

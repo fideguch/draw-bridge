@@ -12,6 +12,9 @@
  * - tipOver: vehicle.roofContactActive sustained for fail.tipOverTimeSec
  *   (round(sec/fixedDt) consecutive evaluated ticks; any upright tick
  *   resets the window). causeLocation = the overturned chassis pose.
+ * - hazard: the CAR (chassis or a wheel AABB) overlaps a DangerZone rect. The
+ *   drawn BridgeChain and rocks passing through a zone are UNAFFECTED — a zone
+ *   only kills the car. causeLocation = the centre of the car∩zone overlap.
  * - timeout: tick >= maxTicks (level override, default fail.maxTicksDefault).
  * - divergence failsafe (FR-005 exception): non-finite reference point, or
  *   vehicle/chain-body speed > physics.divergenceSpeedMax — reported as a
@@ -22,12 +25,12 @@
  */
 
 import { b2Body_GetLinearVelocity, b2Body_GetPosition } from 'phaser-box2d';
-import type { Point, Rect } from '../level/LevelSchema';
+import type { DangerZone, Point, Rect } from '../level/LevelSchema';
 import type { BridgeChain } from '../physics/BridgeChainBuilder';
 import type { Vehicle } from '../physics/Vehicle';
 import { fail, physics } from '@tuning/TuningConstants';
 
-export type FailCause = 'fall' | 'tipOver' | 'timeout' | 'divergence';
+export type FailCause = 'fall' | 'tipOver' | 'timeout' | 'divergence' | 'hazard';
 
 export type JudgeOutcome =
   | { readonly outcome: 'clear'; readonly ticks: number }
@@ -60,6 +63,8 @@ export interface JudgeLevelParams {
   readonly killY: number;
   /** Level JSON override; defaults to fail.maxTicksDefault (1800 = 30 s). */
   readonly maxTicks?: number;
+  /** DangerZone hazard bands (car overlap => cause 'hazard'). Absent == none. */
+  readonly dangerZones?: readonly DangerZone[];
 }
 
 function isInsideRect(point: Point, rect: Rect): boolean {
@@ -68,11 +73,22 @@ function isInsideRect(point: Point, rect: Rect): boolean {
   );
 }
 
+/** True when an axis-aligned box overlaps the bottom-left anchored rect. */
+function aabbOverlapsRect(
+  box: { minX: number; minY: number; maxX: number; maxY: number },
+  rect: Rect,
+): boolean {
+  return (
+    box.minX <= rect.x + rect.width && box.maxX >= rect.x && box.minY <= rect.y + rect.height && box.maxY >= rect.y
+  );
+}
+
 export class Judge {
   private readonly goalFlag: Rect;
   private readonly killY: number;
   private readonly maxTicks: number;
   private readonly tipOverTicks: number;
+  private readonly dangerZones: readonly DangerZone[];
   private roofDownTicks = 0;
 
   constructor(level: JudgeLevelParams) {
@@ -80,6 +96,7 @@ export class Judge {
     this.killY = level.killY;
     this.maxTicks = level.maxTicks ?? fail.maxTicksDefault;
     this.tipOverTicks = Math.round(fail.tipOverTimeSec / physics.fixedDt);
+    this.dangerZones = level.dangerZones ?? [];
   }
 
   /** Evaluate one tick. Order encodes BR-009: clear always wins. */
@@ -97,12 +114,39 @@ export class Judge {
     if (referencePoint.y < this.killY) {
       return { outcome: 'fail', cause: 'fall', causeLocation: referencePoint, ticks: tick };
     }
+    const hazard = this.checkHazard(tick, vehicle);
+    if (hazard !== null) {
+      return hazard;
+    }
     const tipOver = this.checkTipOver(tick, vehicle);
     if (tipOver !== null) {
       return tipOver;
     }
     if (tick >= this.maxTicks) {
       return { outcome: 'fail', cause: 'timeout', causeLocation: referencePoint, ticks: tick };
+    }
+    return null;
+  }
+
+  /**
+   * DangerZone hit: the car (chassis or either wheel AABB) overlaps a zone rect.
+   * Only the car is tested — the drawn BridgeChain and rocks pass through zones
+   * freely (a zone kills the car, nothing else). causeLocation is the centre of
+   * the first car∩zone overlap so the fail marker points at the touch.
+   */
+  private checkHazard(tick: number, vehicle: Vehicle): JudgeOutcome | null {
+    if (this.dangerZones.length === 0) {
+      return null;
+    }
+    const boxes = vehicle.occupiedAABBs();
+    for (const zone of this.dangerZones) {
+      for (const box of boxes) {
+        if (aabbOverlapsRect(box, zone)) {
+          const cx = (Math.max(box.minX, zone.x) + Math.min(box.maxX, zone.x + zone.width)) / 2;
+          const cy = (Math.max(box.minY, zone.y) + Math.min(box.maxY, zone.y + zone.height)) / 2;
+          return { outcome: 'fail', cause: 'hazard', causeLocation: { x: cx, y: cy }, ticks: tick };
+        }
+      }
     }
     return null;
   }

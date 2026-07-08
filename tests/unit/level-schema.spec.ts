@@ -385,6 +385,62 @@ describe('validateLevel — optional rocks[] hazards', () => {
   });
 });
 
+describe('validateLevel — optional dangerZones[] hazards', () => {
+  it('a level with NO dangerZones key is valid and has none (backward compatible)', () => {
+    const level = expectOk(validateLevel(cloneFixture()));
+    expect(level.dangerZones).toBeUndefined();
+    expect(level.schemaVersion).toBe(1); // additive optional field: version unchanged
+  });
+
+  it('accepts a present-but-empty dangerZones array (no zones)', () => {
+    const json = cloneFixture();
+    json['dangerZones'] = [];
+    const level = expectOk(validateLevel(json));
+    expect(level.dangerZones).toEqual([]);
+  });
+
+  it('accepts axis-aligned rect zones', () => {
+    const json = cloneFixture();
+    json['dangerZones'] = [
+      { x: -2, y: 0, width: 3, height: 1.5 },
+      { x: 4, y: 1, width: 2, height: 2 },
+    ];
+    const level = expectOk(validateLevel(json));
+    expect(level.dangerZones).toHaveLength(2);
+    expect(level.dangerZones?.[0]).toEqual({ x: -2, y: 0, width: 3, height: 1.5 });
+  });
+
+  it.each([0, -1])('rejects a zone with non-positive width (%f)', (width) => {
+    const json = cloneFixture();
+    json['dangerZones'] = [{ x: 0, y: 0, width, height: 2 }];
+    expectErrors(validateLevel(json));
+  });
+
+  it('rejects a zone with non-positive height', () => {
+    const json = cloneFixture();
+    json['dangerZones'] = [{ x: 0, y: 0, width: 2, height: 0 }];
+    expectErrors(validateLevel(json));
+  });
+
+  it('rejects a zone with a non-finite coordinate', () => {
+    const json = cloneFixture();
+    json['dangerZones'] = [{ x: Number.NaN, y: 0, width: 2, height: 2 }];
+    expectErrors(validateLevel(json));
+  });
+
+  it('rejects an unknown key inside a zone (additionalProperties: false)', () => {
+    const json = cloneFixture();
+    json['dangerZones'] = [{ x: 0, y: 0, width: 2, height: 2, pulse: true }];
+    expectErrors(validateLevel(json));
+  });
+
+  it('rejects dangerZones that is not an array', () => {
+    const json = cloneFixture();
+    json['dangerZones'] = { x: 0, y: 0, width: 2, height: 2 };
+    expectErrors(validateLevel(json));
+  });
+});
+
 describe('loadLevel — parse + validate + typed Level', () => {
   it('loads a valid level from JSON text', () => {
     const level = expectOk(loadLevel(JSON.stringify(exampleValid)));

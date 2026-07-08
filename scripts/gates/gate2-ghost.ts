@@ -29,6 +29,7 @@ import {
   type TrajectorySample,
 } from '../../src/engine/replay/GhostPlayer';
 import { World } from '../../src/engine/physics/World';
+import { HAZARD_RELEVANCE_ADVISORY_OFF, hazardRelevanceCheck } from './hazardRelevance';
 import { parseCliOptions, resolveLevelFiles, runGate } from './lib';
 
 /**
@@ -130,13 +131,18 @@ function checkGhost(
   return { errors, hash: hash1, coinsCollected };
 }
 
-export function gate2Check(loaded: { json: unknown }): { errors: string[]; stateHash?: string } {
+export function gate2Check(loaded: { json: unknown }): {
+  errors: string[];
+  stateHash?: string;
+  warnings?: string[];
+} {
   const parsed = validateLevel(loaded.json);
   if (!parsed.ok) {
     return { errors: [`gate0-invalid level (run gate0 first): ${parsed.errors[0] ?? 'unknown'}`] };
   }
   const level = parsed.level;
   const errors: string[] = [];
+  const warnings: string[] = [];
   const hashes: string[] = [];
   let bestCoinsCollected = 0;
   level.ghostSolutions.forEach((ghost, index) => {
@@ -157,7 +163,21 @@ export function gate2Check(loaded: { json: unknown }): { errors: string[]; state
     );
   }
 
-  return { errors, stateHash: hashes.join(',') };
+  // Gate 2.6 (hazard-relevance): a rock / DangerZone must intersect the car's
+  // path. Advisory-off levels report their failure as a WARNING so CI stays green
+  // pending the level redesign (see hazardRelevance.ts header).
+  const relevance = hazardRelevanceCheck(level);
+  if (relevance.errors.length > 0) {
+    if (HAZARD_RELEVANCE_ADVISORY_OFF.has(level.id)) {
+      warnings.push(...relevance.errors.map((e) => `ADVISORY(hazard-relevance-off): ${e}`));
+    } else {
+      errors.push(...relevance.errors);
+    }
+  } else if (relevance.report.length > 0) {
+    warnings.push(`hazard-relevance ok: ${relevance.report.join(' | ')}`);
+  }
+
+  return { errors, stateHash: hashes.join(','), ...(warnings.length > 0 ? { warnings } : {}) };
 }
 
 // CLI execution — skipped under vitest so tests can import the check function.

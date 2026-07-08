@@ -69,6 +69,7 @@ const FAIL_HINT: Record<FailCause, string> = {
   tipOver: '車がひっくり返ってしまった',
   timeout: '時間切れ',
   divergence: 'もう一度ためそう',
+  hazard: '危険地帯に触れた',
 };
 
 export class ResultOverlay {
