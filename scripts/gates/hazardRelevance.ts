@@ -22,23 +22,16 @@
  * negative control: a rock placed beyond reach fails this gate). Determinism +
  * world budget: all attempts recycle ONE shared World (phaser-box2d 32-slot cap).
  *
- * ROUND-6 STATUS (triggered rock spawns). The TRIGGERED spawn mechanism
+ * STATUS (round-6 geometry fix). The TRIGGERED spawn mechanism
  * (`rocks[].triggerCarX`, GameSimulation.updateTriggers) times each rock's
- * fall/roll to the car's arrival, so it now INTERCEPTS the naive car instead of
- * finishing its motion during the pre-launch settle. This makes the WIDE-PIT
- * shield levels (L14, B3) GENUINELY relevant (the rock knocks the crossing/falling
- * naive car into the pit) — they are HARD-ENFORCED and no longer advisory.
- *
- * REMAINING ADVISORY (HAZARD_RELEVANCE_ADVISORY_OFF, 4 flat-floor levels). The
- * triggered rock now HITS the car on these too, but a hit cannot be converted into
- * a LOSS: their car lane is CONTINUOUS FLAT GROUND to a near goal, and a wide car
- * on flat ground shrugs off a boulder (no pit to fall into, no wall to be pinned
- * against — machine-swept: no radius/density/velocity/trigger yields a fail). The
- * honest fix is a GEOMETRY redesign (an arch-over-pit like L10, so the rock knocks
- * the car into a pit), which is OUT OF the round-6 "rock params only" scope. Until
- * then these 4 report their failure as an advisory WARNING (build stays green) — the
- * TIMING/visibility is fixed (the rock now arrives with a warning pulse), the
- * lethality awaits the redesign. Negative controls stay hard errors.
+ * fall to the car's arrival, so it INTERCEPTS the naive car instead of finishing
+ * its motion during the pre-launch settle. Every rock/DangerZone level now carries
+ * GEOMETRY that converts a hit into a LOSS — a PIT under the interception zone (the
+ * design-atlas 側溝/落石シャフト): the shielded car rolls over the empty pit, the
+ * naive car falls in with the rock. The former flat-floor shields (L4/L7/L8/L13)
+ * were reshaped to restore those pits, so ALL 18 levels are HARD-ENFORCED — there is
+ * no advisory allowlist. Negative controls (a hazard placed beyond reach) stay hard
+ * errors.
  */
 
 import type { Level, Point } from '../../src/engine/level/LevelSchema';
@@ -59,24 +52,6 @@ export const HAZARD_RELEVANCE_WINDOW_TICKS = 45;
 
 /** Rock-vs-car contact skin (m) added to the rock radius (AABB nearest-point test). */
 const ROCK_CONTACT_SKIN_M = 0.1;
-
-/**
- * Flat-floor levels whose hazard-relevance failure is ADVISORY (warning, not a CI
- * error) pending a GEOMETRY redesign (see module header). The triggered rock now
- * HITS the naive car, but the continuous-flat-ground lane + near goal means the hit
- * cannot become a loss (machine-swept over radius/density/velocity/trigger: no rock
- * param fails the car). Each needs an arch-over-pit so the rock knocks the car into
- * a pit — out of the "rock params only" round-6 scope. Shrunk from 6 to 4: the
- * wide-pit shields L14 and B3 are now GENUINELY relevant (triggered rock -> naive
- * car falls into the pit) and were removed from this list. Every id here MUST be
- * removed once its geometry carries a real fall/pin the rock can trigger.
- */
-export const HAZARD_RELEVANCE_ADVISORY_OFF: ReadonlySet<string> = new Set<string>([
-  'ch1-l04', // roof-vault shield: rock hits, but the flat lane to the near goal survives it
-  'ch1-l07', // stop-wall shield: rock falls onto the continuous lower lane; car drives on
-  'ch1-l08', // deflect-chute: rock arcs into the flat lane to a near goal; no pit to fall into
-  'ch1-l13', // timed-wall shield: rock drops on the continuous lower lane; car drives on
-]);
 
 let relevanceWorld: World | undefined;
 function getRelevanceWorld(): World {

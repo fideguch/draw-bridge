@@ -163,29 +163,33 @@ export const CH1_SOURCES: readonly LevelSource[] = [
 
   // ─────────────────────────────────────────────────────────────────────────────
   // L4 — R04 shield-static (盾). SOURCE: Stickman Rescue (傾け屋根) / Happy Glass L20+.
-  // CONTINUOUS FLOOR = the road; the line is a ROOF that sheds a falling rock off
-  // the right side into the pit. NOT anti-dominant (no gap to bridge) — the rock
-  // is the challenge (hazard-relevance). atlas: 枠11×11.3, 縦/横1.03 (縦＞横).
+  // The DESIGN's 落石シャフト/側溝 is realised: a PIT sits under the rock-drop zone
+  // (the design-atlas card's shaft/gutter — phase C wrongly flattened it). The line
+  // is a ROOF above the lane that sheds the falling rock OFF to the right so the car
+  // rolls over the (empty) pit; with NO roof the rock drops into the pit and the car
+  // falls in with it (hazard-relevance HARD). The wide car spans the 1.6 m pit only
+  // when it is empty — the falling rock is what makes the pit lethal. NOT anti-dominant.
+  // round-6 geometry-fix: hazard-relevance is now HARD-ENFORCED (was advisory).
   {
     id: 'ch1-l04',
-    design: '盾(shield-static): 落石を屋根で受け流す — R04 Stickman Rescue / Happy Glass',
+    design: '盾(shield-static): 落石を屋根で受け流す、空の側溝を渡る — R04 Stickman Rescue / Happy Glass',
     inkFeel: 'standard',
     gimmickTags: [],
     maxTicks: 1800,
     terrain: [
-      [p(-6.5, 0), p(2.6, 0), p(3.0, 0)].map((q): [number, number] => [q.x, q.y]),
+      // continuous approach → PIT (落石シャフト/側溝, x -0.5..1.1) → goal-side landing.
+      [p(-6.5, 0), p(-0.5, 0), p(-0.3, -5)].map((q): [number, number] => [q.x, q.y]),
+      [p(0.9, -5), p(1.1, 0), p(3.0, 0)].map((q): [number, number] => [q.x, q.y]),
       ceiling(-2.4, -1.8, 2.8),
     ],
     vehicleSpawn: p(-4.5, 0.35),
-    goalFlag: flag(1.0, 0, 1, 2),
-    killY: -3,
+    goalFlag: flag(1.6, 0, 1, 2),
+    killY: -5.5,
     coins: coinCount(5),
-    // TRIGGERED spawn (round-6): the rock now falls the instant the car launches so
-    // it descends onto the car's lane as it passes (was: fell during settle, landed
-    // far too early). FLAT-FLOOR CAVEAT: the car rides continuous ground to a near
-    // goal, so a rock HIT no longer fails it (a wide car shrugs off a boulder on flat
-    // ground) — this level stays on the hazard-relevance advisory (see hazardRelevance.ts):
-    // converting the hit into a loss needs an arch-over-pit geometry (out of rock-param scope).
+    // TRIGGERED spawn: the rock falls the instant the car launches so it drops into the
+    // pit as the car arrives. Design ETA preserved (h≈6.6 m fall ≈ car reaching the pit).
+    // Roofed → the roof sheds it right onto the landing; un-roofed → it lands in the pit
+    // and the crossing car falls in (measured: naive fall within the relevance window).
     rocks: [{ x: 0.3, y: 7, radius: 0.4, density: 5, triggerCarX: -4.3 }],
     strokes: [{ kind: 'any', role: 'roof-vault', points: spline([p(-2.2, 2.78), p(0.2, 2.5), p(2.4, 2.15)]) }],
   },
@@ -260,54 +264,62 @@ export const CH1_SOURCES: readonly LevelSource[] = [
     strokes: [{ kind: '3star', role: 'ramp-vault', points: arch(-2.7, 0.6, 2.7, 0.6, 1.1) }],
   },
 
-  // L7 — R05 shield-dynamic-block (盾: 転がる岩を壁で止める). SOURCE: Stickman Rescue
-  // (矢=壁) / Draw Bridge cover. Upper mesa carries a rock that rolls LEFT-down and
-  // off the edge onto the lower car lane; the line is a WALL on the mesa edge. NOT
-  // AD (continuous floor road) — the rolling rock is the challenge.
+  // L7 — R05 shield-dynamic-block (盾: 上段からの岩を止める). SOURCE: Stickman Rescue
+  // (矢=壁) / Draw Bridge cover. Two-tier: an upper MESA (right) is the rock's tier,
+  // the car runs the lower lane. The DESIGN's lower-lane PIT under the drop zone is
+  // restored (phase C flattened it). ENGINE NOTE (learnings T1): this port's rocks
+  // barely ROLL (~1 m/s), so a mesa-rolled rock can never sync with the ~4.5 m/s car;
+  // the rock is realised as an AIRBORNE drop off the mesa side into the pit, and the
+  // drawn line is a high SHIELD (anchored on a ceiling bracket) that catches it and
+  // sheds it clear so the car crosses the empty pit. No shield → the rock drops in and
+  // the car falls with it (hazard-relevance HARD). NOT AD. hazard-relevance HARD-ENFORCED.
   {
     id: 'ch1-l07',
-    design: '盾(shield-dynamic): 転がる岩を壁で堰き止める — R05 Stickman Rescue / Draw Bridge',
+    design: '盾(shield-dynamic): 上段メサからの落石を庇で受け、空の側溝を渡る — R05 Stickman Rescue / Draw Bridge',
     inkFeel: 'standard',
     gimmickTags: [],
     maxTicks: 1800,
     terrain: [
-      [p(-6.5, 0), p(6.5, 0), p(6.5, -3)].map((q): [number, number] => [q.x, q.y]),
-      [p(1.2, 2.5), p(6, 4.6), p(6.4, 4.6)].map((q): [number, number] => [q.x, q.y]),
+      // lower lane: approach → PIT (x -0.3..1.3) → goal-side landing; upper MESA (right).
+      [p(-6.5, 0), p(-0.3, 0), p(-0.1, -5)].map((q): [number, number] => [q.x, q.y]),
+      [p(1.1, -5), p(1.3, 0), p(6.5, 0), p(6.5, -3)].map((q): [number, number] => [q.x, q.y]),
+      [p(2.8, 2.5), p(6, 4.6), p(6.4, 4.6)].map((q): [number, number] => [q.x, q.y]),
+      ceiling(-2.2, -1.6, 2.8),
     ],
     vehicleSpawn: p(-5, 0.35),
-    goalFlag: flag(4, 0, 1, 2),
-    killY: -3.5,
+    goalFlag: flag(1.8, 0, 1, 2),
+    killY: -5.5,
     coins: coinCount(5),
-    // TRIGGERED spawn: the rock starts rolling off the mesa when the car nears, so its
-    // descent onto the lower lane is timed to the car (was: rolled off before arrival).
-    // FLAT-FLOOR CAVEAT: the lower lane is continuous ground to the goal, so the fallen
-    // rock cannot fail the car — stays on the hazard-relevance advisory (needs a pit).
-    rocks: [{ x: 5.6, y: 4.9, radius: 0.38, density: 3, initialVelocity: { x: -1.0, y: 0 }, triggerCarX: -3.0 }],
-    strokes: [{ kind: 'any', role: 'stop-wall', points: spline([p(1.2, 2.5), p(1.32, 3.05), p(1.24, 3.6)]) }],
+    // TRIGGERED airborne drop, timed so the rock reaches the pit as the car crosses.
+    rocks: [{ x: 0.5, y: 7, radius: 0.4, density: 5, triggerCarX: -4.6 }],
+    strokes: [{ kind: 'any', role: 'stop-shield', points: spline([p(-2.0, 2.78), p(0.4, 2.5), p(2.6, 2.15)]) }],
   },
 
   // L8 — R06 catch-redirect (岩を止めるでなく逸らす). SOURCE: Draw Physics Line / Brain
-  // Dots (redirect). A rock thrown from upper-left is caught by a steep chute and
-  // plunged into the goal-side pit. NOT AD (continuous floor road) — the rock is
-  // the challenge. atlas: 枠11×10.7, 縦/横0.97.
+  // Dots (redirect). A rock arcs in from the upper-left; the drawn steep CHUTE catches
+  // it and slides it down-RIGHT past the goal, so the car crosses the (empty) pit under
+  // the chute. The DESIGN's lane PIT under the rock's landing zone is restored (phase C
+  // flattened it): with NO chute the rock arcs straight into the pit and the crossing
+  // car falls in with it (hazard-relevance HARD). NOT AD. hazard-relevance HARD-ENFORCED.
   {
     id: 'ch1-l08',
-    design: '逸らし(catch-redirect): 岩を急斜シュートで側溝へ落とす — R06 Draw Physics Line / Brain Dots',
+    design: '逸らし(catch-redirect): 岩を急斜シュートで逸らし、空の側溝を渡る — R06 Draw Physics Line / Brain Dots',
     inkFeel: 'standard',
     gimmickTags: [],
     maxTicks: 1800,
     terrain: [
-      [p(-6.5, 0), p(2.6, 0), p(3.0, 0)].map((q): [number, number] => [q.x, q.y]),
+      // approach → PIT (rock landing zone, x 0.4..2.0) → goal-side landing.
+      [p(-6.5, 0), p(0.4, 0), p(0.6, -5)].map((q): [number, number] => [q.x, q.y]),
+      [p(1.8, -5), p(2.0, 0), p(3.6, 0)].map((q): [number, number] => [q.x, q.y]),
       ceiling(-0.9, -0.3, 3.4),
     ],
     vehicleSpawn: p(-4.3, 0.35),
-    goalFlag: flag(1.2, 0, 1, 2),
-    killY: -4,
+    goalFlag: flag(2.6, 0, 1, 2),
+    killY: -5.5,
     coins: coinCount(5),
     // TRIGGERED spawn: the rock is thrown from upper-left when the car nears, timed to
-    // arc into the car's path (was: thrown before arrival). FLAT-FLOOR CAVEAT: the lane
-    // is continuous ground to a near goal, so the hit cannot fail the car — stays on the
-    // hazard-relevance advisory (needs an arch-over-pit geometry, out of rock-param scope).
+    // arc into the pit as the car crosses. Chuted → slides right past the goal; un-chuted
+    // → lands in the pit and the car falls in (measured: naive fall in the relevance window).
     rocks: [{ x: -2.5, y: 5.6, radius: 0.38, density: 3, initialVelocity: { x: 3.5, y: 0 }, triggerCarX: -3.8 }],
     strokes: [{ kind: 'any', role: 'deflect-chute', points: spline([p(-0.5, 3.35), p(1.2, 1.8), p(3.0, 0.3)]) }],
   },
@@ -428,29 +440,34 @@ export const CH1_SOURCES: readonly LevelSource[] = [
   },
 
   // L13 — R11 shield-timed (時限盾). SOURCE: Stickman Rescue (観察) / Happy Glass.
-  // A rock rolls the full length of a long upper race and off the goal-side edge;
-  // the line is a WALL on that far edge. NOT AD (continuous floor road) — the
-  // timing of the rolling rock is the challenge.
+  // The "時限/来るぞ" beat: after a long traverse the rock drops (triggered, timed to the
+  // car nearing the goal) into a GOAL-SIDE pit — the design's drop-point pit, restored
+  // (phase C flattened it). Distinct from L7 (short level, mid pit): L13 is a LONG level
+  // whose hazard is at the goal. The drawn high SHIELD (anchored on a bracket) catches the
+  // dropping rock and sheds it clear past the goal so the car crosses the empty pit; no
+  // shield → the rock lands in the pit and the car falls in (hazard-relevance HARD). Upper
+  // RACE (right) = the rock's tier. Airborne drop (engine rocks don't roll — learnings T1).
+  // NOT AD. hazard-relevance HARD-ENFORCED.
   {
     id: 'ch1-l13',
-    design: '時限盾(shield-timed): 確定した瞬間に岩が走り出す — R11 Stickman Rescue / Happy Glass',
+    design: '時限盾(shield-timed): ゴール手前の落石を庇で受け、空の側溝を渡る — R11 Stickman Rescue / Happy Glass',
     inkFeel: 'standard',
     gimmickTags: [],
     maxTicks: 1800,
     terrain: [
-      [p(-6, 0), p(6.5, 0), p(6.5, -3)].map((q): [number, number] => [q.x, q.y]),
-      [p(0.5, 2.6), p(7, 3.9), p(7, 2.6)].map((q): [number, number] => [q.x, q.y]),
+      // long lower lane: approach → GOAL-SIDE PIT (x 2.5..4.1) → landing; upper RACE (right).
+      [p(-6, 0), p(2.5, 0), p(2.7, -5)].map((q): [number, number] => [q.x, q.y]),
+      [p(3.9, -5), p(4.1, 0), p(6.5, 0), p(6.5, -3)].map((q): [number, number] => [q.x, q.y]),
+      [p(5.4, 2.6), p(7, 3.9), p(7, 2.6)].map((q): [number, number] => [q.x, q.y]),
+      ceiling(0.6, 1.2, 2.8),
     ],
     vehicleSpawn: p(-4.5, 0.35),
     goalFlag: flag(4.4, 0, 1, 2),
-    killY: -3.5,
+    killY: -5.5,
     coins: coinCount(5),
-    // TRIGGERED spawn ("確定した瞬間に発進" — the design's timed rock): the rock launches
-    // when the car nears so it rolls off the far ledge as the car approaches the goal.
-    // FLAT-FLOOR CAVEAT: continuous lower lane to the goal, so the fallen rock cannot fail
-    // the car — stays on the hazard-relevance advisory (needs a pit under the drop point).
-    rocks: [{ x: 6.2, y: 4.1, radius: 0.38, density: 3, initialVelocity: { x: -1.5, y: 0 }, triggerCarX: -3.0 }],
-    strokes: [{ kind: 'any', role: 'timed-wall', points: spline([p(3.9, 2.6), p(4.0, 3.15), p(3.92, 3.7)]) }],
+    // TRIGGERED late (timed): the rock drops as the car nears the goal-side pit.
+    rocks: [{ x: 3.1, y: 7, radius: 0.4, density: 5, triggerCarX: -0.5 }],
+    strokes: [{ kind: 'any', role: 'timed-shield', points: spline([p(0.8, 2.78), p(3.0, 2.5), p(5.2, 2.15)]) }],
   },
 
   // L14 — R12+R08 catch-redirect + multi-seal FUSION (受けて塞ぐ). SOURCE: Happy Glass

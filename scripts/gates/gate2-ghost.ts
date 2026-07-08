@@ -29,7 +29,7 @@ import {
   type TrajectorySample,
 } from '../../src/engine/replay/GhostPlayer';
 import { World } from '../../src/engine/physics/World';
-import { HAZARD_RELEVANCE_ADVISORY_OFF, hazardRelevanceCheck } from './hazardRelevance';
+import { hazardRelevanceCheck } from './hazardRelevance';
 import { parseCliOptions, resolveLevelFiles, runGate } from './lib';
 
 /**
@@ -164,17 +164,12 @@ export function gate2Check(loaded: { json: unknown }): {
   }
 
   // Gate 2.6 (hazard-relevance): a rock / DangerZone MUST intersect the car's
-  // spatiotemporal path. Hard error for all levels EXCEPT the 4 flat-floor shields
-  // on HAZARD_RELEVANCE_ADVISORY_OFF, whose triggered rock now HITS the car but
-  // cannot fail it on flat ground (needs a geometry redesign — see hazardRelevance.ts).
-  // The wide-pit shields L14/B3 are hard-enforced (triggered rock -> naive car falls in).
+  // spatiotemporal path AND be convertible into a loss. HARD ERROR for every level
+  // (no advisory allowlist): each rock/zone level carries a pit under the
+  // interception zone so a naive car falls in with the hazard (see hazardRelevance.ts).
   const relevance = hazardRelevanceCheck(level);
   if (relevance.errors.length > 0) {
-    if (HAZARD_RELEVANCE_ADVISORY_OFF.has(level.id)) {
-      warnings.push(...relevance.errors.map((e) => `ADVISORY(hazard-relevance-off): ${e}`));
-    } else {
-      errors.push(...relevance.errors);
-    }
+    errors.push(...relevance.errors);
   } else if (relevance.report.length > 0) {
     warnings.push(`hazard-relevance ok: ${relevance.report.join(' | ')}`);
   }
