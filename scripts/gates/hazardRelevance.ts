@@ -62,13 +62,18 @@ const ROCK_CONTACT_SKIN_M = 0.1;
  * once its level is redesigned so the rock genuinely reaches the car.
  */
 export const HAZARD_RELEVANCE_ADVISORY_OFF: ReadonlySet<string> = new Set<string>([
-  'ch1-l04', // shield-static: rock drops but the intended dome shields; no baseline is hit
-  'ch1-l07', // shield-dynamic: rock rolls but misses the car's timing in every baseline
+  // round-6 phase C redesign: the DangerZone-carrying levels (L6/L9/L11/L12/L15/B2)
+  // and the dome-dual L10 (its falling rock crushes the naive flat straight while the
+  // firm dome sheds it) are now GENUINELY relevant — removed from this list. The
+  // entries below are shield-static/dynamic ROLES whose rolling/falling rock does not
+  // intersect a naive car on the continuous-floor lane (the car has already passed /
+  // the rock rolls behind it) — thematic hazards pending a timed-spawn mechanic.
+  'ch1-l04', // shield-static: rock drops but the intended roof shields; no baseline is hit
+  'ch1-l07', // shield-dynamic: rock rolls off the mesa but misses the car's timing
   'ch1-l08', // catch-redirect: rock never reaches the car on a naive line
-  'ch1-l10', // dome-dual: rock lands off the car's path
   'ch1-l13', // shield-timed: rock timing does not intersect the naive car
-  'ch1-l14', // catch-redirect: rock never reaches the car on a naive line
-  'ch1-b3', // dome-dual bonus: rock lands off the car's path
+  'ch1-l14', // catch+seal fusion: the rock is shed off-path; the seal carries the level
+  'ch1-b3', // dome-dual bonus: slow rock lands off the car's path
 ]);
 
 let relevanceWorld: World | undefined;

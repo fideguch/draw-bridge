@@ -132,6 +132,10 @@ function finalizeLevel(
     // MEASURE + RECORD passes so every ghost is proven to clear WITH the rock live
     // and its samples are recorded on the rock-active run (round-5 role redesign).
     ...(src.rocks !== undefined ? { rocks: src.rocks } : {}),
+    // DangerZones are Judge inputs (car overlap => fail 'hazard'): present in the
+    // MEASURE + RECORD passes so every ghost is proven to clear WITHOUT the car
+    // touching a zone (round-6 atlas-first design). Static — no determinism cost.
+    ...(src.dangerZones !== undefined ? { dangerZones: src.dangerZones } : {}),
   };
 }
 
