@@ -37,11 +37,19 @@ export const bridge = {
   /** Capsule segment radius in meters. spike-calibrated 2026-07-07 (S1, kept). */
   capsuleRadius: 0.12,
   /**
-   * Revolute spring joint stiffness. Range 4-8.
+   * Revolute spring joint stiffness. Range 4-10.
    * game-feel rebuild 2026-07-08: 6 -> 8 — snappier settle so a loaded bridge
    * reads as a FIRM drawn line (subtle give) rather than a slow floppy spring.
+   * firmness pass 2026-07-08 (level overhaul): 8 -> 9 — real-device feedback
+   * "まだ少しだけ柔らかい". The higher spring frequency settles the loaded chain
+   * to its held shape faster (less lingering wobble), reinforcing the tighter
+   * totalFlexBudgetRad below so the bridge reads as a firm plank with a hint of
+   * life rather than a spring. Measured 9 (not 10): 9 keeps the recycled-slot
+   * reset drift at ~0.009 m (sub-cm; world-reset determinism band) whereas 10
+   * pushed it to ~0.034 m — 9 is the firmer-yet-stable sweet spot for this
+   * chain-mass/step regime.
    */
-  jointHertz: 8,
+  jointHertz: 9,
   /** Joint spring damping ratio. Range 0.6-0.8. */
   jointDampingRatio: 0.7,
   /**
@@ -58,8 +66,14 @@ export const bridge = {
    * solidified 0.55m-bow arch flattened to <0.1m within 60 ticks (QG-6 probe).
    * 0.3 holds ~0.37m of that bow (firm) while a loaded 3m span still gives
    * ~0.1-0.2m; the shape reads as a firm drawn line with subtle give.
+   * FIRMNESS PASS 2026-07-08 (level overhaul) to 0.22: real-device feedback was
+   * still "まだ少しだけ柔らかい". 0.22 tightens the total give a further ~27% —
+   * a loaded 3m span now sags ~0.10-0.15m (firm plank with a hint of life, not a
+   * spring) and a committed 0.55m-bow arch holds ~0.40m through settling
+   * (chain-deviation probe). Measured net effect on crossings is LESS sag-V, so
+   * spike:bench still clears 2/4/6m at natural N without touching breakForceFactor.
    */
-  totalFlexBudgetRad: 0.3,
+  totalFlexBudgetRad: 0.22,
   /**
    * Per-joint angle-limit CEILING in radians (+/-) — the clamp upper bound on
    * the derived per-joint limit (see totalFlexBudgetRad). At the segment floor

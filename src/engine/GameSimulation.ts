@@ -374,8 +374,13 @@ export class GameSimulation {
       this.inkBudget.refund(consumedRaw); // full refund on discard (FR-003)
       return { committed: false, reason: stroke.reason };
     }
-    // settle the account to the authoritative simplified length (class header)
-    this.inkBudget.refund(consumedRaw - stroke.totalLength);
+    // settle the account to the authoritative simplified length (class header).
+    // Simplification only removes vertices, so totalLength <= consumedRaw always;
+    // clamp the difference to >= 0 because a perfectly straight stroke (raw ==
+    // simplified length) yields float noise like -8.9e-16 that would otherwise
+    // trip InkBudget.refund's >= 0 guard (settlement is a partial refund, never
+    // an extra charge — class header).
+    this.inkBudget.refund(Math.max(0, consumedRaw - stroke.totalLength));
 
     this.chain = buildBridge(this.world, stroke.resampled, {
       method: this.method,

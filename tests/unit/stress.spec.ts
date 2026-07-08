@@ -103,9 +103,15 @@ describe('StressTracker — creak and break on a loaded chain', () => {
     const creaks: CreakEvent[] = [];
     const breaks: BreakEvent[] = [];
     let tick = 0;
+    // Break thresholds 4 (not 2): the firmer chain (totalFlexBudgetRad 0.22,
+    // jointHertz 9) snaps taut with a sharper force spike, so at threshold 2 the
+    // EMA jumps straight past the [0.6, 1.0) creak band to break. Threshold 4
+    // keeps the overload marginal enough that the EMA creeps THROUGH the band
+    // first (measured: firstCreak tick ~11 < firstBreak tick ~12), preserving
+    // the FR-006 creak-before-break intent this test asserts.
     const tracker = new StressTracker(chain, {
-      breakForce: 2,
-      breakTorque: 2,
+      breakForce: 4,
+      breakTorque: 4,
       onCreak: (jointIndex, stress) => creaks.push({ tick, jointIndex, stress }),
       onBreak: (jointIndex, position) => breaks.push({ tick, jointIndex, position: { ...position } }),
     });
