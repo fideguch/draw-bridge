@@ -33,7 +33,7 @@
  * (StressTracker), coinCollected, cleared/failed (terminal).
  */
 
-import { b2Body_GetPosition, b2Body_GetRotation } from 'phaser-box2d';
+import { b2Body_ComputeAABB, b2Body_GetPosition, b2Body_GetRotation } from 'phaser-box2d';
 import type { b2BodyId } from 'phaser-box2d';
 import type { Level, Point } from './level/LevelSchema';
 import type { BridgeChain, PhysicsMethod } from './physics/BridgeChainBuilder';
@@ -196,6 +196,27 @@ function liveSegmentEndpoint(bodyId: b2BodyId, segment: StrokeSegment, which: 'a
   };
 }
 
+/**
+ * Rock-contact observation skin (m) added to the rock radius when latching the
+ * `rockContactObserved` flag (review R6 F3). A rock at rest ON the dome/bridge or
+ * against the car sits ~0 m from the body AABB; the small skin makes the latch
+ * robust to sub-cm settle jitter without crediting a fly-by. Pure OBSERVATION —
+ * it never touches physics, so it cannot perturb the determinism hash.
+ */
+const ROCK_CONTACT_OBSERVE_SKIN_M = 0.05;
+
+/** True when a disc (center + radius) overlaps an axis-aligned box (nearest-point). */
+function discOverlapsAabb(
+  cx: number,
+  cy: number,
+  radius: number,
+  box: { minX: number; minY: number; maxX: number; maxY: number },
+): boolean {
+  const nx = Math.min(Math.max(cx, box.minX), box.maxX);
+  const ny = Math.min(Math.max(cy, box.minY), box.maxY);
+  return Math.hypot(cx - nx, cy - ny) <= radius + ROCK_CONTACT_OBSERVE_SKIN_M;
+}
+
 /** Perpendicular distance (m) from point `p` to the infinite line through a-b. */
 function perpendicularDistance(p: Point, a: Point, b: Point): number {
   const abx = b.x - a.x;
@@ -231,6 +252,8 @@ export class GameSimulation {
   private lastEvaluatedTick = -1;
   private nextTick = 0;
   private isDestroyed = false;
+  /** Latches once any LIVE rock touches the car or the bridge this attempt (F3). */
+  private rockContacted = false;
 
   constructor(level: Level, options?: GameSimulationOptions) {
     this.method = options?.method ?? 'chain';
@@ -287,6 +310,7 @@ export class GameSimulation {
     // byte-identical stateHash (determinism negative control). Rock bodies enter
     // the World registry last, so they never perturb terrain/vehicle hash order.
     this.rockHazard = new RockHazard(this.world, this.level.rocks ?? []);
+    this.rockContacted = false;
   }
 
   /**
@@ -359,6 +383,17 @@ export class GameSimulation {
   /** The live rock hazards (RockRenderer reads their body poses; never written). */
   get renderRocks(): RockHazard {
     return this.rockHazard;
+  }
+
+  /**
+   * True once any LIVE rock has touched the car or the drawn bridge at any point
+   * this attempt (review R6 F3). A cheap, physics-inert OBSERVATION latch: Gate 2
+   * widens the dynamic-hazard settle epsilon ONLY when this is true, so a level
+   * whose rock never physically interacts keeps the strict final-position bound
+   * instead of getting the loose band merely for carrying a `rocks[]` entry.
+   */
+  get rockContactObserved(): boolean {
+    return this.rockContacted;
   }
 
   /** The built bridge chain, or null before commit / after reset (read-only). */
@@ -565,6 +600,7 @@ export class GameSimulation {
     // step, from the same referencePoint the observers see) so the new body enters
     // the world registry last and begins moving next tick.
     this.rockHazard.updateTriggers(referencePoint.x);
+    this.observeRockContact();
     for (const index of this.coinTracker.update(referencePoint)) {
       this.events.emit('coinCollected', { index, position: this.level.coins[index] as Point });
     }
@@ -616,6 +652,39 @@ export class GameSimulation {
       this.world.destroy(); // frees every body incl. terrain/vehicle/chain
     }
     this.isDestroyed = true;
+  }
+
+  /**
+   * Latch `rockContacted` when any live rock disc overlaps a car AABB (chassis /
+   * wheels) OR a bridge-body AABB (review R6 F3). Early-out once latched or when
+   * the level has no rocks — a pure post-step observation (no physics effect), so
+   * a rock-free level stays byte-identical (the determinism hash is untouched).
+   */
+  private observeRockContact(): void {
+    if (this.rockContacted || this.rockHazard.count === 0) {
+      return;
+    }
+    const carBoxes = this.vehicle.occupiedAABBs();
+    const chainBodies = this.chain?.bodies ?? [];
+    for (const rock of this.rockHazard.renderState()) {
+      if (rock.armed) {
+        continue; // an armed (pre-trigger) rock has no body — it touches nothing
+      }
+      for (const box of carBoxes) {
+        if (discOverlapsAabb(rock.x, rock.y, rock.radius, box)) {
+          this.rockContacted = true;
+          return;
+        }
+      }
+      for (const bodyId of chainBodies) {
+        const aabb = b2Body_ComputeAABB(bodyId);
+        const box = { minX: aabb.lowerBoundX, minY: aabb.lowerBoundY, maxX: aabb.upperBoundX, maxY: aabb.upperBoundY };
+        if (discOverlapsAabb(rock.x, rock.y, rock.radius, box)) {
+          this.rockContacted = true;
+          return;
+        }
+      }
+    }
   }
 
   private enrichOutcome(judged: NonNullable<ReturnType<Judge['evaluate']>>): AttemptOutcome {

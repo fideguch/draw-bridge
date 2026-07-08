@@ -1,6 +1,8 @@
-import { describe, expect, it } from 'vitest';
+import { afterAll, describe, expect, it } from 'vitest';
 import type { Level, Point, Rock } from '@engine/level/LevelSchema';
 import { GameSimulation } from '@engine/GameSimulation';
+import { RockHazard } from '@engine/physics/RockHazard';
+import { World } from '@engine/physics/World';
 import {
   SPIKE_WORLD_BUDGET,
   arcStroke,
@@ -85,10 +87,11 @@ function minRockYOverRun(level: Level, stroke: readonly Point[], ticks: number):
 
 describe('RockHazard — spawn + render observation', () => {
   it('reserves well under the phaser-box2d world budget', () => {
-    // 15 fresh worlds across this file (spawn 1, velocity 1, determinism 2,
+    // 19 fresh worlds across this file (spawn 1, velocity 1, determinism 2,
     // negative-control 1, shield 2, crush 2, triggered: liveTick 2 + preHash 2 +
-    // determinism 2) — keep the budget guard honest.
-    expect(15).toBeLessThanOrEqual(SPIKE_WORLD_BUDGET);
+    // determinism 2, F2 leftward-crossing 1 shared, F3 rockContactObserved 2) —
+    // keep the budget guard honest.
+    expect(19).toBeLessThanOrEqual(SPIKE_WORLD_BUDGET);
   });
 
   it('spawns one body per level rock at its authored position (after settle, unmoved)', () => {
@@ -246,5 +249,76 @@ describe('RockHazard — triggered spawn (round-6 rocks[].triggerCarX)', () => {
     expect(a.outcome).toBe(b.outcome);
     expect(a.ticks).toBe(b.ticks);
     expect(a.hash).toBe(b.hash); // triggered body creation is bit-reproducible
+  });
+});
+
+describe('RockHazard — crossing trigger is DIRECTION-AGNOSTIC (review R6 F2)', () => {
+  // One shared world (bodies freed at afterAll) — RockHazard.updateTriggers is
+  // driven directly with scripted reference-x sequences, no full simulation.
+  const world = new World();
+  afterAll(() => world.destroy());
+
+  it('fires a LEFTWARD crossing: a car moving in DECREASING x still spawns the rock', () => {
+    // The old `carX >= triggerCarX` rule never fired for -x travel; the crossing
+    // rule fires the tick the [prev, cur] interval first straddles triggerCarX.
+    const rocks = new RockHazard(world, [{ x: 0, y: 5, radius: 0.3, triggerCarX: -2 }]);
+    expect(rocks.renderState()[0]?.armed).toBe(true);
+    rocks.updateTriggers(0); // first sample: no motion observed, 0 !== -2 -> armed
+    expect(rocks.renderState()[0]?.armed).toBe(true);
+    rocks.updateTriggers(-1); // interval [-1, 0] does not contain -2 -> still armed
+    expect(rocks.renderState()[0]?.armed).toBe(true);
+    rocks.updateTriggers(-3); // interval [-3, -1] straddles -2 -> FIRES on the crossing
+    expect(rocks.renderState()[0]?.armed).toBe(false);
+    expect(rocks.bodyIds).toHaveLength(1);
+  });
+
+  it('fires a RIGHTWARD crossing symmetrically (interval straddles the trigger)', () => {
+    const rocks = new RockHazard(world, [{ x: 0, y: 5, radius: 0.3, triggerCarX: 2 }]);
+    rocks.updateTriggers(0); // 0 !== 2 -> armed
+    rocks.updateTriggers(1); // interval [0, 1] does not contain 2 -> armed
+    expect(rocks.renderState()[0]?.armed).toBe(true);
+    rocks.updateTriggers(3); // interval [1, 3] straddles 2 -> FIRES
+    expect(rocks.renderState()[0]?.armed).toBe(false);
+    expect(rocks.bodyIds).toHaveLength(1);
+  });
+
+  it('does NOT fire while the car only APPROACHES the trigger without crossing it', () => {
+    const rocks = new RockHazard(world, [{ x: 0, y: 5, radius: 0.3, triggerCarX: -2 }]);
+    for (const x of [0, -0.5, -1, -1.5, -1.9]) {
+      rocks.updateTriggers(x); // monotone toward -2 but never reaches it
+    }
+    expect(rocks.renderState()[0]?.armed).toBe(true);
+    expect(rocks.bodyIds).toHaveLength(0);
+  });
+});
+
+describe('GameSimulation.rockContactObserved — interaction latch (review R6 F3)', () => {
+  it('latches TRUE when a rock rests on the drawn bridge (rock-on-dome settle)', () => {
+    const level: Level = { ...buildSpikeLevel(4, { runUpM: 6, flagOffsetM: 5 }), rocks: [{ x: 0, y: 1.2, radius: 0.3 }] };
+    const sim = new GameSimulation(level, { method: 'chain' });
+    try {
+      expect(sim.rockContactObserved).toBe(false); // nothing has touched before the run
+      sim.commitStroke(arcStroke(4));
+      sim.runToOutcome();
+      // The falling rock is caught by the dome and rests on it -> rock↔bridge
+      // contact observed, so Gate 2 keeps the wide settle epsilon for this level.
+      expect(sim.rockContactObserved).toBe(true);
+    } finally {
+      sim.destroy();
+    }
+  });
+
+  it('stays FALSE when the rock never touches the car or the bridge (out of reach)', () => {
+    const level: Level = { ...buildSpikeLevel(4, { runUpM: 6, flagOffsetM: 5 }), rocks: [{ x: 40, y: 30, radius: 0.3 }] };
+    const sim = new GameSimulation(level, { method: 'chain' });
+    try {
+      sim.commitStroke(arcStroke(4));
+      sim.runToOutcome();
+      // The rock free-falls far from the car and bridge — no interaction, so the
+      // strict 0.05 m final-position bound applies (not the loose settle band).
+      expect(sim.rockContactObserved).toBe(false);
+    } finally {
+      sim.destroy();
+    }
   });
 });

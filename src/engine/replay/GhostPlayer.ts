@@ -12,13 +12,15 @@
  *   | Final pos  | epsilon 0.05 m Euclidean, inclusive |
  *   | Tick count | +/-30 ticks, inclusive              |
  *
- * DYNAMIC-HAZARD SETTLE CONDITIONAL: levels WITH rocks[] settle a chaotic
- * n-body rock-on-dome contact whose resting position drifts across engine /
- * library builds even when the outcome (CLEAR) and tick count stay stable. For
- * those levels only — and ONLY when the replay still CLEARs and the tick delta
- * is inside band — the finalPos epsilon widens to HAZARD_SETTLE_EPSILON_M
- * (0.5 m). Static levels stay strict at 0.05 m, and any outcome/tick regression
- * re-applies the strict bound so the relaxation can never hide a real break.
+ * DYNAMIC-HAZARD SETTLE CONDITIONAL: a level whose rock actually INTERACTS with
+ * the car or bridge settles a chaotic n-body rock-on-dome contact whose resting
+ * position drifts across engine / library builds even when the outcome (CLEAR)
+ * and tick count stay stable. For those levels only — gated on OBSERVED rock
+ * contact (review R6 F3), not the mere presence of a rocks[] entry, and ONLY when
+ * the replay still CLEARs and the tick delta is inside band — the finalPos epsilon
+ * widens to HAZARD_SETTLE_EPSILON_M (0.5 m). A rock that never physically touches
+ * the car/bridge, and every static level, stay strict at 0.05 m; any outcome/tick
+ * regression re-applies the strict bound so the relaxation can never hide a break.
  *
  * TOLERANCE CONSTANTS ARE CONTRACT-FROZEN, not tunables: gate-pipeline.md §3
  * mandates recalibration/re-recording over threshold loosening, so they live
@@ -110,6 +112,13 @@ export type ScriptedAttemptResult =
       readonly clipApplied: boolean;
       /** True when the UNCLIPPED line was committed via the F1 fallback (review F2). */
       readonly usedFallback: boolean;
+      /**
+       * True when a live rock touched the car or the bridge at any point in this
+       * attempt (review R6 F3). Gate 2 widens the dynamic-hazard settle epsilon
+       * ONLY when this is true — a rock that never physically interacts keeps the
+       * strict final-position bound.
+       */
+      readonly rockContactObserved: boolean;
     };
 
 export interface ScriptedAttemptOptions {
@@ -154,6 +163,7 @@ export function runScriptedAttempt(
     }
 
     const finalPos = simulation.referencePoint();
+    const hasRockContact = simulation.rockContactObserved;
     if (outcome.outcome === 'clear') {
       return {
         committed: true,
@@ -165,6 +175,7 @@ export function runScriptedAttempt(
         stroke: commit.stroke,
         clipApplied: commit.clipApplied,
         usedFallback: commit.usedFallback,
+        rockContactObserved: hasRockContact,
       };
     }
     return {
@@ -178,6 +189,7 @@ export function runScriptedAttempt(
       stroke: commit.stroke,
       clipApplied: commit.clipApplied,
       usedFallback: commit.usedFallback,
+      rockContactObserved: hasRockContact,
     };
   } finally {
     simulation.destroy();
@@ -187,12 +199,14 @@ export function runScriptedAttempt(
 /** Options for the Gate 2 band check (dynamic-hazard settle conditional). */
 export interface CompareOptions {
   /**
-   * True when the level carries dynamic hazards (a non-empty rocks[]). Enables
-   * the documented settle-chaos epsilon (HAZARD_SETTLE_EPSILON_M) for the
-   * finalPos check — but ONLY when the replay still CLEARs (outcome match) and
-   * the tick delta is inside band. Static levels (default false) stay strict at
-   * GHOST_FINAL_POS_EPSILON_M, and any outcome/tick regression re-applies the
-   * strict bound. See file header + HAZARD_SETTLE_EPSILON_M rationale.
+   * True when the level's rock actually INTERACTED this replay — i.e. it carries a
+   * rocks[] AND a live rock was observed touching the car or the bridge (review R6
+   * F3). Enables the documented settle-chaos epsilon (HAZARD_SETTLE_EPSILON_M) for
+   * the finalPos check — but ONLY when the replay still CLEARs (outcome match) and
+   * the tick delta is inside band. A rock that never physically interacts, and
+   * every static level (default false), stay strict at GHOST_FINAL_POS_EPSILON_M;
+   * any outcome/tick regression re-applies the strict bound. See file header +
+   * HAZARD_SETTLE_EPSILON_M rationale.
    */
   readonly hasDynamicHazards?: boolean;
 }
@@ -264,7 +278,9 @@ export function replayGhost(level: Level, ghost: GhostSolution, world?: World): 
     finalPos: attempt.finalPos,
   };
   const comparison = compareToRecorded(ghost.result, replayed, {
-    hasDynamicHazards: (level.rocks?.length ?? 0) > 0,
+    // F3: gate the settle relaxation on OBSERVED rock interaction, not mere
+    // presence of a rocks[] entry (attempt is committed here — checked above).
+    hasDynamicHazards: (level.rocks?.length ?? 0) > 0 && attempt.rockContactObserved,
   });
   return {
     pass: comparison.pass,

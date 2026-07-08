@@ -11,21 +11,32 @@
  *
  * TRIGGERED SPAWN (round-6, `rocks[].triggerCarX`): a classic rock is created at
  * run start (in the constructor); a TRIGGERED rock is created LATER — the tick the
- * car's reference x first reaches `triggerCarX` (GameSimulation.step calls
+ * car's reference x CROSSES `triggerCarX` (GameSimulation.step calls
  * updateTriggers). Until then the rock is ARMED: it has NO body (so it is inert to
  * physics and the state hash) but reports a render state at its spawn so the
  * renderer can warn the player. This synchronises the rock's fall/roll with the
  * car's arrival — the fix for "石が早く落ちて当たらない" (round-6). Slot order (spawn
  * order) is fixed; a triggered rock's body simply appears at its slot when armed.
  *
+ * CROSSING (review R6 F2): the fire test is a DIRECTION-AGNOSTIC crossing, not the
+ * one-sided `carX >= triggerCarX` — that fired only for +x (rightward) travel, so a
+ * triggered rock ahead of a car moving in DECREASING x would never spawn. The rock
+ * now fires the tick `triggerCarX` first lies within the closed interval between
+ * the previous and current reference x (either travel direction). For the shipped
+ * levels (car spawns strictly left of every triggerCarX and drives +x, crossing it
+ * exactly once) the fire tick is bit-identical to the old rule — gates 18/18 and
+ * the determinism hash are unchanged.
+ *
  * DETERMINISM: bodies are created deterministically from the level data. Classic
  * rocks are created in constructor order; a triggered rock is created the exact
- * tick `carX >= triggerCarX` first holds — carX is a pure function of the sim
- * state, so the trigger tick, the created body, and thus World.stateHash are
- * bit-reproducible. Before any trigger fires the hash is unchanged from a world
- * carrying only the classic rocks (the armed rock adds no body). An argument-free
- * reset() rebuilds the identical armed set; a level with no `rocks` creates zero
- * bodies — byte-identical to a pre-rock world (the determinism negative control).
+ * tick the reference-x interval [prev, cur] first straddles `triggerCarX` — carX is
+ * a pure function of the sim state, so the trigger tick, the created body, and thus
+ * World.stateHash are bit-reproducible. Before any trigger fires the hash is
+ * unchanged from a world carrying only the classic rocks (the armed rock adds no
+ * body). A fresh RockHazard (constructor / GameSimulation.build) starts with no
+ * previous-x sample, rebuilding the identical armed set; a level with no `rocks`
+ * creates zero bodies — byte-identical to a pre-rock world (determinism negative
+ * control).
  *
  * SURFACE properties (density fallback / friction / restitution) come from
  * TuningConstants; per-rock position, radius, optional density, initial velocity,
@@ -68,6 +79,25 @@ interface RockSlot {
   bodyId: b2BodyId | null;
 }
 
+/**
+ * Direction-agnostic trigger test (review R6 F2). Returns true when the car's
+ * reference x moved ACROSS `trigger` between the previous sample (`prevX`) and the
+ * current one (`carX`) — i.e. `trigger` lies within the closed interval bounded by
+ * the two, regardless of travel direction. This fires a triggered rock for a car
+ * moving in +x OR -x, unlike the old one-sided `carX >= trigger`.
+ *
+ * First sample (`prevX === null`, no motion observed yet): fires only if the car
+ * already sits exactly on the trigger. Every shipped level spawns the car strictly
+ * on one side of its triggerCarX, so the first sample never fires and the crossing
+ * tick equals the old `>=` fire tick for +x travel (determinism preserved).
+ */
+function hasCrossed(prevX: number | null, carX: number, trigger: number): boolean {
+  if (prevX === null) {
+    return carX === trigger;
+  }
+  return Math.min(prevX, carX) <= trigger && trigger <= Math.max(prevX, carX);
+}
+
 function rockShapeDef(density: number): b2ShapeDef {
   const shapeDef = b2DefaultShapeDef();
   shapeDef.density = density;
@@ -83,6 +113,8 @@ export class RockHazard {
   private readonly slots: readonly RockSlot[];
   private readonly world: World;
   private isDestroyed = false;
+  /** Previous reference-x sample for crossing detection (null == none yet). */
+  private lastCarX: number | null = null;
 
   constructor(world: World, rocks: readonly Rock[]) {
     this.world = world;
@@ -117,17 +149,25 @@ export class RockHazard {
   }
 
   /**
-   * Create any ARMED (triggered) rock whose triggerCarX the car has now reached.
-   * Called once per tick by GameSimulation with the current reference x. Firing
-   * is monotone-safe (idempotent once a slot has a body) and deterministic: the
-   * exact tick `carX >= triggerCarX` first holds is a pure function of sim state.
+   * Create any ARMED (triggered) rock whose triggerCarX the car has now CROSSED.
+   * Called once per tick by GameSimulation with the current reference x. Firing is
+   * crossing-based and DIRECTION-AGNOSTIC (review R6 F2 — see hasCrossed and the
+   * module header), idempotent once a slot has a body, and deterministic: the exact
+   * tick the [prev, cur] reference-x interval first straddles triggerCarX is a pure
+   * function of sim state.
    */
   updateTriggers(carX: number): void {
+    const prevX = this.lastCarX;
     for (const slot of this.slots) {
-      if (slot.bodyId === null && slot.spec.triggerCarX !== undefined && carX >= slot.spec.triggerCarX) {
+      if (
+        slot.bodyId === null &&
+        slot.spec.triggerCarX !== undefined &&
+        hasCrossed(prevX, carX, slot.spec.triggerCarX)
+      ) {
         slot.bodyId = this.createRock(slot.spec);
       }
     }
+    this.lastCarX = carX;
   }
 
   /**

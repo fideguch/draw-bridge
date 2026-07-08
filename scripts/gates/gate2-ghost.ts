@@ -110,12 +110,14 @@ function checkGhost(
   }
 
   // Tolerance band vs the recorded result. Dynamic-hazard settle conditional:
-  // levels WITH rocks[] widen the finalPos epsilon to HAZARD_SETTLE_EPSILON_M
-  // (rock-on-dome settle chaos, see GhostPlayer header) — but the relaxation
-  // only engages when the replay still CLEARs and the tick delta is in band, and
+  // widen the finalPos epsilon to HAZARD_SETTLE_EPSILON_M (rock-on-dome settle
+  // chaos, see GhostPlayer header) ONLY when this replay actually OBSERVED a rock
+  // touching the car or the bridge (review R6 F3) — a rocks[] entry whose rock
+  // never physically interacts keeps the strict 0.05 m bound. The relaxation
+  // still only engages when the replay CLEARs and the tick delta is in band, and
   // run 1 == run 2 is already proven bit-exactly by the cross-world determinism
   // check above, so "both runs clear" is guaranteed before the band relaxes.
-  const hasDynamicHazards = (level.rocks?.length ?? 0) > 0;
+  const hasDynamicHazards = (level.rocks?.length ?? 0) > 0 && run1.rockContactObserved;
   const comparison = compareToRecorded(
     ghost.result,
     {

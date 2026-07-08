@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterAll, describe, expect, it } from 'vitest';
 import exampleValid from '../fixtures/levels/example-valid.json';
 import type { GhostResult, GhostSolution, Level, Point } from '@engine/level/LevelSchema';
 import { validateLevel } from '@engine/level/LevelSchema';
@@ -11,6 +11,8 @@ import {
   replayGhost,
   runScriptedAttempt,
 } from '@engine/replay/GhostPlayer';
+import { World } from '@engine/physics/World';
+import { arcStroke, buildSpikeLevel } from '../../src/debug/SpikeScenario';
 
 /**
  * T028 — ghost record + replay verification (FR-015, FR-026 Gate 2 substrate).
@@ -410,5 +412,51 @@ describe('ghost record -> replay (Phase 2 checkpoint: FR-015 + Gate 2 substrate)
     expect(replay.pass).toBe(false);
     expect(replay.details.replayed).toBeNull();
     expect(replay.details.errors.join(' ')).toMatch(/discard|stroke/i);
+  });
+});
+
+describe('replayGhost — settle band gated on OBSERVED rock interaction (review R6 F3)', () => {
+  // One recycled world for the whole block (phaser-box2d 32-slot cap, World header).
+  const world = new World();
+  afterAll(() => world.destroy());
+  const LV0 = { inkCapacityLv: 0, engineSpeedLv: 0 } as const;
+
+  /** Replay `stroke` once, then record a ghost whose finalPos is shifted by dx (m). */
+  function ghostWithOffsetFinalPos(level: Level, stroke: readonly Point[], dx: number): GhostSolution {
+    const real = runScriptedAttempt(level, stroke, { upgrades: LV0, world });
+    if (!real.committed || real.outcome !== 'clear') {
+      throw new Error(`setup stroke must commit and clear: ${real.committed ? real.outcome : real.reason}`);
+    }
+    return {
+      kind: 'any',
+      stroke: stroke.map((p) => [p.x, p.y] as [number, number]),
+      sampleEveryTicks: 5,
+      samples: [{ t: 1, x: 0, y: 0 }],
+      result: {
+        outcome: 'clear',
+        ticks: real.ticks,
+        finalPos: { x: real.finalPos.x + dx, y: real.finalPos.y },
+        inkConsumed: real.inkConsumed,
+        starRating: real.starRating ?? 3,
+      },
+    };
+  }
+
+  it('a rock that never interacts keeps the STRICT epsilon — a 0.2 m final-pos drift FAILS', () => {
+    const level: Level = { ...buildSpikeLevel(4, { runUpM: 6, flagOffsetM: 5 }), rocks: [{ x: 40, y: 30, radius: 0.3 }] };
+    const stroke = arcStroke(4);
+    const probe = runScriptedAttempt(level, stroke, { upgrades: LV0, world });
+    expect(probe.committed && probe.rockContactObserved).toBe(false); // no interaction
+    const ghost = ghostWithOffsetFinalPos(level, stroke, 0.2); // 0.2 m > strict 0.05 m
+    expect(replayGhost(level, ghost, world).pass).toBe(false);
+  });
+
+  it('a rock resting on the bridge earns the WIDE settle band — the same 0.2 m drift PASSES', () => {
+    const level: Level = { ...buildSpikeLevel(4, { runUpM: 6, flagOffsetM: 5 }), rocks: [{ x: 0, y: 1.2, radius: 0.3 }] };
+    const stroke = arcStroke(4);
+    const probe = runScriptedAttempt(level, stroke, { upgrades: LV0, world });
+    expect(probe.committed && probe.rockContactObserved).toBe(true); // rock rests on the dome
+    const ghost = ghostWithOffsetFinalPos(level, stroke, 0.2); // within the 0.5 m settle band
+    expect(replayGhost(level, ghost, world).pass).toBe(true);
   });
 });
