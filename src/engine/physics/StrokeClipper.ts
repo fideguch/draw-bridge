@@ -7,8 +7,11 @@
  * the polyline into maximal OUTSIDE runs, cutting FLUSH at the terrain surface
  * (interpolated boundary crossings) so a kept run ends exactly on the surface
  * and reads as an anchor resting on it. GameSimulation.commitStroke keeps the
- * LONGEST run (by arc length); if that is below the pipeline minimum it falls
- * through the existing rejection path (deny feedback).
+ * LONGEST run (by arc length); if that is below the pipeline minimum it either
+ * (a) falls back to the unclipped line when the stroke is PREDOMINANTLY outside
+ * (outsideFraction >= a measured threshold — a line hugging concave/staircase
+ * terrain that merely fragmented), or (b) is DENIED (a predominantly-buried
+ * line — no line may live inside solids; round-4 bug / review F1).
  *
  * Determinism / no-op guarantee: a stroke that never enters or crosses a solid
  * is returned UNCHANGED (the same array reference), so open-air strokes — every
@@ -28,6 +31,16 @@ export interface StrokeClipResult {
   readonly longestRun: readonly Point[];
   /** Every OUTSIDE run in draw order, each flush at the solids it borders. */
   readonly runs: readonly (readonly Point[])[];
+  /**
+   * Fraction of the raw stroke's arc length that lies OUTSIDE solids
+   * (sum of run lengths / raw length) — 1 for an open-air no-op, ~0 for a
+   * fully-buried stroke. GameSimulation.commitStroke reads this to decide the
+   * best-effort fallback: only a PREDOMINANTLY-outside stroke that fragmented
+   * into sub-minimum runs (hugging concave/staircase terrain) is committed
+   * unclipped; a predominantly-buried stroke is denied (no line in solids —
+   * round-4 bug fix / review F1).
+   */
+  readonly outsideFraction: number;
 }
 
 /** Below this the two params of a crossing coincide with a segment endpoint. */
@@ -102,7 +115,7 @@ function arcLength(points: readonly Point[]): number {
  */
 export function clipStrokeToSolids(points: readonly Point[], solids: TerrainSolids): StrokeClipResult {
   if (solids.polygons.length === 0 || points.length < 2) {
-    return { clipped: false, longestRun: points, runs: [points] };
+    return { clipped: false, longestRun: points, runs: [points], outsideFraction: 1 };
   }
 
   // Cheap no-op scan: no vertex inside and no segment crossing ⇒ passthrough.
@@ -115,7 +128,7 @@ export function clipStrokeToSolids(points: readonly Point[], solids: TerrainSoli
     }
   }
   if (!hasSolidContact) {
-    return { clipped: false, longestRun: points, runs: [points] };
+    return { clipped: false, longestRun: points, runs: [points], outsideFraction: 1 };
   }
 
   const runs: Point[][] = [];
@@ -156,12 +169,16 @@ export function clipStrokeToSolids(points: readonly Point[], solids: TerrainSoli
 
   let longestRun: readonly Point[] = [];
   let bestLength = -1;
+  let outsideLength = 0;
   for (const run of runs) {
     const length = arcLength(run);
+    outsideLength += length;
     if (length > bestLength) {
       bestLength = length;
       longestRun = run;
     }
   }
-  return { clipped: true, longestRun, runs };
+  const rawLength = arcLength(points);
+  const outsideFraction = rawLength > 0 ? outsideLength / rawLength : 0;
+  return { clipped: true, longestRun, runs, outsideFraction };
 }

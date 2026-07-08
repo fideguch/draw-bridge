@@ -64,6 +64,26 @@ import { fail, physics } from '@tuning/TuningConstants';
  */
 export const ATTEMPT_SETTLE_TICKS = 90;
 
+/**
+ * Best-effort clip fallback bound (review F1). When the clipped LONGEST outside
+ * run is below the pipeline minimum, commitStroke may fall back to the UNCLIPPED
+ * line ONLY if at least this fraction of the raw stroke lay outside solids — a
+ * line hugging concave/staircase terrain that merely fragmented into short runs.
+ * A stroke below the bound is predominantly BURIED and is DENIED (no line may
+ * live inside solids), instead of the old unconditional bypass that committed
+ * even a fully-buried stroke.
+ *
+ * Measured (probe over all 18 shipped levels + the clip fixture, 2026-07-08):
+ * a fully-buried stroke has outsideFraction 0 (rejected); all 20 shipped ghosts
+ * are clip NO-OPS (fraction 1, never reach the fallback); a deep-hug of the
+ * ch1-l14 staircase (the ghost pushed into each concave corner past the 0.55 m
+ * skin) measures fraction 0.9065 at a realistic 0.6 m over-draw and still 0.7188
+ * at an implausible 1.2 m. 0.6 sits below that genuine-hug floor yet far above a
+ * buried stroke (0) — a wide separation, so the exact value is not sensitive.
+ * Structural constant (like SURFACE_SKIN_M).
+ */
+export const FALLBACK_MIN_OUTSIDE_FRACTION = 0.6;
+
 /** The single per-attempt stroke id (exactly one stroke per attempt, FR-003). */
 const ATTEMPT_STROKE_ID = 1;
 
@@ -102,6 +122,18 @@ export type CommitStrokeResult =
       readonly segments: number;
       /** Committed simplified polyline (GhostSolution.stroke source). */
       readonly stroke: readonly Point[];
+      /**
+       * True when terrain clipping altered the stroke (it touched a solid).
+       * A false value means an open-air no-op commit (review F2 diagnostics).
+       */
+      readonly clipApplied: boolean;
+      /**
+       * True when the clipped run was sub-minimum and the UNCLIPPED line was
+       * committed via the predominantly-outside fallback (review F1/F2). When
+       * true the committed line still passes through terrain — gate/authoring
+       * consumers assert this is never the case for their candidates.
+       */
+      readonly usedFallback: boolean;
     }
   | { readonly committed: false; readonly reason: CommitDiscardReason };
 
@@ -220,7 +252,7 @@ export class GameSimulation {
    */
   private build(level: Level): void {
     this.level = level;
-    this.terrainSolids = buildTerrainSolids(level.terrain, level.killY);
+    this.terrainSolids = buildTerrainSolids(level.terrain, level.killY, undefined, level.id);
     new Terrain(this.world, level);
     this.vehicle = new Vehicle(this.world, level.vehicleSpawn, {
       engineSpeedLv: this.upgrades.engineSpeedLv ?? 0,
@@ -391,15 +423,19 @@ export class GameSimulation {
     // ink is refunded via the settlement below (committed simplified length).
     const clip = clipStrokeToSolids(rawPoints, this.terrainSolids);
 
-    // Best-effort: the clip IMPROVES the stroke but must never make an otherwise
-    // valid line un-committable. A line that hugs concave/staircase terrain
-    // fragments into sub-minimum runs — rather than deny the whole draw, fall
-    // back to the UNCLIPPED stroke (the clip only wins when it leaves a usable
-    // run; through-plateau lines have a long outside approach, so they still
-    // clip; only lines drawn almost wholly inside solid fall back).
+    // Best-effort (review F1): the clip IMPROVES the stroke but must not make an
+    // otherwise valid line hugging concave/staircase terrain un-committable. When
+    // the clipped LONGEST run is sub-minimum, fall back to the UNCLIPPED stroke
+    // ONLY if the stroke was PREDOMINANTLY OUTSIDE solids (outsideFraction >=
+    // FALLBACK_MIN_OUTSIDE_FRACTION — a mostly-open line that merely fragmented).
+    // A predominantly-BURIED stroke (including a fully-buried one) is denied via
+    // the path below — no committed line may live inside solids. The prior code
+    // fell back unconditionally, which committed even fully-buried strokes.
     let stroke = processStroke(clip.longestRun);
-    if (stroke.discarded && clip.clipped) {
+    let isFallbackCommit = false;
+    if (stroke.discarded && clip.clipped && clip.outsideFraction >= FALLBACK_MIN_OUTSIDE_FRACTION) {
       stroke = processStroke(rawPoints);
+      isFallbackCommit = !stroke.discarded;
     }
     if (stroke.discarded) {
       this.inkBudget.refund(consumedRaw); // full refund on discard (FR-003)
@@ -436,6 +472,8 @@ export class GameSimulation {
       length: stroke.totalLength,
       segments: stroke.segments.length,
       stroke: stroke.simplified,
+      clipApplied: clip.clipped,
+      usedFallback: isFallbackCommit,
     };
   }
 

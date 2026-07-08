@@ -100,6 +100,44 @@ describe('TerrainSolids — point-in-solid classification', () => {
   });
 });
 
+describe('buildTerrainSolids — degeneracy/ambiguity guard (review F3)', () => {
+  // Positive control: every shipped level constructs a clean solid set.
+  it('all shipped levels construct without tripping the guard', () => {
+    for (const f of readdirSync('levels').filter((n) => n.endsWith('.json'))) {
+      const parsed = validateLevel(JSON.parse(readFileSync(`levels/${f}`, 'utf-8')));
+      if (!parsed.ok) throw new Error(`levels/${f} invalid: ${parsed.errors.join(' | ')}`);
+      expect(() => buildTerrainSolids(parsed.level.terrain, parsed.level.killY, undefined, parsed.level.id)).not.toThrow();
+    }
+  });
+
+  // Negative control: a degenerate near-zero-width (vertical) wall throws loudly
+  // (fail at authoring/gate time, not a silent zero-width solid).
+  it('throws on a degenerate near-zero-width polyline, naming the level/polyline', () => {
+    const verticalWall: readonly Polyline[] = [[[0, 0], [0.001, -3]]];
+    expect(() => buildTerrainSolids(verticalWall, -6, undefined, 'ch1-lXX')).toThrowError(
+      /ch1-lXX polyline\[0\].*degenerate/,
+    );
+  });
+
+  // Negative control: an ambiguous near-vertical polyline (|net dx| < 0.1m over
+  // >1m of vertical extent) whose bounding box is wide enough to dodge the width
+  // guard still throws — the net-dx face rule can't pick the solid side.
+  it('throws on an ambiguous near-vertical (mixed) polyline', () => {
+    // First→last net dx = 0.05 (< 0.1), 5m vertical extent, but hExtent 1.05m so
+    // it clears the width guard and must trip the AMBIGUITY guard instead.
+    const mixedWall: readonly Polyline[] = [[[0, 0], [1, -2.5], [0.05, -5]]];
+    expect(() => buildTerrainSolids(mixedWall, -6, undefined, 'ch1-lYY')).toThrowError(
+      /ch1-lYY polyline\[0\].*ambiguous solid side/,
+    );
+  });
+
+  // A wide, clearly-directional feature (the fixture pillar |net dx| = 2m) is NOT
+  // flagged — the guard only rejects genuine degeneracy/ambiguity.
+  it('does not flag a clearly-directional feature (guard is not over-eager)', () => {
+    expect(() => buildTerrainSolids(FIXTURE_TERRAIN, FIXTURE_KILL_Y)).not.toThrow();
+  });
+});
+
 describe('clipStrokeToSolids — clip behavior', () => {
   it('open-air stroke is returned UNCHANGED (byte-identical no-op)', () => {
     const arc: readonly Point[] = [
@@ -113,6 +151,7 @@ describe('clipStrokeToSolids — clip behavior', () => {
     expect(result.clipped).toBe(false);
     expect(result.longestRun).toBe(arc); // same reference — no float drift
     expect(result.runs).toEqual([arc]);
+    expect(result.outsideFraction).toBe(1); // fully open-air
   });
 
   it('a stroke fully inside a solid yields NO usable run (rejection path)', () => {
@@ -124,6 +163,7 @@ describe('clipStrokeToSolids — clip behavior', () => {
     const result = clipStrokeToSolids(buried, SOLIDS);
     expect(result.clipped).toBe(true);
     expect(result.longestRun).toHaveLength(0);
+    expect(result.outsideFraction).toBe(0); // wholly buried → nothing outside
   });
 
   it('crossing one wall clips FLUSH at the surface (single kept run)', () => {
@@ -219,6 +259,10 @@ describe('GameSimulation — commitStroke terrain clipping', () => {
       ]);
       expect(result.committed).toBe(true);
       if (result.committed) {
+        // A real clip commit (not the fallback): the line touched solid and the
+        // clipped LONGEST run was long enough to keep, so no fallback was needed.
+        expect(result.clipApplied).toBe(true);
+        expect(result.usedFallback).toBe(false);
         // The committed line's BODY no longer passes through solid ground
         // (flush endpoints sit on the surface; check off-boundary midpoints).
         for (let i = 0; i < result.stroke.length - 1; i++) {
@@ -232,10 +276,13 @@ describe('GameSimulation — commitStroke terrain clipping', () => {
     }
   });
 
-  it('falls back to the unclipped line when clipping leaves no usable run', () => {
-    // Best-effort clip: a valid-length line whose clipped runs are all sub-minimum
-    // (e.g. hugging concave/staircase terrain) must NOT be denied — it commits
-    // unclipped rather than trapping the player in the drawing phase.
+  it('REJECTS a fully-buried stroke (no line may live inside solids — review F1)', () => {
+    // Corrected test (review F1, codex 2026-07-08 finding #1): the prior version
+    // codified the bug — a stroke drawn WHOLLY inside the pillar committed via an
+    // unconditional fallback, violating "no committed line inside solids". A
+    // buried stroke has outsideFraction 0 (measured), far below
+    // FALLBACK_MIN_OUTSIDE_FRACTION, so it must be DENIED with discard feedback,
+    // not rescued.
     const sim = new GameSimulation(fixtureLevel(), { world });
     try {
       const result = sim.commitStroke([
@@ -243,7 +290,36 @@ describe('GameSimulation — commitStroke terrain clipping', () => {
         { x: 0, y: -2.5 },
         { x: 0.4, y: -2 },
       ]);
+      expect(result.committed).toBe(false); // denied, not a bypass commit
+      if (!result.committed) {
+        // clip leaves NO usable run (empty longestRun) → discard feedback.
+        expect(result.reason).toBe('tooFewPoints');
+      }
+    } finally {
+      sim.destroy();
+    }
+  });
+
+  it('FALLS BACK to the unclipped line for a predominantly-outside hugging stroke (review F1)', () => {
+    // A line that hugs the plateau but only dips a little past the surface skin
+    // fragments into sub-minimum outside runs while staying PREDOMINANTLY outside
+    // (outsideFraction 0.75, measured — above FALLBACK_MIN_OUTSIDE_FRACTION 0.6).
+    // Best-effort: commit the unclipped line rather than trap the player, and the
+    // result flags usedFallback so gate/authoring consumers can see it.
+    const sim = new GameSimulation(fixtureLevel(), { world });
+    try {
+      const result = sim.commitStroke([
+        { x: -0.6, y: -0.4 },
+        { x: -0.3, y: -0.7 },
+        { x: 0, y: -1.0 },
+        { x: 0.3, y: -0.7 },
+        { x: 0.6, y: -0.4 },
+      ]);
       expect(result.committed).toBe(true); // fallback commit, not a denied draw
+      if (result.committed) {
+        expect(result.usedFallback).toBe(true);
+        expect(result.clipApplied).toBe(true);
+      }
     } finally {
       sim.destroy();
     }
@@ -262,6 +338,8 @@ describe('GameSimulation — commitStroke terrain clipping', () => {
       expect(result.committed).toBe(true);
       expect(expected.discarded).toBe(false);
       if (result.committed && !expected.discarded) {
+        expect(result.clipApplied).toBe(false); // open-air no-op, no clip
+        expect(result.usedFallback).toBe(false);
         expect(result.length).toBeCloseTo(expected.totalLength, 12);
         expect(result.segments).toBe(expected.segments.length);
       }

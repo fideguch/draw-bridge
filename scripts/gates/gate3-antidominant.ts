@@ -5,6 +5,20 @@
  * straight rim-to-rim segment plus height variants {0, +0.5, +1.0} m; ink
  * clamp counts over-budget candidates as failed (`infeasible(budget)`); the
  * gate passes iff EVERY candidate fails.
+ *
+ * PLAYER-FAITHFUL SEMANTICS (review F2). Each candidate is run through
+ * runScriptedAttempt -> GameSimulation.commitStroke, i.e. the EXACT commit path
+ * a real player's stroke takes: terrain clipping first (no line may live inside
+ * a solid), then the predominantly-outside fallback (GameSimulation F1). Since a
+ * real player also cannot draw through terrain, testing the post-clip candidate
+ * is not a weakening of the straight-line strategy — it IS the strongest line a
+ * player pursuing that strategy can actually commit. So the bot verdict remains
+ * a clean proof: if even the clipped/committed dominant line cannot clear, no
+ * player drawing it can. Each candidate's commit disposition is classified
+ * (clean / clipped / fallback / rejected) and surfaced (stderr + the gate line's
+ * `warnings`) so the verdict is interpretable. INTEGRITY ASSERTION: a candidate
+ * must never commit UNCLIPPED THROUGH terrain (the F1 fallback) — that would
+ * mean testing a line no player could draw; such a candidate fails the gate.
  */
 import { validateLevel, type Level, type Point, type Polyline } from '../../src/engine/level/LevelSchema';
 import { runScriptedAttempt } from '../../src/engine/replay/GhostPlayer';
@@ -77,7 +91,7 @@ export function detectRims(level: Level): { rimA: Point; rimB: Point } | null {
   return { rimA, rimB };
 }
 
-export function gate3Check(loaded: { json: unknown }): { errors: string[] } {
+export function gate3Check(loaded: { json: unknown }): { errors: string[]; warnings?: string[] } {
   const parsed = validateLevel(loaded.json);
   if (!parsed.ok) {
     return { errors: [`gate0-invalid level (run gate0 first): ${parsed.errors[0] ?? 'unknown'}`] };
@@ -95,26 +109,60 @@ export function gate3Check(loaded: { json: unknown }): { errors: string[] } {
   const flagCenterX = level.goalFlag.x + level.goalFlag.width / 2;
   const travelSign = flagCenterX >= level.vehicleSpawn.x ? 1 : -1;
   const errors: string[] = [];
+  const warnings: string[] = [];
   for (const offset of HEIGHT_OFFSETS) {
     for (const overlap of OVERLAP_EXTENSIONS) {
+      const tag = `offset +${offset}m overlap ${overlap}m`;
       const a: Point = { x: rims.rimA.x - travelSign * overlap, y: rims.rimA.y + offset };
       const b: Point = { x: rims.rimB.x + travelSign * overlap, y: rims.rimB.y + offset };
       const length = Math.hypot(b.x - a.x, b.y - a.y);
       if (length > level.inkBudget) {
         // infeasible(budget) — counts as a failed attempt (economy layer defense).
+        classifyCandidate(level.id, tag, 'rejected(infeasible-budget)', warnings);
         continue;
       }
       // Two interior points keep the resampler direction stable on long segments.
       const stroke: Point[] = [a, lerpPoint(a, b, 1 / 3), lerpPoint(a, b, 2 / 3), b];
       const result = runScriptedAttempt(level, stroke, { world: getBotWorld() });
+
+      // Classify the commit disposition through the SAME player commit path
+      // (clip + F1 fallback) so the verdict is interpretable (review F2).
+      const disposition = !result.committed
+        ? `rejected(${result.reason})`
+        : result.usedFallback
+          ? 'fallback(UNCLIPPED-through-terrain)'
+          : result.clipApplied
+            ? 'clipped'
+            : 'clean';
+      classifyCandidate(level.id, tag, `${disposition} -> ${result.committed ? result.outcome : 'no-commit'}`, warnings);
+
+      if (result.committed && result.usedFallback) {
+        // INTEGRITY: after F1 no Gate 3 candidate should commit unclipped through
+        // terrain — that would test a line no player could actually draw.
+        errors.push(
+          `straight-line bot committed UNCLIPPED THROUGH terrain (F1 fallback) at ${tag} — Gate 3 candidate is not player-faithful`,
+        );
+      }
       if (result.committed && result.outcome === 'clear') {
         errors.push(
-          `straight-line bot CLEARED at offset +${offset}m overlap ${overlap}m (ticks ${result.ticks}) — anti-dominant contract violated`,
+          `straight-line bot CLEARED at ${tag} (ticks ${result.ticks}) — anti-dominant contract violated`,
         );
       }
     }
   }
-  return { errors };
+  return { errors, warnings };
+}
+
+/**
+ * Record a candidate's commit disposition: a compact human line to stderr (the
+ * gate CLI's output discipline: stdout = NDJSON, human logs -> stderr) plus a
+ * `warnings` entry carried on the gate line so verdicts stay interpretable.
+ */
+function classifyCandidate(levelId: string, tag: string, disposition: string, warnings: string[]): void {
+  warnings.push(`${tag}: ${disposition}`);
+  if (!process.env['VITEST']) {
+    process.stderr.write(`gate3 ${levelId} candidate ${tag}: ${disposition}\n`);
+  }
 }
 
 function lerpPoint(a: Point, b: Point, t: number): Point {

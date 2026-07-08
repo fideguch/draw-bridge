@@ -80,6 +80,10 @@ export type ScriptedAttemptResult =
       readonly starRating: StarCount | null;
       /** Committed simplified polyline — what a ghost persists (GhostSolution.stroke). */
       readonly stroke: readonly Point[];
+      /** True when terrain clipping altered the committed stroke (review F2). */
+      readonly clipApplied: boolean;
+      /** True when the UNCLIPPED line was committed via the F1 fallback (review F2). */
+      readonly usedFallback: boolean;
     };
 
 export interface ScriptedAttemptOptions {
@@ -133,6 +137,8 @@ export function runScriptedAttempt(
         inkConsumed: outcome.inkConsumed,
         starRating: outcome.starRating,
         stroke: commit.stroke,
+        clipApplied: commit.clipApplied,
+        usedFallback: commit.usedFallback,
       };
     }
     return {
@@ -144,6 +150,8 @@ export function runScriptedAttempt(
       inkConsumed: commit.length,
       starRating: null,
       stroke: commit.stroke,
+      clipApplied: commit.clipApplied,
+      usedFallback: commit.usedFallback,
     };
   } finally {
     simulation.destroy();
