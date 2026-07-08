@@ -426,67 +426,75 @@ export const CH1_SOURCES: readonly LevelSource[] = [
     strokes: [{ kind: 'any', role: 'flat-hug', points: arch(-3.5, 0.15, 3.45, 0.15, 0.18) }],
   },
 
-  // L10 — MID CLIMAX: TWO-TIER U (A9). Goal across AND 1.5m BELOW the start;
-  // the widest chasm yet (7m) with a deep central shelf. The stroke descends
-  // into the basin, glides across the shelf, and rises out to the lower far
-  // bank (2 bends, span_y ~2.6m of DOWNWARD portrait usage). AD: no straight
-  // survives — 7m rim-to-rim chords fall or tip on the violent deep-shelf
-  // catch, overlapped ones tip over (probed all 9 fail).
+  // L10 — MID CLIMAX: TWO-TIER U (A9). Goal across AND 1.0m BELOW the start; a
+  // 7m chasm with a central shelf. The stroke descends into a basin, glides
+  // across the shelf, and rises out to the lower far bank.
+  // ROBUSTNESS FIX (2026-07-08, campaign.spec.ts): the shipped U bottomed at
+  // -1.92 and the car reliably STALLED in the basin under real (low-resolution)
+  // drawing — the frame shows the whole deep pit, so at the level's px/m the
+  // pointer-thinning deviation was ~0.3m and the near-zero-margin climb-out
+  // died (headless fuzz clear-rate 73%, deterministic E2E timeout at x≈0).
+  // Shallower U (bottom -1.2), a higher shelf (-1.9), a higher far bank (-1.0)
+  // and a shallower pit (chasm -5.0, raising drawing px/m) restore climb-out
+  // margin WITHOUT feeding the anti-dominant straights (Gate 3 re-verified: 7m
+  // rim-to-rim chords still fall into the gap / teeter off the narrow shelf).
   {
     id: 'ch1-l10',
-    design: 'A9 CLIMAX · two-tier U · 7m chasm · goal 1.5m BELOW start (AD)',
+    design: 'A9 CLIMAX · U-glide · 7m chasm · goal 1.0m BELOW start (AD)',
     inkFeel: 'standard',
     gimmickTags: ['anti-dominant'],
     maxTicks: 1800,
     terrain: [
-      ...twoPlatforms({ leftFar: -13, leftRim: -3.5, leftY: 0, rightRim: 3.5, rightY: -1.5, rightFar: 16, chasmY: -6.8 }),
-      // Deep NARROW shelf: the chain sags onto it mid-U (support) but a falling
-      // straight lands violently and teeters off (halfTop 0.6 — probed: wider
-      // 1.0 tops let one floating straight settle into a rideable ramp).
-      pillar(0, -2.4, -6.8, 0.6, 1.2),
+      ...twoPlatforms({ leftFar: -13, leftRim: -3.5, leftY: 0, rightRim: 3.5, rightY: -1.0, rightFar: 16, chasmY: -5.0 }),
+      // NARROW shelf: the chain sags onto it mid-U (support) but a falling
+      // straight teeters off (halfTop 0.6 — wider 1.0 tops let a floating
+      // straight settle into a rideable ramp, breaking anti-dominance).
+      pillar(0, -1.9, -5.0, 0.6, 1.2),
     ],
     vehicleSpawn: p(-5.8, 0.6),
-    goalFlag: flag(5.1, -1.5, 1.0, 2.2),
-    killY: -8.2,
-    coins: [...coinLine(-2.6, -0.6, -1.0, -1.4, 4), ...coinLine(0.9, -1.4, 2.6, -1.0, 4)],
+    goalFlag: flag(5.1, -1.0, 1.0, 2.2),
+    killY: -6.0,
+    coins: [...coinLine(-2.6, -0.3, -1.0, -0.9, 4), ...coinLine(0.9, -0.9, 2.6, -0.6, 4)],
     strokes: [
       {
         kind: 'any',
         role: 'u-glide',
-        // Probed 4x on a recycled world: clears every run (t 250-254); all 9
-        // bot candidates fail 3/3 runs each.
         points: spline([
           p(-3.9, 0.12),
-          p(-2.7, -0.9),
-          p(-1.5, -1.65),
-          p(-0.4, -1.92),
-          p(0.7, -1.88),
-          p(1.8, -1.68),
-          p(3.9, -1.36),
+          p(-2.7, -0.5),
+          p(-1.5, -0.95),
+          p(-0.4, -1.2),
+          p(0.7, -1.15),
+          p(1.8, -0.95),
+          p(3.9, -0.85),
         ]),
       },
     ],
   },
 
   // B2 — bonus after L10: DESCENT + triple coin arch (goal below the high start).
+  // ROBUSTNESS FIX (2026-07-08, campaign.spec.ts): the shipped 2.6m variant pitched
+  // the fast car onto its roof at the descent foot under real drawing (fuzz 78%,
+  // deterministic E2E tipOver at x≈2). This now ADOPTS L6's proven descent recipe
+  // verbatim (leftY 3.0 · spawn 3.6 · arch(-2.0,3.15,2.0,0.15,0.28) — measured
+  // 100% robust) and only extends the far bank (rightFar 20, goal 5.2) for the
+  // bonus long run, which the car crosses on flat ground.
   {
     id: 'ch1-b2',
-    design: 'A12 bonus · DESCENT run · goal 2.6m below start · coin arches',
+    design: 'A12 bonus · DESCENT run · goal 3.0m below start · long coin run',
     inkFeel: 'generous',
     bonusMultiplier: 7,
-    // Wider rims (±1.5, matching L6's proven descent recipe) keep the landing
-    // stable — the narrower ±1.2 gap pitched the car over on the fast descent.
-    terrain: twoPlatforms({ leftFar: -12, leftRim: -1.5, leftY: 2.6, rightRim: 1.5, rightY: 0, rightFar: 20, chasmY: -5 }),
-    vehicleSpawn: p(-4.0, 3.2),
+    terrain: twoPlatforms({ leftFar: -12, leftRim: -1.5, leftY: 3.0, rightRim: 1.5, rightY: 0, rightFar: 20, chasmY: -5 }),
+    vehicleSpawn: p(-4.0, 3.6),
     goalFlag: flag(5.2, 0, 1.5, 2.5),
     killY: -6,
     coins: [
       ...coinArc(0.2, 1.6, 5, 0.5, 0.4),
-      ...coinArc(2.6, 1.1, 6, 0.45, 0.5),
-      ...coinArc(4.4, 0.9, 5, 0.4, 0.45),
+      ...coinArc(2.6, 1.0, 6, 0.45, 0.45),
+      ...coinArc(4.4, 0.85, 5, 0.4, 0.4),
     ],
     gimmickTags: [],
-    strokes: [{ kind: 'any', role: 'descent-arch', points: arch(-2.0, 2.75, 2.0, 0.15, 0.28) }],
+    strokes: [{ kind: 'any', role: 'descent-arch', points: arch(-2.0, 3.15, 2.0, 0.15, 0.28) }],
   },
 
   // L11 — breather-ish CLIMB (+1.8m) after the climax; gentler slope. AD.
@@ -506,37 +514,47 @@ export const CH1_SOURCES: readonly LevelSource[] = [
 
   // L12 — OVERHANG DUCK-UNDER (A5): a rock lip (winding-reversed, underside
   // solid) protrudes from the left rim over the gorge at 1.5->1.25m. The
-  // natural climb arch to the +2.4m ledge collides with the lip (probed: the
-  // arch is at ~1.48m under the lip tip); the line must HUG LOW under the lip,
-  // then sweep up — a smooth S with 2 bends. Straights still die on the
-  // raised-goal/deep-pit mechanism (probed all 9 fail; ov2 infeasible).
+  // natural climb arch to the raised ledge collides with the lip; the line must
+  // HUG LOW under the lip, then sweep up — a smooth S with 2 bends. Straights
+  // still die on the raised-goal/deep-pit mechanism (Gate 3: all 9 fail).
+  // ROBUSTNESS FIX (2026-07-08, campaign.spec.ts): the shipped +2.4 ledge forced
+  // a climb steep enough that the crest CATAPULTED the car onto its roof at the
+  // summit under real drawing (E2E tipOver/timeout at x≈2-4). Lowering the ledge
+  // to +2.0 gentles the crest so the car settles upright, while the lip still
+  // blocks the natural high arch (duck-under intact).
   {
     id: 'ch1-l12',
-    design: 'A5 OVERHANG duck-under · 5m gorge · low hug then climb +2.4m (AD)',
+    design: 'A5 OVERHANG duck-under · 5m gorge · low hug then climb +2.0m (AD)',
     inkFeel: 'standard',
     gimmickTags: ['anti-dominant'],
     maxTicks: 1800,
     terrain: [
-      ...twoPlatforms({ leftFar: -12, leftRim: -2.5, leftY: 0, rightRim: 2.5, rightY: 2.4, rightFar: 15, chasmY: -6.5 }),
+      ...twoPlatforms({ leftFar: -12, leftRim: -2.5, leftY: 0, rightRim: 2.5, rightY: 2.0, rightFar: 15, chasmY: -6.5 }),
       ceiling(-2.25, -0.55, 1.5, 1.25), // rock lip over the left half of the gorge
     ],
     vehicleSpawn: p(-5.0, 0.6),
-    goalFlag: flag(4.4, 2.4, 1.0, 2.2),
+    goalFlag: flag(4.4, 2.0, 1.0, 2.2),
     killY: -8,
-    coins: [...coinLine(-1.9, 0.62, -0.7, 0.66, 4), ...coinLine(0.4, 1.5, 2.6, 2.8, 4)],
+    coins: [...coinLine(-1.9, 0.44, -0.7, 0.48, 4), ...coinLine(0.4, 1.25, 2.6, 2.1, 4)],
     strokes: [
       {
         kind: 'any',
         role: 'duck-under-S',
+        // ROBUSTNESS FIX (2026-07-08, campaign.spec.ts): the shipped hug sat at
+        // y≈0.1 — barely above the platform lip — so real-drawing jitter sank the
+        // onramp below the rim and the car STALLED at the start (fuzz 83%,
+        // deterministic E2E timeout at x≈-2.6). Raising the hug to ~0.3 keeps it
+        // well under the overhang lip (1.25) while clearing the platform edge, so
+        // the car reliably mounts the bridge and completes the +2.4 climb.
         points: spline([
-          p(-3.0, 0.16),
-          p(-1.8, 0.1),
-          p(-0.6, 0.14),
-          p(0.3, 0.62),
-          p(1.2, 1.35),
-          p(2.1, 2.0),
-          p(3.0, 2.42),
-          p(3.6, 2.6),
+          p(-3.2, 0.2),
+          p(-1.9, 0.3),
+          p(-0.6, 0.34),
+          p(0.3, 0.66),
+          p(1.2, 1.15),
+          p(2.1, 1.65),
+          p(3.0, 2.02),
+          p(3.8, 2.2),
         ]),
       },
     ],
@@ -565,16 +583,19 @@ export const CH1_SOURCES: readonly LevelSource[] = [
   // L14 — SWITCHBACK DESCENT (A10): the goal sits 2.6m BELOW the start. A
   // two-terrace stair is carved into the LEFT platform (BEHIND the gap rim —
   // physically unreachable by rim-to-rim straights), then a rock spike rises
-  // from the chasm to -0.65m just past the stair exit: every straight chord
-  // crosses well BELOW the tip and dies on its faces (probed: all 9 fail —
-  // divergence/timeout/fall chewed up by the spike). The intended line is a
-  // W: zig-zag down the stair (2 bends), hump up OVER the spike tip using the
-  // stair momentum (3rd bend), long descent to the low bank (4th) — the
-  // longest stroke in the chapter (~10.5m), ~2.7m of downward portrait span.
-  // Ghost re-probed 4x on a recycled world: clears every run (t 308-329).
+  // from the chasm just past the stair exit: every straight chord crosses well
+  // BELOW the tip and dies on its faces (Gate 3: all 9 straight candidates fail).
+  // The intended line is a gentle W: descend the stair, a shallow hump OVER the
+  // spike tip, long descent to the low bank.
+  // ROBUSTNESS FIX (2026-07-08, campaign.spec.ts): the shipped tip (-0.65) forced
+  // a 1.1m hump that reliably TIPPED the fast car under real drawing (fuzz 57%,
+  // and even the recycled-world authoring drift flipped the ghost to a tipOver).
+  // Lowering the spike to -1.3 and flattening the hump (peak -1.15) keeps the
+  // spike blocking every low straight (Gate 3 re-verified) while giving the car
+  // a stable, gently-curved descent it can hold under input deviation.
   {
     id: 'ch1-l14',
-    design: 'A10 SWITCHBACK · stair down 2 terraces + spike hump · goal 2.6m BELOW (AD)',
+    design: 'A10 SWITCHBACK · stair down 2 terraces + gentle spike hump · goal 2.6m BELOW (AD)',
     inkFeel: 'standard',
     gimmickTags: ['anti-dominant'],
     maxTicks: 1800,
@@ -594,30 +615,33 @@ export const CH1_SOURCES: readonly LevelSource[] = [
         [3.4, -2.6],
         [15, -2.6],
       ],
-      spike(-0.4, -0.65, -7.0, 1.0), // spike just past the stair — straight-line killer
+      // Tip at -0.7 blocks every lifted+overlapped straight (Gate 3 re-verified)
+      // while the gentle, WIDE hump threads ~0.18m over it — the shipped build's
+      // fragility was the SHARP apex, not the height, so widening the hump keeps
+      // the fast car stable even over a spike tall enough to defeat the straights.
+      spike(-0.4, -0.7, -7.0, 1.0), // spike just past the stair — straight-line killer
     ],
     vehicleSpawn: p(-5.9, 0.6),
     goalFlag: flag(3.9, -2.6, 1.1, 2.2),
     killY: -8.5,
-    coins: [...coinLine(-4.4, -0.3, -2.9, -1.2, 4), ...coinArc(-0.4, 0.0, 5, 0.55, 0.25), ...coinLine(1.6, -0.9, 3.0, -1.8, 4)],
+    coins: [...coinLine(-4.2, -0.6, -2.6, -1.2, 4), ...coinLine(-1.0, -0.85, 0.6, -0.85, 4), ...coinLine(1.6, -1.5, 3.2, -2.35, 4)],
     strokes: [
       {
         kind: 'any',
         role: 'switchback-W',
         points: spline([
           p(-5.3, 0.12),
-          p(-4.7, -0.35),
-          p(-4.2, -0.78),
-          p(-3.6, -0.8),
-          p(-3.2, -1.35),
-          p(-2.75, -1.62),
+          p(-4.6, -0.45),
+          p(-3.8, -0.88),
+          p(-2.9, -1.15),
           p(-1.9, -1.2),
-          p(-1.1, -0.72),
-          p(-0.4, -0.5),
-          p(0.4, -0.75),
-          p(1.4, -1.25),
-          p(2.6, -1.9),
-          p(3.8, -2.45),
+          p(-1.0, -0.9),
+          p(-0.4, -0.52),
+          p(0.2, -0.68),
+          p(1.0, -1.15),
+          p(2.0, -1.75),
+          p(3.0, -2.25),
+          p(3.8, -2.55),
         ]),
       },
     ],
