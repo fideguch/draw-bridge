@@ -10,11 +10,12 @@
  *      (= simplified arc length) and the raw stroke length are pure functions of
  *      the stroke, so this pass is budget-independent; it just proves the stroke
  *      CLEARS and yields the numbers the thresholds are derived from.
- *   2. DERIVE — star3 = tightRefInk x 1.05, star2 = tightRefInk x 1.25 (task
- *      spec), inkBudget from the per-level "ink feel" (generous/standard/tight)
- *      but never below what every candidate needs to commit. Explicit overrides
- *      win (anti-dominant budget tuning). Ordering 0 < star3 < star2 <= budget
- *      is asserted (validateLevel re-checks it).
+ *   2. DERIVE — star3 = tightRefInk x 1.10, star2 = tightRefInk x 1.35
+ *      (research/11 §3.3 minimal-solution-relative stars), inkBudget from the
+ *      per-level "ink feel" (generous 3.0 / standard 2.5 / tight 2.0) but never
+ *      below what every candidate needs to commit. Explicit src.inkBudget wins
+ *      (the >=1.8x geometry-can't-defeat-a-straight escape hatch). Ordering
+ *      0 < star3 < star2 <= budget is asserted (validateLevel re-checks it).
  *   3. RECORD pass — re-run each stroke against the FINAL level, sampling the
  *      VehicleReferencePoint every 10 ticks + a final sample at the outcome tick
  *      (validator requires last-sample == result). '3star' strokes must replay
@@ -54,11 +55,18 @@ import type { LevelSource, StrokeSource } from './ch1';
 /** Ghost sampling cadence (ticks). Matches the fixture + FR-026 playback. */
 const SAMPLE_EVERY_TICKS = 10;
 
-/** inkBudget = feelFactor x tight-reference ink (game_design §6 legend). */
+/**
+ * inkBudget = feelFactor x tight-reference ink (research/11 §3.2 v3 policy).
+ * RAISED from the shipped 2.6/2.0/1.5 to answer the #1 device complaint
+ * ("初期インクが少なすぎてステージが単純"): every board now lets the player draw
+ * ~2-3x the minimal solution, so shaping the bridge creatively is possible.
+ * Straight-line dominance is defeated by GEOMETRY + Gate 3, never by ink
+ * starvation. The tight floor is 2.0x (never back to 1.5x).
+ */
 const FEEL_FACTOR: Record<LevelSource['inkFeel'], number> = {
-  generous: 2.6, // ~2.5-3.0x min span
-  standard: 2.0, // ~1.8-2.2x min span
-  tight: 1.5, // ~1.3-1.6x min span
+  generous: 3.0, // Tutorial (L1-L2) / Bonus (B1-B3) / breathers — draw lavishly
+  standard: 2.5, // mid-game main line — room to try curves; efficiency -> stars
+  tight: 2.0, // late-game / Boss — precision rewarded but still creative-feasible
 };
 
 function round2(value: number): number {
@@ -163,24 +171,29 @@ function deriveEconomy(
 ): { inkBudget: number; starThresholds: { star2: number; star3: number } } {
   const tightInk = referenceInk(measured);
   const maxRawLen = Math.max(...measured.map((m) => m.rawLen));
-  const isAntiDominant = src.gimmickTags.includes('anti-dominant');
 
-  // Anti-dominant TIGHT-BUDGET mode (economy defense, game_design §5.5): the
-  // budget is pinned just above the solution so the long overlapped straight
-  // candidates exceed it and Gate 3 SKIPS them (`infeasible(budget)`), keeping
-  // the fresh-world count per Gate 3 process under the phaser-box2d 32-slot cap
-  // (World header). These levels carry only 'any' ghosts (no 3-star assertion),
-  // so the star thresholds are set relative to the tight budget, not +5/+25%.
+  // INK POLICY v3 (research/11 §3): the anti-dominant TIGHT-BUDGET override is
+  // GONE. Every level's clear budget is feelFactor x the minimal-solution ink
+  // (generous 3.0 / standard 2.5 / tight 2.0), so even the tightest board lets
+  // the player draw ~2x the minimal solution. Straight-line dominance is now
+  // defeated purely by GEOMETRY + Gate 3 (a raised bank sag, a wall, a spike, a
+  // low ceiling, a deep pit), never by ink starvation. Stars are minimal-solution
+  // relative (Happy Glass "less is better"): gold star3 <= min x 1.10, silver
+  // star2 <= min x 1.35, bronze = clear within budget. AD boards now carry a
+  // kind:'3star' reference ghost so Gate 2 asserts the gold target on every
+  // level (the efficiency axis, previously dead on AD boards, is now live).
+  //
+  // ESCAPE HATCH: a rare board where geometry alone cannot fail every overlapped
+  // straight (research §1.3) may pin a local budget via src.inkBudget — kept
+  // >= 1.8x min so it never reverts to ink starvation.
+  const defaultStars = { star3: round2(tightInk * 1.1), star2: round2(tightInk * 1.35) };
   let inkBudget: number;
   let starThresholds: { star2: number; star3: number };
   if (src.inkBudget !== undefined || src.starThresholds !== undefined) {
     inkBudget = round2(src.inkBudget ?? tightInk * FEEL_FACTOR[src.inkFeel]);
-    starThresholds = src.starThresholds ?? { star3: round2(tightInk * 1.05), star2: round2(tightInk * 1.25) };
-  } else if (isAntiDominant) {
-    inkBudget = round2(Math.max(maxRawLen * 1.06, tightInk * 1.08));
-    starThresholds = { star2: round2(inkBudget * 0.95), star3: round2(inkBudget * 0.75) };
+    starThresholds = src.starThresholds ?? defaultStars;
   } else {
-    starThresholds = { star3: round2(tightInk * 1.05), star2: round2(tightInk * 1.25) };
+    starThresholds = defaultStars;
     inkBudget = round2(
       Math.max(
         tightInk * FEEL_FACTOR[src.inkFeel],

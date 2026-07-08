@@ -52,10 +52,10 @@
     "height": 2.2
   },
   "killY": -8,
-  "inkBudget": 8,
+  "inkBudget": 18.53,
   "starThresholds": {
-    "star2": 7.6,
-    "star3": 6
+    "star3": 8.15,
+    "star2": 10
   },
   "coins": [
     {
@@ -96,7 +96,7 @@
   ],
   "ghostSolutions": [
     {
-      "kind": "any",
+      "kind": "3star",
       "stroke": [
         [
           -3.2,
@@ -260,8 +260,8 @@
           "x": 4.4580995893877535,
           "y": 3.2234295833012405
         },
-        "inkConsumed": 7.410489174707157,
-        "starRating": 2
+        "inkConsumed": 7.410489174707159,
+        "starRating": 3
       }
     }
   ],

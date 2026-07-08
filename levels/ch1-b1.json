@@ -42,10 +42,10 @@
     "height": 2.5
   },
   "killY": -6,
-  "inkBudget": 11.44,
+  "inkBudget": 13.2,
   "starThresholds": {
-    "star3": 4.62,
-    "star2": 5.5
+    "star3": 4.84,
+    "star2": 5.94
   },
   "coins": [
     {
