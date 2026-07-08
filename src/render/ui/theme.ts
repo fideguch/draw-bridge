@@ -40,6 +40,14 @@ export const color = {
   stressHigh: 0xff3b30,
   goalFlag: 0xff4f9a,
   carBody: 0xff7a1a,
+  // Sporty vehicle accents (additive — VehicleRenderer + Home scenery car).
+  carBodyDark: 0xe0590b, // lower-body / belly ambient-occlusion shade
+  carRoof: 0x323a5e, // cabin / roof — cool steel-blue contrast to the orange body
+  carGlass: 0x9bd9ff, // windshield + side window glass
+  carStripe: 0xfdf6e8, // racing beltline stripe (cream)
+  carHeadlight: 0xfff1a8, // front headlight glow
+  carTailLight: 0xff4632, // rear tail-light dot
+  carRim: 0xe9e4d4, // alloy wheel rim face (silver-cream)
   coin: 0xffe14d,
   coinStroke: 0x8c6d1f,
   star: 0xffe14d,

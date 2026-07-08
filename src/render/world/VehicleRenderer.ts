@@ -1,24 +1,36 @@
 /**
- * VehicleRenderer — chassis + 2 wheels from the live vehicle bodies (T047,
- * FR-005, game_design §4.2 2-4).
+ * VehicleRenderer — a sporty little rally car drawn from the live vehicle bodies
+ * (T047, FR-005, game_design §4.2 2-4).
  *
  * Reads the chassis and both wheel transforms every frame (interpolated across
- * the fixed step) and draws:
- * - a rounded-box chassis (colorCarBody + colorInkBorder outline) at the real
- *   chassis position/rotation,
- * - two wheels (colorInkBorder discs) at their real body positions, each with a
- *   spoke cross rotated by the ACTUAL wheel body angle so spin is visible,
+ * the fixed step) and draws, FILL-ONLY (no Graphics stroke* — research
+ * 08_mobile_quality §3), out of src/render/ui/fillShapes primitives:
+ * - a rounded-box chassis at the real chassis pose, layered into a car
+ *   silhouette: darker-orange belly shadow (volume), a cream racing beltline, a
+ *   steel-blue cabin with a raked windshield + side glass, and head/tail lights,
+ * - two alloy wheels at their real body positions — dark tyre + silver rim +
+ *   5 spokes + a body-coloured hub cap, the spokes rotated by the ACTUAL wheel
+ *   body angle so spin stays legible,
  * - suspension travel shows for free: the wheels are drawn at their true body
  *   positions relative to the chassis (no faked bounce — the wheel joints move
- *   them).
+ *   them). Wheels draw BEFORE the chassis so the body tucks over the wheel tops,
+ *   giving the wheel-arch cutout illusion.
  *
  * Rotation sign: world is y-up, the render frame is y-down (worldToPixel), so a
- * world angle θ renders as screen angle -θ.
+ * world angle θ renders as screen angle -θ. In the chassis-local frame +x is
+ * forward (the car faces +x) and -y is up (roof), +y is down (belly).
  */
 
 import type Phaser from 'phaser';
 import type { Vehicle } from '@engine/physics/Vehicle';
-import { borderedRoundedRect } from '@render/ui/fillShapes';
+import {
+  borderedCircle,
+  borderedPolygon,
+  borderedRoundedRect,
+  clampRadius,
+  fillThickPolyline,
+  type Vec2,
+} from '@render/ui/fillShapes';
 import { color, stroke as strokeToken } from '@render/ui/theme';
 import { car, launch } from '@tuning/TuningConstants';
 import { degToRad } from '@render/juice/cameraMath';
@@ -77,7 +89,7 @@ export class VehicleRenderer {
     this.graphics.scaleCanvas(this.squash.x, this.squash.y);
     this.graphics.rotateCanvas(this.squash.tilt);
     this.graphics.translateCanvas(-pivot.x, -pivot.y);
-    // Wheels first so the chassis body overlaps their inner edge.
+    // Wheels first so the chassis body overlaps their inner edge (arch tuck).
     this.drawWheel(rearWheel);
     this.drawWheel(frontWheel);
     this.drawChassis(chassis);
@@ -146,47 +158,145 @@ export class VehicleRenderer {
     ];
   }
 
+  /** Paint the whole car body (chassis pose): base + belly + stripe + cabin + lights. */
   private drawChassis(pose: Pose): void {
     const px = this.transform.point(pose);
     this.graphics.save();
     this.graphics.translateCanvas(px.x, px.y);
     this.graphics.rotateCanvas(-pose.angle);
-    const width = this.chassisHalfWidthPx * 2;
-    const height = this.chassisHalfHeightPx * 2;
-    borderedRoundedRect(
-      this.graphics,
-      -this.chassisHalfWidthPx,
-      -this.chassisHalfHeightPx,
-      width,
-      height,
-      this.chassisCornerPx,
-      {
-        fill: color.carBody,
-        border: color.inkBorder,
-        // Proportional cap: at low pixels-per-meter the fixed stroke token
-        // exceeds half the chassis height and eats the body fill entirely
-        // (the all-dark-car bug, same class as the world-coin border bug).
-        borderWidth: Math.min(strokeToken.game, height * 0.18, width * 0.18),
-      },
-    );
+    const w = this.chassisHalfWidthPx;
+    const h = this.chassisHalfHeightPx;
+    this.paintBody(w, h);
+    this.paintCabin(w, h);
+    this.paintLights(w, h);
     this.graphics.restore();
   }
 
+  /** Base rounded-box body + darker belly shade + cream racing beltline stripe. */
+  private paintBody(w: number, h: number): void {
+    const g = this.graphics;
+    const width = w * 2;
+    const height = h * 2;
+    // Proportional cap: at low pixels-per-meter the fixed stroke token exceeds
+    // half the chassis height and eats the body fill entirely (the all-dark-car
+    // bug, same class as the world-coin border bug).
+    const b = Math.min(strokeToken.game, height * 0.18, width * 0.18);
+    borderedRoundedRect(g, -w, -h, width, height, this.chassisCornerPx, {
+      fill: color.carBody,
+      border: color.inkBorder,
+      borderWidth: b,
+    });
+    // Belly ambient-occlusion: darker orange over the lower ~45% for volume.
+    const bellyTop = 0.1 * h;
+    const bellyH = h - b - bellyTop;
+    if (bellyH > 0) {
+      g.fillStyle(color.carBodyDark, 1);
+      g.fillRoundedRect(
+        -w + b,
+        bellyTop,
+        width - 2 * b,
+        bellyH,
+        clampRadius(this.chassisCornerPx - b, width - 2 * b, bellyH),
+      );
+    }
+    // Cream beltline racing stripe across the upper body side.
+    const stripeH = 0.42 * h;
+    g.fillStyle(color.carStripe, 1);
+    g.fillRoundedRect(-w + b, -0.52 * h, width - 2 * b, stripeH, Math.min(stripeH * 0.5, this.chassisCornerPx));
+  }
+
+  /** Steel cabin (rear-biased, raked windshield) + side/windshield glass. */
+  private paintCabin(w: number, h: number): void {
+    const g = this.graphics;
+    const roofY = -1.86 * h; // roof height above chassis centre
+    const baseY = -0.46 * h; // cabin base sits just inside the body top
+    const cabin: Vec2[] = [
+      { x: -0.66 * w, y: baseY }, // rear-bottom (C-pillar base)
+      { x: -0.52 * w, y: roofY }, // rear-top
+      { x: 0.26 * w, y: roofY }, // front-top (wider greenhouse)
+      { x: 0.6 * w, y: baseY }, // windshield base (front) — forward rake
+    ];
+    const cabinBorder = Math.max(1, Math.min(strokeToken.game, h * 0.32));
+    borderedPolygon(g, cabin, { fill: color.carRoof, border: color.inkBorder, borderWidth: cabinBorder });
+    // Glass: a large side window + a raked windshield, split by an A-pillar gap.
+    const glassTop = roofY + h * 0.22;
+    const glassBot = baseY - h * 0.16;
+    this.fillQuad(
+      { x: -0.5 * w, y: glassTop },
+      { x: 0.02 * w, y: glassTop },
+      { x: -0.01 * w, y: glassBot },
+      { x: -0.46 * w, y: glassBot },
+      color.carGlass,
+    );
+    this.fillQuad(
+      { x: 0.15 * w, y: glassTop },
+      { x: 0.24 * w, y: glassTop },
+      { x: 0.53 * w, y: glassBot },
+      { x: 0.44 * w, y: glassBot },
+      color.carGlass,
+    );
+  }
+
+  /** Front headlight (pale glow) + rear tail-light dot. */
+  private paintLights(w: number, h: number): void {
+    const g = this.graphics;
+    const rHead = Math.max(1.5, h * 0.34);
+    borderedCircle(g, 0.86 * w, -0.36 * h, rHead, {
+      fill: color.carHeadlight,
+      border: color.inkBorder,
+      borderWidth: Math.max(1, h * 0.09),
+    });
+    g.fillStyle(color.carTailLight, 1);
+    g.fillCircle(-0.9 * w, -0.24 * h, Math.max(1.2, h * 0.22));
+  }
+
+  /** Fill a convex quad from two triangles (fill-only, borderless). */
+  private fillQuad(p1: Vec2, p2: Vec2, p3: Vec2, p4: Vec2, fill: number): void {
+    const g = this.graphics;
+    g.fillStyle(fill, 1);
+    g.fillTriangle(p1.x, p1.y, p2.x, p2.y, p3.x, p3.y);
+    g.fillTriangle(p1.x, p1.y, p3.x, p3.y, p4.x, p4.y);
+  }
+
+  /** Alloy wheel: dark tyre + silver rim + 5 rotating spokes + body-colour hub. */
   private drawWheel(pose: Pose): void {
+    const g = this.graphics;
     const px = this.transform.point(pose);
-    const radius = this.wheelRadiusPx;
-    this.graphics.save();
-    this.graphics.translateCanvas(px.x, px.y);
-    this.graphics.rotateCanvas(-pose.angle);
-    this.graphics.fillStyle(color.inkBorder, 1);
-    this.graphics.fillCircle(0, 0, radius);
-    // Spoke cross (two filled bars) rotates with the wheel body -> spin is
-    // legible. Fill-only: no strokePath (research §3).
-    const spoke = Math.max(2, radius * 0.16);
-    this.graphics.fillStyle(color.inkLine, 1);
-    this.graphics.fillRect(-radius, -spoke / 2, radius * 2, spoke);
-    this.graphics.fillRect(-spoke / 2, -radius, spoke, radius * 2);
-    this.graphics.fillCircle(0, 0, Math.max(2, radius * 0.25));
-    this.graphics.restore();
+    const r = this.wheelRadiusPx;
+    g.save();
+    g.translateCanvas(px.x, px.y);
+    g.rotateCanvas(-pose.angle);
+    // Tyre (dark disc) then silver rim face inset — leaves a tyre band.
+    g.fillStyle(color.inkBorder, 1);
+    g.fillCircle(0, 0, r);
+    g.fillStyle(color.carRim, 1);
+    g.fillCircle(0, 0, r * 0.7);
+    // 5 dark spokes from hub to rim — fill-only, rotate with the wheel body so
+    // spin stays legible (odd count = no 90° visual repeat).
+    const spokeCount = 5;
+    const spokeW = Math.max(1.5, r * 0.12);
+    const hubR = r * 0.16;
+    const rimR = r * 0.64;
+    for (let i = 0; i < spokeCount; i++) {
+      const a = (i / spokeCount) * Math.PI * 2;
+      const cos = Math.cos(a);
+      const sin = Math.sin(a);
+      fillThickPolyline(
+        g,
+        [
+          { x: cos * hubR, y: sin * hubR },
+          { x: cos * rimR, y: sin * rimR },
+        ],
+        spokeW,
+        color.inkBorder,
+      );
+    }
+    // Body-coloured hub cap with a dark rim.
+    borderedCircle(g, 0, 0, r * 0.26, {
+      fill: color.carBody,
+      border: color.inkBorder,
+      borderWidth: Math.max(1, r * 0.07),
+    });
+    g.restore();
   }
 }
