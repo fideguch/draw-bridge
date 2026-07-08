@@ -1,48 +1,53 @@
 /**
- * Chapter 1 declarative level sources — SPATIAL-PUZZLE OVERHAUL v3
- * (2026-07-08, research/11_spatial_patterns.md).
+ * Chapter 1 declarative level sources — ROLE-DIVERSE RECIPE REDESIGN v5
+ * (2026-07-08, research/12_level_recipes.md).
  *
  * Pure DATA consumed by scripts/levels/authoring.ts, which runs each candidate
- * stroke through the real engine at Lv0, derives the ink economy from measured
- * consumption (research/11 §3 v3: generous 3.0 / standard 2.5 / tight 2.0 x the
- * minimal solution — NO anti-dominant ink starvation), records ghosts, auto-places
- * coins on the driven route, and emits levels/<id>.json. Regeneration after a
- * TuningConstants change = rerun the authoring script — no hand-edited JSON.
+ * stroke through the real engine at Lv0 (WITH rocks live), derives the ink economy,
+ * records ghosts, auto-places coins on the driven CAR route, and emits
+ * levels/<id>.json. Regeneration after a TuningConstants change = rerun authoring.
  *
- * OVERHAUL INTENT (device mandate: "車と旗が近すぎ / 線1本で工夫の余地なし / 初期インクが
- * 少なくステージが単純 / 地形パターン+30で空間を意識させる脳トレ / 難易度インフレを作れ"):
- *   1. GENEROUS INK: every board now lets the player draw 2-3x the minimal
- *      solution (authoring FEEL_FACTOR). Difficulty comes from GEOMETRY, not ink
- *      starvation — answering "初期インクが少なすぎてステージが単純".
- *   2. STRAIGHT-KILL BY GEOMETRY: every anti-dominant board carries a real
- *      obstacle — a mid-gap SPIKE, a WALL, a low CEILING, a narrow FULCRUM in a
- *      wide chasm, or a deep pit — so a straight rim-to-rim line (even lifted +
- *      overlapped, the Gate 3 bot's dominant approximation) PHYSICALLY fails
- *      (collides / sags / tips / falls). Gate 3 machine-verifies all 9 straight
- *      candidates fail on each; the negative control (a flat gap tagged
- *      anti-dominant) still lets straights clear (tests/contract/gate3.spec.ts).
- *   3. MULTI-BEND ESCALATION: L1-L8 teach one mechanic (line -> hump/ramp over
- *      one obstacle); L9-L15 compound them and REQUIRE a multi-bend stroke
- *      (S / W / U / M) — a single lazy arch clears nothing past L8. Stroke length
- *      4.5m -> ~10m, bends 0 -> 3, vertical span 0.5m -> ~3m (portrait height).
- *   4. 3-STAR EFFICIENCY GHOST: every AD board carries a kind:'3star' reference
- *      ghost so Gate 2 asserts the gold target (min x 1.10); the efficiency axis
- *      (draw less -> more stars) is now live on all 18 boards.
- *   5. SAWTOOTH: new mechanic -> breather (B1/L6/B2 after the L5/L10 peaks),
- *      difficulty L1(★1) -> L15(★5 boss).
+ * MANDATE (round 5): "線の役割が road ハンプ 1 種に固定 = 全ステージ同じ動作。競合の実例
+ * (出典) に基づき役割を多様化せよ — 道 / 落ちてくる岩を防ぐ(shield) / 引っ掛けて道にする
+ * (hook) / 一本書きで複数の穴を塞ぐ(multi-seal)". Each slot below implements a
+ * DOCUMENTED competitor recipe (research/12 §2 assignment table §4) — NO original
+ * ideas. The LINE'S ROLE (and the player's cognitive task) changes per level, and
+ * adjacent levels never share a role tag (research/12 §4.1).
  *
- * Physics authoring constraints (research/09 §1 + research/11 §1, re-measured
- * 2026-07-08): 1 stroke/attempt (fixed); unsupported spans <= ~5.5 m with rim
- * overlap (wider -> sag/break, a straight-kill lever); a stroke may no longer lie
- * INSIDE a solid (StrokeClipper, 0.55 m skin) so ghosts ride ON/ABOVE surfaces
- * and arc OVER spikes/walls; sharp corners catapult the car (~1.4 m) so every
- * multi-bend ghost is splined. N<=32 worlds/process (recycled).
+ * ROLE PALETTE (research/12 §1) — the atlas `design` string names the role tag +
+ * recipe id + source game so the PM can audit every level against its source:
+ *   road (L1-L3) / shield-static (L4) / multi-seal (L5,B1) / ramp-jump (L6) /
+ *   shield-dynamic (L7) / catch-redirect (L8,L14) / hook-cantilever (L9,L12) /
+ *   dome-dual (L10,L15,B3) / sag-rope (L11,B2) / shield-timed (L13).
+ *
+ * ROCK ENTITY (round-5, src/engine/physics/RockHazard.ts): rolling/falling circle
+ * hazards spawn at RUN START (post-commit, after the settle) and collide with
+ * terrain / the drawn BridgeChain / the car. An undeflected rock induces the
+ * existing tipOver/fall/timeout — the drawn line is its shield. Threaded through
+ * authoring so every ghost is proven to clear WITH the rock live (§rocks fields).
+ *
+ * PHYSICS DISCIPLINE (research/11 §1 + research/12 §5, re-measured 2026-07-08):
+ *   - 1 stroke/attempt (fixed); unsupported spans <= ~5.5 m (wider -> sag/break).
+ *   - ANTI-DOMINANCE is carried by GEOMETRY, not ink starvation nor rock load:
+ *     a mid SPIKE / tall WALL / low CEILING lip / RAISED far bank / deep-wide PIT
+ *     physically fails every rim-to-rim straight (Gate 3 machine-verifies all 9
+ *     overlapped/lifted candidates). Empirically a falling rock is NOT a reliable
+ *     straight-killer (a pillar that supports the intended dip also supports a
+ *     sagging straight; a pit-spanning line breaks under a heavy rock regardless
+ *     of shape) — so the rock is a THEMATIC role-hazard the intended shape must
+ *     survive, layered ON the geometric straight-kill, never the AD lever itself.
+ *   - a stroke may not lie INSIDE a solid (StrokeClipper) so ghosts ride ON/ABOVE
+ *     surfaces; sharp corners catapult the car (~1.4 m) so multi-bend ghosts are
+ *     splined (patterns.ts spline()).
+ *   - GENEROUS INK (authoring FEEL_FACTOR 3.0/2.5/2.0): difficulty is geometry +
+ *     the rock, never ink; every AD board carries a kind:'3star' reference ghost.
+ *   - SAWTOOTH: new role -> breather (B1/B2/B3 + L6 after peaks), ★1 (L1) -> ★5 (L15).
  *
  * Coordinates: world meters, y-up. Terrain authored left->right (top solid);
  * ceilings authored right->left (underside solid, Terrain.ts reverses for Box2D).
  */
 
-import type { GimmickTag, Point, Polyline, Rect } from '../../src/engine/level/LevelSchema';
+import type { GimmickTag, Point, Polyline, Rect, Rock } from '../../src/engine/level/LevelSchema';
 import {
   arch,
   ceiling,
@@ -86,6 +91,14 @@ export interface LevelSource {
   readonly inkBudget?: number;
   /** Explicit thresholds override. */
   readonly starThresholds?: { readonly star2: number; readonly star3: number };
+  /**
+   * Rolling/falling rock hazards (round-5 role redesign). Physics circles that
+   * spawn at run start and collide with terrain/bridge/car — the drawn line is
+   * their shield/deflector. Threaded through authoring so every ghost is proven
+   * to clear WITH the rock live. Absent == none (byte-identical to a rock-free
+   * level). Per-rock params are level-local (level JSON), never TuningConstants.
+   */
+  readonly rocks?: readonly Rock[];
 }
 
 /** anti-dominant tag shorthand. */
@@ -94,12 +107,12 @@ const AD: readonly GimmickTag[] = ['anti-dominant'];
 // -- levels ----------------------------------------------------------------------
 
 export const CH1_SOURCES: readonly LevelSource[] = [
-  // L1 — tiny flat gap, generous ink, any sloppy line works (FTUE <=10 s).
-  // Kept FLAT + same-height (the Gate 3 contract fixture derives from this: a
-  // flat gap tagged anti-dominant MUST let overlapped straights clear).
+  // L1 — road (tutorial). tiny flat gap, generous ink, any sloppy line works
+  // (FTUE <=10 s). Kept FLAT + same-height: the Gate 3 contract fixture derives
+  // from this (a flat gap tagged anti-dominant MUST let overlapped straights clear).
   {
     id: 'ch1-l01',
-    design: 'A01 Flat Bridge · 1.8m gap · any-line-works (tutorial)',
+    design: '道(road): まっすぐ橋を架ける — 既存 tutorial (InkBridge FTUE)',
     inkFeel: 'generous',
     terrain: twoPlatforms({ leftFar: -9, leftRim: -0.9, leftY: 0, rightRim: 0.9, rightY: 0, rightFar: 12, chasmY: -5 }),
     vehicleSpawn: p(-3.2, 0.6),
@@ -110,10 +123,10 @@ export const CH1_SOURCES: readonly LevelSource[] = [
     strokes: [{ kind: 'any', role: 'wobbly', points: wobble(-2, 0.15, 2, 0.15, 0.18) }],
   },
 
-  // L2 — slightly wider + slight step; teach ink meter/stars (straight -> 3 stars).
+  // L2 — road. slightly wider + slight step; teach ink meter/stars (straight=3★).
   {
     id: 'ch1-l02',
-    design: 'A01+ 2.5m gap · slight step · straight=3★ (teach ink/stars)',
+    design: '道(road): インク効率で星を狙う — 既存 tutorial (InkBridge FTUE)',
     inkFeel: 'generous',
     terrain: twoPlatforms({ leftFar: -10, leftRim: -1.25, leftY: 0, rightRim: 1.25, rightY: 0.3, rightFar: 13, chasmY: -5 }),
     vehicleSpawn: p(-3.6, 0.6),
@@ -127,12 +140,12 @@ export const CH1_SOURCES: readonly LevelSource[] = [
     ],
   },
 
-  // L3 — MID FULCRUM discovery (B01): resting on the central pillar is cheaper.
-  // Non-AD (a straight still clears the modest 4m gap; the pillar is the star
-  // path). KEEP the pillar — terrain-winding.spec.ts negative control needs it.
+  // L3 — road + mid fulcrum (B01): resting on the central pillar is cheaper. Non-AD
+  // (a straight still clears the modest 4m gap; the pillar is the star path). KEEP
+  // the pillar — terrain-winding.spec.ts negative control needs a flat plateau top.
   {
     id: 'ch1-l03',
-    design: 'B01 Mid Pillar · 4m gap + central 中間支点 (rest-on-pillar = star)',
+    design: '道(road): 中間支点に載せて節約 — B01 Mid Pillar (Draw Bridge 中州)',
     inkFeel: 'standard',
     terrain: [
       ...twoPlatforms({ leftFar: -11, leftRim: -2, leftY: 0, rightRim: 2, rightY: 0, rightFar: 14, chasmY: -5 }),
@@ -149,85 +162,110 @@ export const CH1_SOURCES: readonly LevelSource[] = [
     ],
   },
 
-  // L4 — FIRST SPIKE + climb (G01+C01): a rock spike (tip 2.0) rises mid-gap and
-  // climbs to a +1.6m bank. Every straight — even lifted/overlapped — passes below
-  // the tip and dies on the spike faces; the HUMP arc vaults the tip and settles
-  // on the bank. Teaches "an obstacle in the middle -> go over it".
+  // ─────────────────────────────────────────────────────────────────────────────
+  // L4 — R04 shield-static (盾: 落石を弾く屋根). SOURCE: Stickman Rescue Draw 2 Save
+  // (落石には傾けた頑丈な屋根/アーチ) + Happy Glass L20+ (線で落ちる球をブロック).
+  // A mid SPIKE (tip 1.7) kills every straight (proven geometric AD); the ∧ vaults
+  // it to a +1.0m bank. NEW ROLE: a heavy rock drops onto the arch — a firm high
+  // vault sheds it down the far slope and off; a lazy low line lets the rock rest
+  // in the deck path (crush). The line is a ROOF that takes the hit, not just a road.
   {
     id: 'ch1-l04',
-    design: 'G01+C01 SPIKE + climb · vault tip 2.0 to +1.6m bank (AD)',
+    design: '盾(shield-static): 落石を屋根で受け流す — R04 Stickman Rescue / Happy Glass',
     inkFeel: 'standard',
     gimmickTags: AD,
     maxTicks: 1800,
     terrain: [
-      ...twoPlatforms({ leftFar: -11, leftRim: -1.9, leftY: 0, rightRim: 1.9, rightY: 1.6, rightFar: 14, chasmY: -6 }),
-      spike(-0.1, 2.0, -6, 0.85),
+      ...twoPlatforms({ leftFar: -11, leftRim: -1.9, leftY: 0, rightRim: 1.9, rightY: 1.0, rightFar: 14, chasmY: -6 }),
+      spike(-0.1, 1.7, -6, 0.85),
     ],
     vehicleSpawn: p(-4.2, 0.6),
-    goalFlag: flag(3.5, 1.6, 1.2, 2.2),
+    goalFlag: flag(3.5, 1.0, 1.2, 2.2),
     killY: -8,
-    coins: coinArc(-0.1, 2.4, 6, 0.5, 0.3),
-    strokes: [{ kind: '3star', role: 'vault-spike', points: arch(-2.7, 0.15, 2.5, 1.75, 1.5) }],
+    coins: coinArc(-0.1, 2.2, 6, 0.5, 0.3),
+    rocks: [{ x: 0.7, y: 3.4, radius: 0.4, density: 5 }],
+    strokes: [{ kind: '3star', role: 'roof-vault', points: arch(-2.7, 0.15, 2.5, 1.15, 1.7) }],
   },
 
-  // L5 — WALL over-arch + climb (F01+C01): a tall central WALL (flat top +1.9m)
-  // spans a 4.6m gap and blocks every straight (they collide with the wall face);
-  // the ∧ vaults it and settles on a +1.4m bank. Distinct from L4's SPIKE (a broad
-  // flat top vs a point) and a step up in vault height.
+  // L5 — R08 multi-seal (一本書きで複数の穴を塞ぐ). SOURCE: Draw Line Bridge (証拠11上,
+  // 1本で複数ハザードを跨ぐ) + Happy Glass (1本で複数の穴を塞ぐ, 少描画=高星). TWO narrow
+  // SPIKES split the crossing into holes; one continuous M line arcs over BOTH tips
+  // and rests on the mid nub between them — sealing every hole in a single stroke.
+  // Straights hit a spike (geometric AD). No rock (research/12 §4.2 non-rock main).
   {
     id: 'ch1-l05',
-    design: 'F01+C01 WALL over-arch · ∧ over +1.9m wall to +1.4m bank (AD)',
+    design: '穴塞ぎ(multi-seal): 一本で複数の穴を塞ぐ — R08 Draw Line Bridge / Happy Glass',
     inkFeel: 'standard',
     gimmickTags: AD,
     maxTicks: 1800,
     terrain: [
-      ...twoPlatforms({ leftFar: -12, leftRim: -2.3, leftY: 0, rightRim: 2.3, rightY: 1.4, rightFar: 15, chasmY: -5.5 }),
-      pillar(-0.1, 1.2, -5.5, 0.5, 0.9),
+      ...twoPlatforms({ leftFar: -12, leftRim: -2.9, leftY: 0, rightRim: 2.9, rightY: 0, rightFar: 15, chasmY: -6 }),
+      pillar(0, 0.0, -6, 0.55, 0.95),
+      spike(-1.5, 0.95, -6, 0.6),
+      spike(1.5, 0.95, -6, 0.6),
     ],
-    vehicleSpawn: p(-4.6, 0.6),
-    goalFlag: flag(3.9, 1.4, 1.2, 2.3),
-    killY: -6.5,
-    coins: coinArc(-0.1, 2.5, 6, 0.5, 0.3),
-    strokes: [{ kind: '3star', role: 'over-wall', points: arch(-2.8, 0.15, 2.6, 1.55, 1.4) }],
+    vehicleSpawn: p(-5.0, 0.6),
+    goalFlag: flag(3.9, 0, 1.2, 2.2),
+    killY: -8,
+    coins: [...coinArc(-1.5, 1.3, 3, 0.45, 0.25), ...coinArc(1.5, 1.3, 3, 0.45, 0.25)],
+    strokes: [
+      {
+        kind: '3star',
+        role: 'multi-seal-M',
+        points: spline([p(-3.5, 0.15), p(-2.3, 0.5), p(-1.5, 1.1), p(-0.7, 0.5), p(0, 0.18), p(0.7, 0.5), p(1.5, 1.1), p(2.3, 0.5), p(3.5, 0.15)]),
+      },
+    ],
   },
 
-  // B1 — bonus after L5: flat long run + coin arch (playful reward, breather).
+  // B1 — R08-lite multi-seal breather. SOURCE: Draw Line Bridge / Happy Glass. One
+  // short 2-hole seal with generous coins (sawtooth trough after L5). Non-AD.
   {
     id: 'ch1-b1',
-    design: 'A12 bonus · flat long run · coin arch (breather)',
+    design: '穴塞ぎ(multi-seal 易): 短い2連穴を一本で — R08-lite Draw Line Bridge',
     inkFeel: 'generous',
     bonusMultiplier: 6,
-    terrain: twoPlatforms({ leftFar: -12, leftRim: -1.0, leftY: 0, rightRim: 1.0, rightY: 0, rightFar: 20, chasmY: -5 }),
-    vehicleSpawn: p(-3.6, 0.6),
-    goalFlag: flag(5.4, 0, 1.5, 2.5),
+    terrain: [
+      ...twoPlatforms({ leftFar: -12, leftRim: -2.0, leftY: 0, rightRim: 2.0, rightY: 0, rightFar: 20, chasmY: -5 }),
+      pillar(0, -0.1, -5, 0.4, 0.8),
+    ],
+    vehicleSpawn: p(-4.2, 0.6),
+    goalFlag: flag(4.4, 0, 1.5, 2.5),
     killY: -6,
-    coins: [...coinArc(0.3, 1.0, 5, 0.5, 0.35), ...coinArc(2.8, 1.2, 6, 0.45, 0.55), ...coinArc(4.6, 1.1, 5, 0.4, 0.45)],
+    coins: [...coinArc(-1.0, 1.0, 4, 0.45, 0.35), ...coinArc(1.0, 1.0, 4, 0.45, 0.35), ...coinArc(3.0, 0.9, 4, 0.4, 0.35)],
     gimmickTags: [],
-    strokes: [{ kind: 'any', role: 'straight', points: line(-2.2, 0.15, 2.2, 0.15) }],
+    strokes: [{ kind: 'any', role: 'twin-seal', points: spline([p(-2.6, 0.15), p(-1.0, 0.5), p(0, 0.12), p(1.0, 0.5), p(2.6, 0.15)]) }],
   },
 
-  // L6 — BREATHER + FIRST DESCENT: goal sits 3.0m BELOW the spawn. Descend a ramp
-  // from a high start platform to a low far bank. Uses portrait height downward.
+  // L6 — R10 ramp-jump (橋でなく跳ぶ). SOURCE: Draw Climber / Draw the Hill (終端 launch
+  // ramp, 速度で飛距離) + Draw Physics Line (ランプで propel). A launch ramp flings the
+  // car OVER a tall spike-pit onto a landing bank — the line is a jump ramp, not a
+  // bridge. Straights impale on the spike (geometric AD). No rock.
   {
     id: 'ch1-l06',
-    design: 'D01 breather · DESCENT · goal 3.0m BELOW start · varied start/goal',
-    inkFeel: 'generous',
-    terrain: twoPlatforms({ leftFar: -11, leftRim: -1.5, leftY: 3.0, rightRim: 1.5, rightY: 0, rightFar: 14, chasmY: -5 }),
-    vehicleSpawn: p(-4.0, 3.6),
-    goalFlag: flag(3.4, 0, 1.4, 2.4),
-    killY: -6,
-    coins: coinLine(-1.4, 3.0, 2.2, 0.7, 6),
-    gimmickTags: [],
-    strokes: [{ kind: 'any', role: 'descent-ramp', points: arch(-2.0, 3.15, 2.0, 0.15, 0.28) }],
+    design: '跳躍(ramp-jump): ランプで棘を飛び越える — R10 Draw Climber / Draw the Hill',
+    inkFeel: 'standard',
+    gimmickTags: AD,
+    maxTicks: 1800,
+    terrain: [
+      ...twoPlatforms({ leftFar: -11, leftRim: -1.6, leftY: 0.6, rightRim: 2.4, rightY: 0, rightFar: 15, chasmY: -6 }),
+      spike(0.4, 1.6, -6, 0.8),
+    ],
+    vehicleSpawn: p(-4.2, 1.2),
+    goalFlag: flag(3.8, 0, 1.2, 2.2),
+    killY: -8,
+    coins: coinArc(0.4, 2.2, 6, 0.55, 0.35),
+    strokes: [{ kind: '3star', role: 'launch-ramp', points: arch(-2.5, 0.75, 2.9, 0.15, 1.5) }],
   },
 
-  // L7 — WALL over-arch + climb (F01+C01): a central WALL (flat top +1.75m) blocks
-  // every straight (a flat top catches even the lifted/overlapped straights that a
-  // thin spike would let slip over); the ∧ vaults it to a +1.8m bank. A step up
-  // from L5's wall (higher bank, wider gap).
+  // L7 — R05 shield-dynamic (盾: 転がってくる岩を壁で止める). SOURCE: Stickman Rescue
+  // (矢=車の前に垂直の壁) + Draw Bridge (cannon/saw/moving block を橋で覆う). A tall WALL
+  // (top +1.75m) blocks every straight (geometric AD) and the ∧ vaults it to a +1.8m
+  // bank. NEW ROLE: a rock spawns on the high goal bank and ROLLS LEFT down toward
+  // the crossing — the vault's far shoulder walls it off / it rolls past under; the
+  // firm high arch survives it. Distinct from L4 (falling) — here it ROLLS in.
   {
     id: 'ch1-l07',
-    design: 'F01+C01 WALL over-arch · ∧ over +1.75m wall to +1.8m bank (AD)',
+    design: '盾(shield-dynamic): 転がる岩を壁で堰き止める — R05 Stickman Rescue / Draw Bridge',
     inkFeel: 'standard',
     gimmickTags: AD,
     maxTicks: 1800,
@@ -239,38 +277,41 @@ export const CH1_SOURCES: readonly LevelSource[] = [
     goalFlag: flag(3.8, 1.8, 1.2, 2.3),
     killY: -8,
     coins: coinArc(-0.1, 2.55, 6, 0.5, 0.3),
-    strokes: [{ kind: '3star', role: 'over-wall', points: arch(-2.9, 0.15, 2.6, 1.95, 1.45) }],
+    rocks: [{ x: 4.6, y: 2.3, radius: 0.34, density: 3, initialVelocity: { x: -2.5, y: 0 } }],
+    strokes: [{ kind: '3star', role: 'wall-vault', points: arch(-2.9, 0.15, 2.6, 1.95, 1.55) }],
   },
 
-  // L8 — WALL over-arch + climb (F01+C01): a central WALL (flat top +1.6m, narrow)
-  // blocks every straight (they collide with the wall face); the ∧ vaults it and
-  // settles on a +1.9m bank. Gate 3 contract fixture (all 9 straights fail).
+  // L8 — R06 catch-redirect (岩を止めるでなく逸らす). SOURCE: Draw Physics Line / Draw Line
+  // Physics Puzzles (線=ランプで球を propel、壁で bounce) + Brain Dots (球を別方向へ redirect).
+  // A mid SPIKE (geometric AD) + a rock that drops and the vault's downslope kicks it
+  // off toward the goal-side pit — a DEFLECTOR ramp, not a wall. +1.4m bank.
   {
     id: 'ch1-l08',
-    design: 'F01+C01 WALL over-arch · ∧ over +1.6m wall to +1.9m bank (AD)',
+    design: '逸らし(catch-redirect): 岩をランプで脇へ逃がす — R06 Draw Physics Line / Brain Dots',
     inkFeel: 'standard',
     gimmickTags: AD,
     maxTicks: 1800,
     terrain: [
-      ...twoPlatforms({ leftFar: -12, leftRim: -2.3, leftY: 0, rightRim: 2.3, rightY: 1.9, rightFar: 15, chasmY: -6 }),
-      pillar(-0.1, 1.6, -6, 0.5, 0.9),
+      ...twoPlatforms({ leftFar: -12, leftRim: -2.2, leftY: 0, rightRim: 2.2, rightY: 1.4, rightFar: 15, chasmY: -6 }),
+      spike(-0.3, 1.6, -6, 0.85),
     ],
-    vehicleSpawn: p(-4.9, 0.6),
-    goalFlag: flag(4.1, 1.9, 1.2, 2.2),
+    vehicleSpawn: p(-4.7, 0.6),
+    goalFlag: flag(4.0, 1.4, 1.2, 2.2),
     killY: -8,
-    coins: coinArc(-0.1, 2.7, 6, 0.5, 0.3),
-    strokes: [{ kind: '3star', role: 'over-wall', points: arch(-3.0, 0.15, 2.8, 2.05, 1.4) }],
+    coins: coinArc(-0.3, 2.3, 6, 0.5, 0.3),
+    rocks: [{ x: 0.7, y: 3.0, radius: 0.36, density: 3 }],
+    strokes: [{ kind: '3star', role: 'deflect-ramp', points: arch(-2.9, 0.15, 2.7, 1.55, 1.5) }],
   },
 
-  // L9 — OVERHANG DUCK-UNDER intro (E02+C01, first COMPOUND): a rock lip protrudes
-  // from the left rim over the gorge (underside 1.4->1.2m). The natural climb arch
-  // to the +1.4m bank collides with the lip; the line must HUG LOW under it, then
-  // sweep up — an S with 2 bends. Straights die on the raised-goal/deep-pit
-  // mechanism (offset-0 sags, lifted hit the lip). Introduces the duck-under L12
-  // compounds. KEEP the ceiling (terrain-winding.spec.ts negative control needs it).
+  // L9 — R16 hook-cantilever / wrap-guard (引っ掛けて危険帯を回り込む護り道). SOURCE: Draw
+  // Bridge L210 (証拠10) + Draw Save! (線が障害から守る). An OVERHANG rock lip (danger
+  // band, underside 1.4->1.2m) forbids the high entry; the line HUGS LOW under the
+  // lip then sweeps up to a +1.4m bank — an open S that WRAPS the hazard. Straights
+  // die (lifted hit the lip, rim-height sag the deep pit). KEEP the ceiling — the
+  // terrain-winding.spec.ts negative control needs L9's 2-point overhang.
   {
     id: 'ch1-l09',
-    design: 'E02+C01 OVERHANG duck-under intro · low hug then climb +1.4m (AD)',
+    design: '回り込み(hook-cantilever): 危険帯の下を潜り護り道に — R16 Draw Bridge L210 / Draw Save!',
     inkFeel: 'standard',
     gimmickTags: AD,
     maxTicks: 1800,
@@ -285,21 +326,20 @@ export const CH1_SOURCES: readonly LevelSource[] = [
     strokes: [
       {
         kind: '3star',
-        role: 'duck-under-S',
+        role: 'wrap-under-S',
         points: spline([p(-3.1, 0.2), p(-1.9, 0.3), p(-0.7, 0.36), p(0.3, 0.66), p(1.3, 1.12), p(2.3, 1.5), p(3.1, 1.65)]),
       },
     ],
   },
 
-  // L10 — MID CLIMAX: WALL LEAP-DOWN (F01+D01, compound). A tall central wall
-  // (top +1.0m) blocks every straight over a 5.2m gorge, and the goal sits 0.8m
-  // BELOW the start. The line must HUMP up-and-over the wall, then LEAP DOWN onto
-  // the lower far bank — a ∧-then-descent (2 slope changes). A straight collides
-  // with the wall; a lifted straight floats unboardable / hits the wall. The
-  // leap-DOWN shape is distinct from the raised-bank vaults (Gate 3: all 9 fail).
+  // L10 — R14 dome-dual lite (盾＋道の兼任・入口 / MID-CLIMAX). SOURCE: Draw Bridge L69-74
+  // (証拠12, dome-dual-role) simplified. A tall central WALL (top +1.0m) blocks every
+  // straight over a 5.2m gorge and the goal sits 0.8m BELOW start; the line HUMPS
+  // over the wall then LEAPS DOWN — AND a rock drops onto that hump, which the firm
+  // arch bears + sheds. First time the ONE line is both roof (shield) and road.
   {
     id: 'ch1-l10',
-    design: 'F01+D01 CLIMAX · WALL leap-DOWN · ∧ over +1.0m wall to a bank 0.8m BELOW (AD)',
+    design: 'ドーム(dome-dual 入口): 守る屋根かつ走る道 — R14 Draw Bridge L69-74',
     inkFeel: 'standard',
     gimmickTags: AD,
     maxTicks: 1800,
@@ -311,52 +351,62 @@ export const CH1_SOURCES: readonly LevelSource[] = [
     goalFlag: flag(4.4, -0.8, 1.0, 2.2),
     killY: -6.0,
     coins: [...coinArc(-0.1, 1.7, 4, 0.5, 0.25), ...coinLine(1.2, 0.2, 2.8, -0.5, 4)],
-    strokes: [{ kind: '3star', role: 'wall-leap-down', points: arch(-2.9, 0.15, 2.9, -0.65, 1.55) }],
+    rocks: [{ x: 0.9, y: 2.8, radius: 0.34, density: 3 }],
+    strokes: [{ kind: '3star', role: 'dome-leap-down', points: arch(-2.9, 0.15, 2.9, -0.65, 1.55) }],
   },
 
-  // B2 — bonus after L10: DESCENT + triple coin arch (goal below the high start).
-  // Adopts L6's proven descent recipe and extends the far bank for the bonus run.
+  // B2 — R03-lite sag-rope breather (張り渡し). SOURCE: Draw Line Bridge ("COLLECT
+  // COINS" 弛むロープ). A shallow taut span over a low spike floor + coin arc — the
+  // sag window is generous (breather after the L10 climax). Non-AD.
   {
     id: 'ch1-b2',
-    design: 'A12 bonus · DESCENT run · goal 3.0m below start · long coin run',
+    design: '張り渡し(sag-rope 易): 棘の上に弛ませず渡す — R03-lite Draw Line Bridge',
     inkFeel: 'generous',
     bonusMultiplier: 7,
-    terrain: twoPlatforms({ leftFar: -12, leftRim: -1.5, leftY: 3.0, rightRim: 1.5, rightY: 0, rightFar: 20, chasmY: -5 }),
-    vehicleSpawn: p(-4.0, 3.6),
-    goalFlag: flag(5.2, 0, 1.5, 2.5),
+    terrain: [
+      ...twoPlatforms({ leftFar: -12, leftRim: -2.3, leftY: 0.4, rightRim: 2.3, rightY: 0.4, rightFar: 20, chasmY: -5 }),
+      spike(-0.7, -0.6, -5, 0.5),
+      spike(0.9, -0.6, -5, 0.5),
+    ],
+    vehicleSpawn: p(-4.4, 1.0),
+    goalFlag: flag(4.6, 0.4, 1.5, 2.5),
     killY: -6,
-    coins: [...coinArc(0.2, 1.6, 5, 0.5, 0.4), ...coinArc(2.6, 1.0, 6, 0.45, 0.45), ...coinArc(4.4, 0.85, 5, 0.4, 0.4)],
+    coins: [...coinArc(0.1, 1.3, 6, 0.5, 0.4), ...coinArc(3.0, 1.2, 5, 0.45, 0.4)],
     gimmickTags: [],
-    strokes: [{ kind: 'any', role: 'descent-arch', points: arch(-2.0, 3.15, 2.0, 0.15, 0.28) }],
+    strokes: [{ kind: 'any', role: 'taut-span', points: arch(-3.0, 0.55, 3.0, 0.55, 0.2) }],
   },
 
-  // L11 — SAWTOOTH TROUGH: SPIKE + climb (G01+C01) after the climax. Spike (tip
-  // 1.9), modest +1.4m bank. Same "vault the tip" mechanic as L4, a deliberate
-  // breather before the L12-L15 escalation.
+  // L11 — R03 sag-rope over pit spikes (ハザード上に張り渡す). SOURCE: Draw Line Bridge
+  // (証拠11上, pit 内ハザード上を弛むロープが渡る). Two floor SPIKES sit in the pit; a
+  // near-taut span must clear both tips AND reach a +1.4m bank — sag too much and it
+  // impales, and a rim-height straight can't reach the raised bank (geometric AD). The
+  // sag window is the puzzle. No rock (spikes are the pit hazard).
   {
     id: 'ch1-l11',
-    design: 'G01+C01 SPIKE + climb · vault tip 1.9 to +1.4m (sawtooth trough) (AD)',
+    design: '張り渡し(sag-rope): 棘の上に張力を保って渡す — R03 Draw Line Bridge (証拠11)',
     inkFeel: 'standard',
     gimmickTags: AD,
     maxTicks: 1800,
     terrain: [
-      ...twoPlatforms({ leftFar: -11, leftRim: -2.0, leftY: 0, rightRim: 2.0, rightY: 1.4, rightFar: 14, chasmY: -5.5 }),
-      spike(-0.1, 1.9, -5.5, 0.8),
+      ...twoPlatforms({ leftFar: -12, leftRim: -2.4, leftY: 0, rightRim: 2.4, rightY: 1.4, rightFar: 15, chasmY: -6 }),
+      spike(-0.9, 1.5, -6, 0.5),
+      spike(0.9, 1.5, -6, 0.5),
     ],
-    vehicleSpawn: p(-4.3, 0.6),
-    goalFlag: flag(3.6, 1.4, 1.3, 2.3),
-    killY: -6.5,
-    coins: coinArc(-0.1, 2.2, 6, 0.5, 0.3),
-    strokes: [{ kind: '3star', role: 'vault-spike', points: arch(-2.6, 0.15, 2.5, 1.55, 1.5) }],
+    vehicleSpawn: p(-4.8, 0.6),
+    goalFlag: flag(4.0, 1.4, 1.2, 2.2),
+    killY: -8,
+    coins: coinArc(0, 2.2, 6, 0.5, 0.3),
+    strokes: [{ kind: '3star', role: 'taut-over-spikes', points: arch(-3.0, 0.15, 2.9, 1.55, 1.5) }],
   },
 
-  // L12 — OVERHANG DUCK-UNDER (E02+F01, compound): a rock lip protrudes from the
-  // left rim over the gorge at 1.5->1.25m. The natural climb arch collides with the
-  // lip; the line must HUG LOW under it then sweep up to a +2.0m ledge — a smooth S
-  // with 2 bends. Straights die on the raised-goal/deep-pit mechanism.
+  // L12 — R02 hook-cantilever / wrap (引っ掛けて危険帯を縫う, 証拠10 Draw Bridge L210).
+  // SOURCE: Draw Bridge (Bravestars) Level 210 — the user's image. An overhang lip
+  // (1.5->1.25m) forbids the high line; the stroke ducks LOW under it, then wraps up
+  // to a +2.0m ledge — a smooth S wrapping the danger band. Straights die on the
+  // raised-goal/deep-pit. Distinct sub-role from L9 (this is the classic L210 wrap).
   {
     id: 'ch1-l12',
-    design: 'E02+F01 OVERHANG duck-under · 5m gorge · low hug then climb +2.0m (AD)',
+    design: '回り込み(hook-wrap): 危険帯を縫って高台へ — R02 Draw Bridge L210 (証拠10, ユーザー画像)',
     inkFeel: 'standard',
     gimmickTags: AD,
     maxTicks: 1800,
@@ -371,118 +421,94 @@ export const CH1_SOURCES: readonly LevelSource[] = [
     strokes: [
       {
         kind: '3star',
-        role: 'duck-under-S',
+        role: 'wrap-climb-S',
         points: spline([p(-3.2, 0.2), p(-1.9, 0.3), p(-0.6, 0.34), p(0.3, 0.66), p(1.2, 1.15), p(2.1, 1.65), p(3.0, 2.02), p(3.8, 2.2)]),
       },
     ],
   },
 
-  // L13 — WALL over-arch to a raised bank (F01, compound with the deep pit): a tall
-  // central wall (top +1.2m) blocks any straight (collision); the stroke must ∧
-  // up-and-over, then settle onto a +1.5m bank. The most "how do I draw this" board.
+  // L13 — R11 shield-timed (時限盾: 確定した瞬間に転石が発進). SOURCE: Stickman Rescue
+  // (引く前に来る障害を観察) + Happy Glass (描き始めた瞬間に球が動き出す). A tall WALL
+  // (top +1.2m) is the geometric AD; a rock LAUNCHES with a leftward velocity the
+  // instant the run starts (rocks spawn post-commit) and rolls at the crossing — the
+  // firm over-wall vault to the +1.5m bank must be drawn to beat it. Timing role.
   {
     id: 'ch1-l13',
-    design: 'F01 WALL over-arch · ∧ over +1.2m wall to +1.5m bank (AD)',
+    design: '時限盾(shield-timed): 確定した瞬間に岩が走り出す — R11 Stickman Rescue / Happy Glass',
     inkFeel: 'standard',
     gimmickTags: AD,
     maxTicks: 1800,
     terrain: [
       ...twoPlatforms({ leftFar: -12, leftRim: -2.3, leftY: 0, rightRim: 2.3, rightY: 1.5, rightFar: 15, chasmY: -6 }),
-      pillar(0, 1.2, -6, 0.5, 0.9),
+      pillar(0, 1.8, -6, 0.5, 0.9),
     ],
     vehicleSpawn: p(-4.7, 0.6),
     goalFlag: flag(4.0, 1.5, 1.2, 2.2),
     killY: -8,
-    coins: coinArc(0, 2.3, 6, 0.5, 0.4),
-    strokes: [{ kind: '3star', role: 'over-arch', points: arch(-2.8, 0.15, 2.7, 1.65, 1.4) }],
+    coins: coinArc(0, 2.75, 6, 0.5, 0.4),
+    rocks: [{ x: 4.4, y: 2.1, radius: 0.34, density: 3, initialVelocity: { x: -3, y: 0 } }],
+    strokes: [{ kind: '3star', role: 'timed-vault', points: arch(-2.8, 0.15, 2.7, 1.65, 1.6) }],
   },
 
-  // L14 — SWITCHBACK DESCENT + SPIKE (D04+G01, 3+ compound): the goal sits 2.6m
-  // BELOW the start. A two-terrace stair is carved into the LEFT platform (behind
-  // the gap rim — unreachable by rim-to-rim straights), then a rock spike (tip
-  // -0.7) rises just past the stair exit: every straight chord crosses well below
-  // the tip and dies. The line is a gentle W: descend the stair, a wide shallow
-  // hump OVER the spike tip, long descent to the low bank.
+  // L14 — R12+R08 catch-redirect + multi-seal FUSION (受け皿で逸らし＋複数穴塞ぎ). SOURCE:
+  // Happy Glass funnel + Draw Line Bridge. TWO spikes (multi-seal holes, geometric AD)
+  // AND a rock the M-line's central shoulder deflects off — two roles solved by one
+  // stroke. Tight ink. The compound before the boss.
   {
     id: 'ch1-l14',
-    design: 'D04+G01 SWITCHBACK · stair down 2 terraces + spike hump · goal 2.6m BELOW (AD)',
-    inkFeel: 'standard',
+    design: '複合(catch+multi-seal): 逸らし＋複数穴塞ぎを一本で — R12+R08 Happy Glass / Draw Line Bridge',
+    inkFeel: 'tight',
     gimmickTags: AD,
     maxTicks: 1800,
     terrain: [
-      [
-        [-11, 0],
-        [-4.6, 0],
-        [-4.65, -0.9],
-        [-3.4, -0.9],
-        [-3.45, -1.8],
-        [-2.2, -1.8],
-        [-2.4, -7.0],
-      ],
-      [
-        [3.6, -7.0],
-        [3.4, -2.6],
-        [15, -2.6],
-      ],
-      spike(-0.4, -0.7, -7.0, 1.0),
+      ...twoPlatforms({ leftFar: -12, leftRim: -2.9, leftY: 0, rightRim: 2.9, rightY: 0, rightFar: 15, chasmY: -6 }),
+      pillar(0, 0.0, -6, 0.55, 0.95),
+      spike(-1.5, 1.1, -6, 0.6),
+      spike(1.5, 1.1, -6, 0.6),
     ],
-    vehicleSpawn: p(-5.9, 0.6),
-    goalFlag: flag(3.9, -2.6, 1.1, 2.2),
-    killY: -8.5,
-    coins: [...coinLine(-4.2, -0.6, -2.6, -1.2, 4), ...coinLine(-1.0, -0.85, 0.6, -0.85, 4), ...coinLine(1.6, -1.5, 3.2, -2.35, 4)],
-    strokes: [
-      {
-        kind: '3star',
-        role: 'switchback-W',
-        points: spline([
-          p(-5.3, 0.12),
-          p(-4.6, -0.45),
-          p(-3.8, -0.88),
-          p(-2.9, -1.15),
-          p(-1.9, -1.2),
-          p(-1.0, -0.9),
-          p(-0.4, -0.52),
-          p(0.2, -0.68),
-          p(1.0, -1.15),
-          p(2.0, -1.75),
-          p(3.0, -2.25),
-          p(3.8, -2.55),
-        ]),
-      },
-    ],
+    vehicleSpawn: p(-5.0, 0.6),
+    goalFlag: flag(3.9, 0, 1.2, 2.2),
+    killY: -8,
+    coins: [...coinArc(-1.5, 1.7, 3, 0.45, 0.25), ...coinArc(1.5, 1.7, 3, 0.45, 0.25)],
+    rocks: [{ x: 2.2, y: 2.6, radius: 0.34, density: 3 }],
+    strokes: [{ kind: '3star', role: 'fusion-dome', points: arch(-3.5, 0.15, 3.5, 0.15, 1.7) }],
   },
 
-  // L15 — CHAPTER BOSS (E02+C02 compound): the deepest, widest board — a 6.6m
-  // chasm, an approach overhang lip that forbids the high entry, and the highest
-  // +2.4m summit, on a TIGHT ink budget. The line is a long (~9m) S: duck deep under
-  // the lip, then a sustained climb to the summit — ~2.4m vertical span, the whole
-  // portrait height. A lifted straight rises into the lip; a rim-height straight
-  // sags into the deep pit (all 9 fail). The chapter's stiffest climb.
+  // L15 — R15 dome-dual FULL composite (章ボス: 覆う→棘越え→落石を弾き→登坂). SOURCE: Draw
+  // Bridge 後半 + Stickman 多段ハザード. The deepest/widest board: a 6.6m chasm, an
+  // approach OVERHANG lip forbidding the high entry, a mid SPIKE, the highest +2.4m
+  // summit, TWO rocks, tight ink. The long S ducks the lip, vaults the spike bearing
+  // the rocks, and climbs the summit — every learned role in one stroke.
   {
     id: 'ch1-l15',
-    design: 'E02+C02 BOSS · deep 6.6m chasm · lip + climb +2.4m · tight ink (AD)',
+    design: 'ボス(dome-dual 完全体): 潜り→棘越え→落石を弾き→登坂 — R15 Draw Bridge / Stickman 多段',
     inkFeel: 'tight',
     gimmickTags: AD,
     maxTicks: 1800,
     terrain: [
       ...twoPlatforms({ leftFar: -13, leftRim: -3.3, leftY: 0, rightRim: 3.3, rightY: 2.4, rightFar: 18, chasmY: -6.5 }),
       ceiling(-3.0, -1.1, 1.7, 1.4),
+      spike(1.4, 1.5, -6.5, 0.65),
     ],
     vehicleSpawn: p(-6.0, 0.6),
     goalFlag: flag(4.8, 2.4, 1.0, 2.2),
     killY: -8.5,
-    coins: [...coinLine(-2.6, 0.5, -0.6, 0.95, 4), ...coinLine(0.6, 1.5, 3.0, 2.55, 4)],
+    coins: [...coinLine(-2.6, 0.5, -0.6, 0.95, 4), ...coinLine(0.6, 1.6, 3.0, 2.55, 4)],
+    rocks: [
+      { x: 7.4, y: 3.0, radius: 0.32, density: 3, initialVelocity: { x: -2, y: 0 } },
+      { x: 9.0, y: 3.2, radius: 0.32, density: 3, initialVelocity: { x: -3, y: 0 } },
+    ],
     strokes: [
       {
         kind: '3star',
-        role: 'boss-climb-S',
+        role: 'boss-composite-S',
         points: spline([
           p(-4.0, 0.18),
           p(-2.7, 0.34),
           p(-1.4, 0.5),
           p(-0.2, 1.0),
-          p(0.9, 1.55),
-          p(1.9, 2.05),
+          p(0.9, 1.6),
+          p(1.9, 2.15),
           p(2.9, 2.4),
           p(3.6, 2.55),
         ]),
@@ -490,24 +516,25 @@ export const CH1_SOURCES: readonly LevelSource[] = [
     ],
   },
 
-  // B3 — bonus after L15: flat long run + coin bonanza (chapter-complete reward).
+  // B3 — R01-lite dome-dual easy (章完走＋守る道の再確認, coin祭). SOURCE: Draw Bridge
+  // L69-74 (証拠12). A gentle central-support arch bears a light falling rock over a
+  // modest gap, with a coin bonanza — a victory-lap reprise of the dome role. Non-AD.
   {
     id: 'ch1-b3',
-    design: 'A12 bonus · flat long run · coin bonanza',
+    design: 'ドーム(dome-dual 易): 守る道の再確認＋コイン祭 — R01-lite Draw Bridge L69-74 (証拠12)',
     inkFeel: 'generous',
     bonusMultiplier: 8,
-    terrain: twoPlatforms({ leftFar: -12, leftRim: -1.0, leftY: 0, rightRim: 1.0, rightY: 0, rightFar: 24, chasmY: -5 }),
-    vehicleSpawn: p(-3.6, 0.6),
-    goalFlag: flag(5.6, 0, 1.6, 2.6),
-    killY: -6,
-    coins: [
-      ...coinArc(0.2, 1.0, 5, 0.45, 0.35),
-      ...coinArc(2.2, 1.2, 5, 0.4, 0.5),
-      ...coinArc(3.8, 1.2, 5, 0.4, 0.5),
-      ...coinArc(5.0, 1.1, 4, 0.35, 0.4),
+    terrain: [
+      ...twoPlatforms({ leftFar: -12, leftRim: -2.2, leftY: 0, rightRim: 2.2, rightY: 0, rightFar: 24, chasmY: -5 }),
+      pillar(0, -0.2, -5, 0.5, 0.9),
     ],
+    vehicleSpawn: p(-4.6, 0.6),
+    goalFlag: flag(5.2, 0, 1.6, 2.6),
+    killY: -6,
+    coins: [...coinArc(-0.1, 1.5, 5, 0.5, 0.35), ...coinArc(2.4, 1.1, 5, 0.45, 0.45), ...coinArc(4.0, 1.0, 4, 0.4, 0.4)],
     gimmickTags: [],
-    strokes: [{ kind: 'any', role: 'straight', points: line(-2.2, 0.15, 2.2, 0.15) }],
+    rocks: [{ x: 0.4, y: 2.8, radius: 0.34, density: 3 }],
+    strokes: [{ kind: 'any', role: 'dome-reprise', points: arch(-3.0, 0.15, 3.0, 0.15, 0.9) }],
   },
 ];
 

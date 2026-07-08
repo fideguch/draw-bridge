@@ -128,6 +128,10 @@ function finalizeLevel(
     ghostSolutions,
     ...(src.maxTicks !== undefined ? { maxTicks: src.maxTicks } : {}),
     ...(src.bonusMultiplier !== undefined ? { bonusMultiplier: src.bonusMultiplier } : {}),
+    // Rocks are PHYSICS entities (unlike inert coins): they must be present in the
+    // MEASURE + RECORD passes so every ghost is proven to clear WITH the rock live
+    // and its samples are recorded on the rock-active run (round-5 role redesign).
+    ...(src.rocks !== undefined ? { rocks: src.rocks } : {}),
   };
 }
 
