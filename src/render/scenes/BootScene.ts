@@ -16,6 +16,9 @@ import { color, layout, makeTextStyle, type } from '@render/ui/theme';
 /** Registry key where BootScene leaves a one-shot save-restore notice. */
 export const SAVE_NOTICE_KEY = 'saveNotice';
 
+/** Max time boot waits for the save load before starting fresh (watchdog). */
+const BOOT_SAVE_TIMEOUT_MS = 3000;
+
 export class BootScene extends Phaser.Scene {
   constructor() {
     super('Boot');
@@ -43,7 +46,14 @@ export class BootScene extends Phaser.Scene {
     const services = getServices(this);
     let notice: SaveNotice | null = null;
     try {
-      notice = await services.loadSave();
+      // Boot watchdog: a wedged storage bridge (seen on WebView live-reload)
+      // must degrade to a fresh session, never a permanent splash (FR-021).
+      notice = await Promise.race([
+        services.loadSave(),
+        new Promise<SaveNotice | null>((resolve) => {
+          setTimeout(() => resolve(null), BOOT_SAVE_TIMEOUT_MS);
+        }),
+      ]);
     } catch (error) {
       // Storage rejects are the one allowed failure (FR-021); boot fresh rather
       // than blocking. The next save trigger retries persistence.

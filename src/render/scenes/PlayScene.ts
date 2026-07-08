@@ -55,7 +55,7 @@ import { color, layout, LAYOUT_EVENT, makeTextStyle, margin, space, type } from 
 import { camera as cameraTuning, car, draw, launch, physics, speedLines as speedLinesTuning } from '@tuning/TuningConstants';
 import { setBridgeMidDeviation, setDevPlayState, setDevResultNextReady, setDevStrokePointCount, setWorldToGame } from '@render/devhook';
 import type { DevHookPlayState } from '@render/devhook';
-import { framingFor } from './play/levelFraming';
+import { framingFor, type FramingViewport } from './play/levelFraming';
 import { ResultOverlay } from './play/ResultOverlay';
 import { GoalSequence } from './play/GoalSequence';
 
@@ -308,11 +308,17 @@ export class PlayScene extends Phaser.Scene {
    * crisp). Safe-area top is folded into the inset so the overview clears the
    * notch + home indicator; content still centres in the remaining area.
    */
-  private framingViewport(): { width: number; height: number; margin: number } {
+  private framingViewport(): FramingViewport {
+    // Safe-area insets go in per-edge: folding safe.top into the uniform
+    // margin also shrank the horizontal fit (2026-07-08 device bug).
     return {
       width: layout.width,
       height: layout.height,
-      margin: layout.ui(FRAME_MARGIN_PX) + layout.safe.top,
+      margin: layout.ui(FRAME_MARGIN_PX),
+      safeTop: layout.safe.top,
+      safeBottom: layout.safe.bottom,
+      safeLeft: layout.safe.left,
+      safeRight: layout.safe.right,
     };
   }
 

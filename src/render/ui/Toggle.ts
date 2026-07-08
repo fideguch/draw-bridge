@@ -57,8 +57,13 @@ export class Toggle extends Phaser.GameObjects.Container {
     const hitWidth = layout.ui(HIT_WIDTH_DESIGN);
     const hitHeight = layout.ui(HIT_HEIGHT_DESIGN);
     this.setSize(hitWidth, hitHeight);
+    // Phaser 4 Containers report origin (0.5,0.5) and pointWithinHitArea ADDS
+    // displayOrigin (w/2,h/2) to the local point before the contains check, so a
+    // centred rect (-w/2,-h/2,w,h) only matched the TOP-LEFT QUADRANT of the
+    // button (the 2026-07-08 "buttons don't respond" device bug). A (0,0,w,h)
+    // rect covers the full visual bounds exactly after that origin shift.
     this.setInteractive(
-      new Phaser.Geom.Rectangle(-hitWidth / 2, -hitHeight / 2, hitWidth, hitHeight),
+      new Phaser.Geom.Rectangle(0, 0, hitWidth, hitHeight),
       Phaser.Geom.Rectangle.Contains,
     );
     this.on('pointerup', this.onTap, this);

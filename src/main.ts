@@ -293,6 +293,13 @@ const game = new Phaser.Game({
   scene: shouldBootSpike ? [] : META_SCENES,
 });
 
+if (import.meta.env.DEV) {
+  // Device-debug handle (dev builds only): lets a CDP session inspect the live
+  // input transform (displayScale / bounds) when diagnosing WebView-only bugs.
+  // eslint-disable-next-line @typescript-eslint/naming-convention -- dev-hook global
+  (window as unknown as { __game?: Phaser.Game }).__game = game;
+}
+
 // Seed the ONE dynamic layout source synchronously — before any scene create()
 // runs on the next tick — so every scene reads a live game-pixel geometry.
 updateLayout(initialGameW, initialGameH, initialDpr, readSafeAreaInsets());

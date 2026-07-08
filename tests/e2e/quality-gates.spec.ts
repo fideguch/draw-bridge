@@ -30,10 +30,13 @@ async function rect(page: Page, id: string): Promise<{ x: number; y: number; wid
   }, id);
 }
 
-async function tapRect(page: Page, id: string): Promise<void> {
+async function tapRect(page: Page, id: string, fx = 0.5, fy = 0.5): Promise<void> {
   const r = await rect(page, id);
   if (!r) throw new Error(`button not registered: ${id}`);
-  await page.mouse.click(r.x + r.width / 2, r.y + r.height / 2);
+  // touchscreen (not mouse): exercises Phaser's touch path — the one real
+  // devices use. fx/fy pick a point inside the target; off-centre points catch
+  // the Phaser 4 Container displayOrigin quadrant bug (2026-07-08).
+  await page.touchscreen.tap(r.x + r.width * fx, r.y + r.height * fy);
 }
 
 async function waitHome(page: Page): Promise<void> {
@@ -95,8 +98,9 @@ test('QG-4 every menu button is alive (押せないボタン根絶): full naviga
   await expect.poll(async () => (await getHook(page)).scene, { timeout: 5_000 }).toBe('Settings');
   await tapRect(page, 'settings-back');
   await expect.poll(async () => (await getHook(page)).scene, { timeout: 5_000 }).toBe('Home');
-  // CRITICAL repro: after round-trips, Home buttons must STILL work.
-  await tapRect(page, 'home-play');
+  // CRITICAL repro: after round-trips, Home buttons must STILL work — and at
+  // an off-centre point (bottom-right area), not just dead centre.
+  await tapRect(page, 'home-play', 0.8, 0.8);
   await expect.poll(async () => (await getHook(page)).scene, { timeout: 5_000 }).toBe('LevelSelect');
   await tapRect(page, 'level-ch1-l01');
   await expect.poll(async () => (await getHook(page)).state, { timeout: 10_000 }).toBe('drawing');

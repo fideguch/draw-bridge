@@ -80,6 +80,12 @@ export const screen: { readonly width: number; readonly height: number } = layou
 
 /** Recompute the live layout from the current game size + probed safe insets. */
 export function updateLayout(gameWidth: number, gameHeight: number, dpr: number, cssInsets: SafeInsets): void {
+  if (import.meta.env.DEV) {
+    // Device-debug handle: CDP sessions read the live layout when diagnosing
+    // WebView-only sizing bugs (no production exposure).
+    // eslint-disable-next-line @typescript-eslint/naming-convention -- dev-hook global
+    (window as unknown as { __layout?: Layout }).__layout = layout;
+  }
   layout.width = gameWidth;
   layout.height = gameHeight;
   layout.dpr = dpr;

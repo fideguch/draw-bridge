@@ -21,6 +21,16 @@ export interface FramingViewport {
   readonly height: number;
   /** Uniform inset (px) kept clear of content on every edge. */
   readonly margin: number;
+  /**
+   * Per-edge safe-area insets (px) applied ON TOP of the uniform margin.
+   * Kept separate because folding safe.top into the uniform margin shrank the
+   * horizontal fit too (2026-07-08 device bug: status-bar inset ate ~46% of
+   * the stage width on Android).
+   */
+  readonly safeTop?: number;
+  readonly safeBottom?: number;
+  readonly safeLeft?: number;
+  readonly safeRight?: number;
 }
 
 /** Extra world metres of headroom above the content so there is room to draw. */
@@ -105,17 +115,23 @@ export function framingFor(level: Level, viewport: FramingViewport): Required<Wo
   const bounds = levelContentBounds(level);
   const contentW = Math.max(bounds.maxX - bounds.minX, 1e-3);
   const contentH = Math.max(bounds.maxY - bounds.minY, 1e-3);
-  const availW = Math.max(viewport.width - 2 * viewport.margin, 1);
-  const availH = Math.max(viewport.height - 2 * viewport.margin, 1);
+  const safeTop = viewport.safeTop ?? 0;
+  const safeBottom = viewport.safeBottom ?? 0;
+  const safeLeft = viewport.safeLeft ?? 0;
+  const safeRight = viewport.safeRight ?? 0;
+  const availW = Math.max(viewport.width - 2 * viewport.margin - safeLeft - safeRight, 1);
+  const availH = Math.max(viewport.height - 2 * viewport.margin - safeTop - safeBottom, 1);
   const pixelsPerMeter = Math.min(availW / contentW, availH / contentH);
 
   const centerWorldX = (bounds.minX + bounds.maxX) / 2;
   const centerWorldY = (bounds.minY + bounds.maxY) / 2;
   // px.x = originX + wx*ppm ; px.y = originY - wy*ppm  (worldToPixel y-flip).
-  // Solve so the content centre lands on the viewport centre.
+  // Solve so the content centre lands on the centre of the SAFE region.
+  const safeCenterX = safeLeft + viewport.margin + availW / 2;
+  const safeCenterY = safeTop + viewport.margin + availH / 2;
   return {
     pixelsPerMeter,
-    originX: viewport.width / 2 - centerWorldX * pixelsPerMeter,
-    originY: viewport.height / 2 + centerWorldY * pixelsPerMeter,
+    originX: safeCenterX - centerWorldX * pixelsPerMeter,
+    originY: safeCenterY + centerWorldY * pixelsPerMeter,
   };
 }
