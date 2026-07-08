@@ -16,7 +16,7 @@
 import type Phaser from 'phaser';
 import { color } from './theme';
 
-export type IconName = 'gear' | 'back' | 'restart' | 'play' | 'coin';
+export type IconName = 'gear' | 'back' | 'restart' | 'play' | 'coin' | 'pause';
 
 export interface IconStyle {
   /** Foreground fill (monochrome icons). */
@@ -45,7 +45,21 @@ export function drawIcon(g: Gfx, name: IconName, size: number, style: IconStyle)
     case 'coin':
       drawCoin(g, size);
       return;
+    case 'pause':
+      drawPause(g, size, style);
+      return;
   }
+}
+
+/** Two rounded vertical bars. */
+function drawPause(g: Gfx, size: number, style: IconStyle): void {
+  const barW = size * 0.26;
+  const barH = size * 0.86;
+  const gap = size * 0.16;
+  const r = barW / 2;
+  g.fillStyle(style.color, 1);
+  g.fillRoundedRect(-gap / 2 - barW, -barH / 2, barW, barH, r);
+  g.fillRoundedRect(gap / 2, -barH / 2, barW, barH, r);
 }
 
 /** 8-tooth gear: radial tooth quads + a body disc + a face-coloured centre hole. */

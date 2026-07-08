@@ -169,3 +169,21 @@ test('QG-6 stroke shape fidelity: a drawn arc must stay an arc after solidify (�
   // retain at least 60% immediately after solidify.
   expect(midDeviation).toBeGreaterThanOrEqual(0.33);
 });
+
+test('QG-7 in-play navigation: pause menu reaches LevelSelect and resume works (動線)', async ({ page }) => {
+  await waitHome(page);
+  await tapRect(page, 'home-play');
+  await expect.poll(async () => (await getHook(page)).scene, { timeout: 5_000 }).toBe('LevelSelect');
+  await tapRect(page, 'level-ch1-l01');
+  await expect.poll(async () => (await getHook(page)).state, { timeout: 10_000 }).toBe('drawing');
+
+  // Pause -> resume: still in the attempt.
+  await tapRect(page, 'hud-pause');
+  await tapRect(page, 'pause-resume');
+  await expect.poll(async () => (await getHook(page)).state, { timeout: 3_000 }).toBe('drawing');
+
+  // Pause -> level list: back on the menu (the missing escape route).
+  await tapRect(page, 'hud-pause');
+  await tapRect(page, 'pause-levels');
+  await expect.poll(async () => (await getHook(page)).scene, { timeout: 5_000 }).toBe('LevelSelect');
+});

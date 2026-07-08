@@ -56,6 +56,7 @@ import { camera as cameraTuning, car, draw, launch, physics, speedLines as speed
 import { setBridgeMidDeviation, setDevPlayState, setDevResultNextReady, setDevStrokePointCount, setWorldToGame } from '@render/devhook';
 import type { DevHookPlayState } from '@render/devhook';
 import { framingFor, type FramingViewport } from './play/levelFraming';
+import { PauseOverlay } from './play/PauseOverlay';
 import { ResultOverlay } from './play/ResultOverlay';
 import { GoalSequence } from './play/GoalSequence';
 
@@ -155,6 +156,10 @@ export class PlayScene extends Phaser.Scene {
   private strokeInput: StrokeInput | null = null;
   private overlay: ResultOverlay | null = null;
   private hudRestart: Button | null = null;
+  private hudPause: Button | null = null;
+  private pauseOverlay: PauseOverlay | null = null;
+  /** True while the pause menu freezes stepping (2026-07-08 nav feedback). */
+  private isPausedByUser = false;
 
   private playState: PlayStateTag = null;
   private outcomeHandled = false;
@@ -281,6 +286,7 @@ export class PlayScene extends Phaser.Scene {
       },
     });
     this.buildHudRestart();
+    this.buildHudPause();
 
     // SFX + haptics (composition-root owned) bound to this attempt's event bus.
     this.juice = this.services.attachEngineJuice(this.sim.events);
@@ -359,6 +365,7 @@ export class PlayScene extends Phaser.Scene {
     this.inkBar.update(this.sim.inkState.ratio, this.sim.inkState.zone);
     this.strokeInput?.setTransform(this.transform);
     this.buildHudRestart();
+    this.buildHudPause();
   }
 
   /** Goal flag centre in world metres (confetti + coin-burst anchor). */
@@ -384,6 +391,12 @@ export class PlayScene extends Phaser.Scene {
 
   update(_time: number, delta: number): void {
     if (this.sim === null) {
+      return;
+    }
+    if (this.isPausedByUser) {
+      // Frozen mid-attempt: no stepping, no juice — the overlay's own input
+      // still runs (scene-level update keeps processing input).
+      this.publishDevState();
       return;
     }
     const clamped = Math.min(delta, MAX_FRAME_MS);
@@ -479,6 +492,56 @@ export class PlayScene extends Phaser.Scene {
       depth: DEPTH.coins,
     });
     this.vehicle = new VehicleRenderer(this, sim.renderVehicle, this.transform, { depth: DEPTH.vehicle });
+  }
+
+  private buildHudPause(): void {
+    this.hudPause?.destroy();
+    this.hudPause = new Button(this, {
+      x: layout.safe.left + layout.ui(margin + 22),
+      y: layout.safe.top + layout.ui(space.space4 + 22),
+      width: 44,
+      height: 44,
+      label: '',
+      icon: 'pause',
+      iconSize: 22,
+      variant: 'secondary',
+      services: this.services,
+      devId: 'hud-pause',
+      onClick: () => this.openPause(),
+    });
+    this.hudPause.setScrollFactor(0).setDepth(DEPTH.hud);
+  }
+
+  private openPause(): void {
+    const sim = this.sim;
+    if (sim === null || this.isPausedByUser) {
+      return;
+    }
+    if (sim.phase !== 'drawing' && sim.phase !== 'anticipation' && sim.phase !== 'running') {
+      return; // result/celebration own their flow — no pause on top
+    }
+    this.isPausedByUser = true;
+    this.strokeInput?.disable();
+    this.pauseOverlay ??= new PauseOverlay(this, this.services);
+    this.pauseOverlay.show({
+      onResume: () => this.closePause(),
+      onRetry: () => {
+        this.closePause();
+        this.restartAttempt();
+      },
+      onLevels: () => {
+        this.closePause();
+        this.scene.start('LevelSelect');
+      },
+    });
+  }
+
+  private closePause(): void {
+    this.pauseOverlay?.hide();
+    this.isPausedByUser = false;
+    if (this.sim?.phase === 'drawing') {
+      this.strokeInput?.enable();
+    }
   }
 
   private buildHudRestart(): void {
@@ -878,6 +941,9 @@ export class PlayScene extends Phaser.Scene {
     this.isTornDown = true;
     setWorldToGame(null);
     setBridgeMidDeviation(null);
+    this.pauseOverlay?.destroy();
+    this.pauseOverlay = null;
+    this.isPausedByUser = false;
     setDevResultNextReady(false);
     setDevStrokePointCount(0);
     this.juice?.detach();
