@@ -24,7 +24,7 @@
 | 4. 軋み | 緊張 | 走行中に断続 0.5〜3秒 | ジョイント応力 stress 0.6〜1.0 帯域を音・色（白→黄→赤）・粉パーティクル・弱振動で可視化（[FR-006](./functional_requirements.md#fr-006)） | [research/06_gap_1.md](../research/06_gap_1.md)、[research/07_decision.md](../research/07_decision.md) §4.2 |
 | 5a. 到達 | カタルシス（成功） | 3〜4秒（タップで即スキップ可） | ゴール5拍演出: hit-stop→スロー→confetti→星→カウントアップ（[FR-012](./functional_requirements.md#fr-012)） | [research/03_juice_research.md](../research/03_juice_research.md) §4 |
 | 5b. 崩落 | カタルシス（失敗） | ≤1秒でリトライ可能 | 崩落・落下の物理見世物そのものが演出。暗転+短い残念音のみ、罰なし（[FR-008](./functional_requirements.md#fr-008), [FR-013](./functional_requirements.md#fr-013)） | [research/07_decision.md](../research/07_decision.md) §3.2 |
-| 6. 次へ | 前進 | Next 活性化 1.5〜2.5秒、レベル遷移 ≤1秒 | Next ボタン脈動（scale ±5% / 周期0.8秒）（[FR-012](./functional_requirements.md#fr-012), [NFR-006](./non_functional_requirements.md#nfr-006)） | [research/03_juice_research.md](../research/03_juice_research.md) §4.6 |
+| 6. 次へ | 前進 | Next 活性化 ≤1.0秒（2026-07-08 ユーザー指示で 1.5〜2.5秒から変更）、レベル遷移 ≤1秒 | Next ボタン脈動（scale ±5% / 周期0.8秒）（[FR-012](./functional_requirements.md#fr-012), [NFR-006](./non_functional_requirements.md#nfr-006)） | [research/03_juice_research.md](../research/03_juice_research.md) §4.6 |
 
 ### 1.2 感情曲線（覚醒度の設計）
 
@@ -34,7 +34,7 @@
  │                        4 軋み ╱╲ ╱╲╱
  │             2 溜め ╱▔▔▔▔▔▔▔▔▔    ╲
  │   1 描く ╱▔╲__╱ 3 走る            ╲ 5b 崩落（失敗でも見世物=下げ止め）
- │ ╱▔▔▔▔▔▔       ▲                    ╲__ 6 次へ（≤1s リトライ / 1.5〜2.5s Next）
+ │ ╱▔▔▔▔▔▔       ▲                    ╲__ 6 次へ（≤1s リトライ / ≤1.0s Next）
  │╱0 読む(静)     └ 0.3〜0.5s の期待の谷→解放
  └──────────────────────────────────────────▶ 時間（1周 ≤40秒）
 ```
@@ -76,7 +76,7 @@ Running     → Fail         : ①車体 y < 画面下限 killY
                              ③経過 tick > maxTicks（初期値 1800 = 30s 相当）（FR-008）
 Goal        → Result       : 5拍演出完了 or タップスキップ（FR-012）
 Fail        → Result       : 即時（演出最軽量。FR-013）
-Result(成功) → Next         : Next ボタン活性化 1.5〜2.5s 後にタップ（FR-012）
+Result(成功) → Next         : Next ボタン活性化 ≤1.0s 後にタップ（FR-012, 2026-07-08 改定）
 Result(失敗) → Idle(同面)   : Retry 即時活性。押下 → ≤1s で初期状態（FR-004, FR-008）
 Next        → Idle(次面)    : レベルロード ≤1s（FR-015, NFR-006）
 
@@ -233,7 +233,7 @@ Drawing / Anticipation / Running → Idle(同面リセット)
 | 3-4 | 星の順次出現（拍4） | 200〜300ms 間隔、各星 scale 0→1.3→1.0（250ms, ease-out-back）+ 衝撃波リング。音は上昇アルペジオ（ド・ミ・ソ）、3つ目だけ豪華（シンバル追加）。ハプティクス漸増 light→medium→heavy | P0 | [FR-012](./functional_requirements.md#fr-012) | 同 §4.4 |
 | 3-5 | 報酬カウントアップ（拍5） | 0→獲得額を 0.8〜1.5s（ease-out）。チック音 30〜60ms 間隔でピッチ 1.0→1.3 上昇。タップで即スキップ | P0 | [FR-012](./functional_requirements.md#fr-012) | 同 §4.5 |
 | 3-6 | コインバースト→回収 | 10〜30枚放射爆発 → 各 20〜40ms ずらしでカウンターへ飛行（各0.4〜0.6s, ease-in）。到達ごとに半音上昇チン音 + カウンター scale パンチ(1.0→1.2→1.0, 100ms) | P0 | [FR-012](./functional_requirements.md#fr-012) | 同 §4.3 |
-| 3-7 | Next ボタン | 演出完了後 1.5〜2.5s で活性化、脈動誘導（scale ±5%、周期0.8s） | P0 | [FR-012](./functional_requirements.md#fr-012) | 同 §4.6 |
+| 3-7 | Next ボタン | クリア後 ≤1.0s で活性化（演出は裏で継続・全スキップ可）、脈動誘導（scale ±5%、周期0.8s） | P0 | [FR-012](./functional_requirements.md#fr-012) | 同 §4.6 |
 | 3-8 | BGM ダッキング | ゴール瞬間 -6〜-9dB（0.2s）で SFX を立てる | P0 | [FR-012](./functional_requirements.md#fr-012), [NFR-014](./non_functional_requirements.md#nfr-014) | 同 §5.4 |
 
 <a id="gd-4-4"></a>
@@ -523,7 +523,7 @@ Drawing / Anticipation / Running → Idle(同面リセット)
 | `goal.tickSoundIntervalMs` | 45 ms | 30〜60 ms |
 | `goal.coinBurstCount` | 20 | 10〜30 |
 | `goal.coinFlightSec` / `coinStaggerMs` | 0.5 s / 30 ms | 0.4〜0.6 s / 20〜40 ms |
-| `goal.nextActivateDelaySec` | 2.0 s | 1.5〜2.5 s |
+| `goal.nextActivateDelaySec` | 0.3 s | クリア後合計 ≤1.0 s（2026-07-08 改定） |
 | `goal.nextPulseScalePct` / `nextPulsePeriodSec` | ±5% / 0.8 s | 固定 |
 | `audio.bgmDuckDb` / `bgmDuckAttackSec` | -7.5 dB / 0.2 s | -6〜-9 dB / 固定 |
 | `audio.maxSameSfxVoices` | 3 | 固定（[NFR-014](./non_functional_requirements.md#nfr-014)） |
