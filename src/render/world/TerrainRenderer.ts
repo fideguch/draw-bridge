@@ -55,7 +55,10 @@ export class TerrainRenderer {
   }
 
   private draw(source: TerrainSource, transform: WorldToPixel, grassCapPx: number): void {
-    const killYPixel = transform.y(source.killY);
+    // Fill down to well past the canvas bottom: the framing caps the VIEW at a
+    // shallow pit depth, so killY can land mid-screen — ending the fill there
+    // rendered the terrain as a floating island with sky underneath.
+    const killYPixel = Math.max(transform.y(source.killY), layout.height * 2);
     for (const polyline of source.terrain) {
       const topEdge: PixelPoint[] = polyline.map(([x, y]) => transform.point({ x, y }));
       const first = topEdge[0];
