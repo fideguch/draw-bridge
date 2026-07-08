@@ -15,7 +15,7 @@ import {
 } from 'phaser-box2d';
 import type { b2BodyId, b2ShapeId } from 'phaser-box2d';
 import type { Point } from '@engine/level/LevelSchema';
-import { buildBridge } from '@engine/physics/BridgeChainBuilder';
+import { buildBridge, perJointAngleLimit } from '@engine/physics/BridgeChainBuilder';
 import { processStroke } from '@engine/physics/StrokePipeline';
 import { Terrain } from '@engine/physics/Terrain';
 import { World } from '@engine/physics/World';
@@ -77,13 +77,18 @@ describe('BridgeChainBuilder — method C (chain)', () => {
       vehicleMass: VEHICLE_MASS,
     });
 
+    // Per-joint angle limit is DERIVED so the whole chain shares
+    // bridge.totalFlexBudgetRad (game-feel rebuild): limit scales with 1/jointCount.
+    const expectedLimit = perJointAngleLimit(chain.joints.length);
+    expect(expectedLimit).toBeGreaterThan(0);
+    expect(expectedLimit).toBeLessThanOrEqual(bridge.jointAngleLimitRad);
     for (const jointId of chain.joints) {
       expect(b2RevoluteJoint_IsSpringEnabled(jointId)).toBe(true);
       expect(b2RevoluteJoint_GetSpringHertz(jointId)).toBe(bridge.jointHertz);
       expect(b2RevoluteJoint_GetSpringDampingRatio(jointId)).toBe(bridge.jointDampingRatio);
       expect(b2RevoluteJoint_IsLimitEnabled(jointId)).toBe(true);
-      expect(b2RevoluteJoint_GetLowerLimit(jointId)).toBeCloseTo(-bridge.jointAngleLimitRad, 10);
-      expect(b2RevoluteJoint_GetUpperLimit(jointId)).toBeCloseTo(bridge.jointAngleLimitRad, 10);
+      expect(b2RevoluteJoint_GetLowerLimit(jointId)).toBeCloseTo(-expectedLimit, 10);
+      expect(b2RevoluteJoint_GetUpperLimit(jointId)).toBeCloseTo(expectedLimit, 10);
     }
     world.destroy();
   });

@@ -152,7 +152,11 @@ export const CH1_SOURCES: readonly LevelSource[] = [
     killY: -6,
     coins: coinArc(0, 0.9, 5, 0.5, 0.35),
     gimmickTags: [],
-    strokes: [{ kind: 'any', role: 'wobbly', points: wobble(-2, 0.15, 2, 0.15, 0.28) }],
+    // Wobble amp trimmed 0.28 -> 0.18 (firm-bridge rebuild): rdpEpsilon 0.02 now
+    // preserves the drawn wobble, so a big-amp sloppy line makes a bumpy firm
+    // bridge the car crawls over (431t). 0.18 stays visibly sloppy (FTUE "any
+    // line works") while the brisk car clears in ~209t (< the old 251 baseline).
+    strokes: [{ kind: 'any', role: 'wobbly', points: wobble(-2, 0.15, 2, 0.15, 0.18) }],
   },
 
   // L2 — slightly wider + slight step; teach ink meter/stars (straight -> 3 stars).
@@ -306,8 +310,12 @@ export const CH1_SOURCES: readonly LevelSource[] = [
     goalFlag: flag(11, 2, 1.2, 2.2),
     killY: -8,
     coins: coinArc(0, 1.6, 6, 0.55, 0.4),
-    // Short efficient arch: tight budget then makes the long overlapped straights infeasible (Gate 3 economy defense).
-    strokes: [{ kind: 'any', role: 'efficient-arch', points: arch(-4.0, 0.3, 3.5, 2.15, 0.45) }],
+    // Tight efficient arch (firm-bridge rebuild 2026-07-08): a firm bridge lets
+    // the car climb straight rim-to-rim ramps to the +2m goal, so the old wider
+    // arch no longer dominated on economy. This shorter arch (low overlap, bow
+    // 0.3) needs only ~6.2 ink, pinning the tight budget below the overlapped
+    // straights (Gate 3 economy defense — they become infeasible(budget)).
+    strokes: [{ kind: 'any', role: 'efficient-arch', points: arch(-3.0, 0.15, 2.8, 2.15, 0.3) }],
   },
 
   // L9 — support + budget (rest on an offset pillar, draw short). Tight.
@@ -339,7 +347,9 @@ export const CH1_SOURCES: readonly LevelSource[] = [
     goalFlag: flag(12, 2.2, 1.2, 2.2),
     killY: -8,
     coins: coinArc(-0.2, 1.7, 7, 0.55, 0.45),
-    strokes: [{ kind: 'any', role: 'efficient-arch', points: arch(-4.2, 0.3, 3.7, 2.35, 0.45) }],
+    // Tight efficient arch (firm-bridge rebuild): low overlap keeps the derived
+    // budget below the overlapped straights so Gate 3 defeats them by economy.
+    strokes: [{ kind: 'any', role: 'efficient-arch', points: arch(-3.2, 0.15, 3.0, 2.35, 0.3) }],
   },
 
   // B2 — bonus after L10: gentle downhill + triple coin arch.
@@ -387,7 +397,9 @@ export const CH1_SOURCES: readonly LevelSource[] = [
     goalFlag: flag(11, 2.2, 1.2, 2.2),
     killY: -8,
     coins: coinArc(-0.2, 1.7, 6, 0.55, 0.45),
-    strokes: [{ kind: 'any', role: 'efficient-arch', points: arch(-4.1, 0.3, 3.6, 2.35, 0.45) }],
+    // Tight efficient arch (firm-bridge rebuild): steep-straight physics no
+    // longer fails the bot, so the tight budget (low-overlap arch) is the Gate 3 defense.
+    strokes: [{ kind: 'any', role: 'efficient-arch', points: arch(-3.1, 0.15, 2.9, 2.35, 0.3) }],
   },
 
   // L13 — support choice: two pillars, pick the right one (low one is a trap). Tight star3.
@@ -423,7 +435,9 @@ export const CH1_SOURCES: readonly LevelSource[] = [
     goalFlag: flag(10, 2, 1.0, 1.9),
     killY: -8,
     coins: coinArc(-0.2, 1.6, 5, 0.5, 0.35),
-    strokes: [{ kind: 'any', role: 'precise-arch', points: arch(-4.0, 0.3, 3.5, 2.15, 0.42) }],
+    // Tight efficient arch (firm-bridge rebuild): low-overlap arch pins the tight
+    // budget below the overlapped straights (Gate 3 economy defense).
+    strokes: [{ kind: 'any', role: 'precise-arch', points: arch(-3.0, 0.15, 2.8, 2.15, 0.3) }],
   },
 
   // L15 — chapter boss: longest span + highest climb to raised goal, tight (anti-dominant).
@@ -438,7 +452,9 @@ export const CH1_SOURCES: readonly LevelSource[] = [
     goalFlag: flag(14, 2.2, 1.2, 2.2),
     killY: -8.5,
     coins: coinArc(-0.2, 1.7, 7, 0.55, 0.5),
-    strokes: [{ kind: 'any', role: 'boss-arch', points: arch(-4.2, 0.3, 3.7, 2.35, 0.45) }],
+    // Tight efficient boss arch (firm-bridge rebuild): low-overlap arch pins the
+    // tight budget below the overlapped straights (Gate 3 economy defense).
+    strokes: [{ kind: 'any', role: 'boss-arch', points: arch(-3.2, 0.15, 3.0, 2.35, 0.3) }],
   },
 
   // B3 — bonus after L15: flat long run + coin bonanza.

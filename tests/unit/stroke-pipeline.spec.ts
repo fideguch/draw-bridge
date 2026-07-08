@@ -64,16 +64,17 @@ describe('processStroke — discard rules (FR-003, ink refund handled by caller)
     }
   });
 
-  it('keeps a stroke of exactly one segment length but clamps up to the floor (V12: N in [2, 32])', () => {
+  it('keeps a stroke of exactly one segment length but clamps up to the floor (N in [6, 32])', () => {
     // one segmentLength rounds to N=1, which the pipeline floors to
-    // SEGMENT_COUNT_MIN so at least one revolute joint always exists.
+    // SEGMENT_COUNT_MIN (shape-fidelity floor) so a short stroke still carries
+    // enough control points to preserve its drawn shape.
     const result = expectKept(
       processStroke([
         { x: 0, y: 0 },
         { x: physics.segmentLength, y: 0 },
       ]),
     );
-    expect(SEGMENT_COUNT_MIN).toBe(2);
+    expect(SEGMENT_COUNT_MIN).toBe(6);
     expect(result.segments).toHaveLength(SEGMENT_COUNT_MIN);
   });
 

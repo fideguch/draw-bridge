@@ -12,14 +12,16 @@
  * segment length is discarded — the ink refund itself is the caller's job
  * (FR-003; refund equals the raw stroke's decremented ink).
  *
- * Segment count: N = round(totalLength / segmentLength), clamped to
- * [SEGMENT_COUNT_MIN, physics.segmentCountMax]. The floor of 2 guarantees at
- * least one revolute joint exists (a 1-segment "chain" has zero joints, so no
- * sag/creak/break physics — V12 contract intent). Natural bridge strokes
- * resample to 8+ segments; the floor only ever bites the shortest kept strokes
- * (down to one segmentLength). Strokes longer than cap x segmentLength are
- * clamped by increasing the EFFECTIVE segment length (totalLength / N) rather
- * than truncating the stroke.
+ * Segment count: N = clamp(round(totalLength / segmentLength),
+ * SEGMENT_COUNT_MIN, physics.segmentCountMax). The floor of 6 is the SHAPE
+ * FIDELITY fix (game-feel rebuild 2026-07-08): the effective segment length
+ * auto-scales to totalLength / N, so a short 2m stroke resamples to ~0.33m
+ * segments (six of them) and its drawn bow survives solidification, while a
+ * long 6m span still lands near the 0.8m segmentLength calibration (~8
+ * segments). The floor never coarsens long strokes — it only refines short
+ * ones, where a coarse 2-segment chain used to flatten the arc into a chord.
+ * Strokes longer than cap x segmentLength are clamped by increasing the
+ * EFFECTIVE segment length (totalLength / N) rather than truncating the stroke.
  */
 
 import type { Point } from '../level/LevelSchema';
@@ -34,10 +36,13 @@ export interface StrokeSegment {
 export type StrokeDiscardReason = 'tooFewPoints' | 'tooShort';
 
 /**
- * Minimum capsule segment count of a built bridge (V12: [2, segmentCountMax]).
- * Floor of 2 keeps >= 1 revolute joint so chain sag/creak/break physics exist.
+ * Minimum capsule segment count of a built bridge ([6, segmentCountMax]).
+ * Floor of 6 is the shape-fidelity floor (game-feel rebuild 2026-07-08): enough
+ * spline control points that even a short stroke's drawn bow survives instead of
+ * collapsing to a 2-segment chord. Also keeps >= 1 revolute joint so chain
+ * sag/creak/break physics exist.
  */
-export const SEGMENT_COUNT_MIN = 2;
+export const SEGMENT_COUNT_MIN = 6;
 
 export type StrokePipelineResult =
   | { readonly discarded: true; readonly reason: StrokeDiscardReason }

@@ -190,7 +190,16 @@ describe('StressTracker — orphan fragments (FR-006 debris rule)', () => {
       ],
       killY: -10,
     });
-    return buildBridge(world, resampleLine(-0.65, 0.65, 0.3), {
+    // Build the 2-segment chain DIRECTLY from a 3-point polyline: the shape-
+    // fidelity floor (SEGMENT_COUNT_MIN 6) means processStroke can no longer
+    // yield a 2-segment chain, but buildBridge accepts any resampled polyline,
+    // so this preserves the exact "single joint -> both ends orphan" topology.
+    const twoSegment: Point[] = [
+      { x: -0.65, y: 0.3 },
+      { x: 0, y: 0.3 },
+      { x: 0.65, y: 0.3 },
+    ];
+    return buildBridge(world, twoSegment, {
       method: 'chain',
       strokeId: 1,
       vehicleMass: VEHICLE_MASS,

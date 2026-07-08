@@ -3,9 +3,18 @@
  *
  * Method C ('chain', primary): one dynamic capsule body per segment, adjacent
  * bodies linked by revolute joints with enableSpring (bridge.jointHertz /
- * jointDampingRatio) + enableLimit (±bridge.jointAngleLimitRad) and
+ * jointDampingRatio) + enableLimit (±perJointAngleLimit) and
  * collideConnected=false. Load makes the chain genuinely sag — the design's
  * signature differentiator (game_design §3.2).
+ *
+ * FLEX BUDGET (game-feel rebuild 2026-07-08): the per-joint angle limit is NOT
+ * a fixed constant — it is DERIVED so the whole bridge shares a fixed TOTAL
+ * bend budget: perJointLimit = clamp(bridge.totalFlexBudgetRad / jointCount,
+ * jointAngleLimitMinRad, jointAngleLimitRad). This decouples firmness from the
+ * segment count: a short stroke now resamples to many joints (SEGMENT_COUNT_MIN
+ * 6), and a fixed per-joint limit would let total flex = jointCount x limit
+ * balloon into rope-like sag. Sharing the budget keeps every bridge reading as
+ * a FIRM drawn line with subtle give, regardless of N.
  *
  * Method A ('compound', fallback): ONE dynamic body carrying all N capsule
  * shapes, zero joints — rigid, no stress/creak/break (game_design §3.3);
@@ -128,12 +137,22 @@ function buildChainBodies(world: World, segments: readonly StrokeSegment[], opti
   return bodies;
 }
 
+/**
+ * Per-joint bend limit (radians) so the whole chain shares bridge.totalFlexBudgetRad.
+ * jointCount = bodies - 1; clamped to [jointAngleLimitMinRad, jointAngleLimitRad].
+ */
+export function perJointAngleLimit(jointCount: number): number {
+  const budgeted = bridge.totalFlexBudgetRad / Math.max(1, jointCount);
+  return Math.max(bridge.jointAngleLimitMinRad, Math.min(bridge.jointAngleLimitRad, budgeted));
+}
+
 function linkChainJoints(
   world: World,
   bodies: readonly b2BodyId[],
   segments: readonly StrokeSegment[],
 ): b2JointId[] {
   const joints: b2JointId[] = [];
+  const angleLimit = perJointAngleLimit(bodies.length - 1);
   for (let i = 0; i < bodies.length - 1; i++) {
     const segA = segments[i] as StrokeSegment;
     const segB = segments[i + 1] as StrokeSegment;
@@ -150,8 +169,8 @@ function linkChainJoints(
     def.hertz = bridge.jointHertz;
     def.dampingRatio = bridge.jointDampingRatio;
     def.enableLimit = true;
-    def.lowerAngle = -bridge.jointAngleLimitRad;
-    def.upperAngle = bridge.jointAngleLimitRad;
+    def.lowerAngle = -angleLimit;
+    def.upperAngle = angleLimit;
     def.collideConnected = false;
     joints.push(world.registerJoint(b2CreateRevoluteJoint(world.id, def)));
   }

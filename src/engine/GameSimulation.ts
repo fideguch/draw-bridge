@@ -33,8 +33,11 @@
  * (StressTracker), coinCollected, cleared/failed (terminal).
  */
 
+import { b2Body_GetPosition, b2Body_GetRotation } from 'phaser-box2d';
+import type { b2BodyId } from 'phaser-box2d';
 import type { Level, Point } from './level/LevelSchema';
 import type { BridgeChain, PhysicsMethod } from './physics/BridgeChainBuilder';
+import type { StrokeSegment } from './physics/StrokePipeline';
 import type { StrokeDiscardReason } from './physics/StrokePipeline';
 import type { FailCause } from './rules/Judge';
 import type { InkZone } from './rules/InkBudget';
@@ -136,6 +139,36 @@ function rawPolylineLength(points: readonly Point[]): number {
 /** True when any point carries a non-finite coordinate (NaN/±Infinity). */
 function hasNonFinitePoint(points: readonly Point[]): boolean {
   return points.some((p) => !Number.isFinite(p.x) || !Number.isFinite(p.y));
+}
+
+/**
+ * Live world position of a chain segment's endpoint: the build-time local offset
+ * (endpoint - segment midpoint) rigidly transformed by the body's current pose
+ * (bodies are built with identity rotation at the segment midpoint).
+ */
+function liveSegmentEndpoint(bodyId: b2BodyId, segment: StrokeSegment, which: 'a' | 'b'): Point {
+  const pos = b2Body_GetPosition(bodyId);
+  const rot = b2Body_GetRotation(bodyId); // { c: cos, s: sin }
+  const midX = (segment.a.x + segment.b.x) / 2;
+  const midY = (segment.a.y + segment.b.y) / 2;
+  const target = which === 'a' ? segment.a : segment.b;
+  const localX = target.x - midX;
+  const localY = target.y - midY;
+  return {
+    x: pos.x + rot.c * localX - rot.s * localY,
+    y: pos.y + rot.s * localX + rot.c * localY,
+  };
+}
+
+/** Perpendicular distance (m) from point `p` to the infinite line through a-b. */
+function perpendicularDistance(p: Point, a: Point, b: Point): number {
+  const abx = b.x - a.x;
+  const aby = b.y - a.y;
+  const len = Math.hypot(abx, aby);
+  if (len === 0) {
+    return Math.hypot(p.x - a.x, p.y - a.y);
+  }
+  return Math.abs(abx * (p.y - a.y) - aby * (p.x - a.x)) / len;
 }
 
 export class GameSimulation {
@@ -273,6 +306,41 @@ export class GameSimulation {
   /** The stress tracker for the current chain, or null (compound/pre-commit). */
   get renderStressTracker(): StressTracker | null {
     return this.stressTracker;
+  }
+
+  /**
+   * QG-6 shape-fidelity probe: perpendicular deviation (m) of the chain midpoint
+   * from the chord joining the two bridge endpoints, read from LIVE engine body
+   * poses. 0 when no bridge is built. A firm, shape-faithful bridge holds a
+   * deviation close to the drawn bow immediately after commit and keeps most of
+   * it as it settles; a floppy or collapsed bridge decays toward 0. Exposed for
+   * the dev hook (bridgeMidDeviationM) and the QG-6 unit test.
+   */
+  chainMidDeviationM(): number {
+    const chain = this.chain;
+    if (chain === null) {
+      return 0;
+    }
+    const segments = chain.segments;
+    const n = segments.length;
+    if (n === 0) {
+      return 0;
+    }
+    const last = n - 1;
+    const midIndex = Math.floor(n / 2);
+    if (chain.method === 'chain' && chain.bodies.length === n) {
+      const a = liveSegmentEndpoint(chain.bodies[0] as b2BodyId, segments[0] as StrokeSegment, 'a');
+      const b = liveSegmentEndpoint(chain.bodies[last] as b2BodyId, segments[last] as StrokeSegment, 'b');
+      const mid = liveSegmentEndpoint(chain.bodies[midIndex] as b2BodyId, segments[midIndex] as StrokeSegment, 'a');
+      return perpendicularDistance(mid, a, b);
+    }
+    // Compound (rigid) or degenerate: the drawn shape is preserved rigidly, so
+    // build-time geometry yields a method-appropriate deviation.
+    return perpendicularDistance(
+      (segments[midIndex] as StrokeSegment).a,
+      (segments[0] as StrokeSegment).a,
+      (segments[last] as StrokeSegment).b,
+    );
   }
 
   /**

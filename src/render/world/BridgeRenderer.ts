@@ -3,17 +3,24 @@
  * (T047, FR-003, FR-006, game_design §3.1 "描画層" / §4.2 2-6).
  *
  * Physics is N capsule segments (BridgeChainBuilder method C); rendering keeps
- * physics N and draw vertices separate: it reads the live segment-body centres
- * (interpolated across the fixed step) and draws ONE Catmull-Rom spline through
- * them per UN-BROKEN run of the chain. A broken joint splits the run; the two
- * new ends get a small jagged "torn" cap. Each span is tinted by its joint's
- * stress via stressColor (white -> yellow -> red), and detached fragments fade
- * out over their orphan timer (StressTracker.orphans()).
+ * physics N and draw vertices separate. Each render CONTROL POINT list runs
+ * through the live segment poses (interpolated across the fixed step), and the
+ * spline is drawn as ONE Catmull-Rom curve per UN-BROKEN run of the chain. A
+ * broken joint splits the run; the two new ends get a small jagged "torn" cap.
+ * Each span is tinted by its joint's stress via stressColor (white -> yellow ->
+ * red), and detached fragments fade out over their orphan timer.
+ *
+ * SHAPE FIDELITY (game-feel rebuild 2026-07-08): the control points are NOT just
+ * the N body centres — they interleave, per segment, the segment's capsule
+ * ENDPOINTS (the joint anchors, which sit on the drawn stroke) with the body
+ * centre, plus the two true outer endpoints. So the rendered curve passes
+ * through the drawn apex even at a low segment count, instead of chording flat
+ * below the arc (the "line reverts to straight" render symptom).
  *
  * Stress + break state are POLLED from the StressTracker getters (stressAt /
  * isBroken / orphans) — read-only observation, never a write back to the engine.
  * Method A (compound) has no joints/stress: it draws a single plain spline by
- * rigidly transforming the build-time segment centres by the one body's pose.
+ * rigidly transforming the build-time segment geometry by the one body's pose.
  */
 
 import type Phaser from 'phaser';
@@ -29,10 +36,32 @@ import { readBodyPose } from './bodyPose';
 import { StepInterpolator, type Pose } from './StepInterpolator';
 import type { PixelPoint, WorldToPixel } from './worldToPixel';
 
-/** Centre point in world metres (the spline control points). */
+/** A point in world metres (a spline control point before pixel projection). */
 interface Center {
   readonly x: number;
   readonly y: number;
+}
+
+/** Live world geometry of one chain segment body (centre + capsule endpoints). */
+interface SegmentGeometry {
+  readonly center: Center;
+  /** World position of the capsule 'a' endpoint (segment start). */
+  readonly epA: Center;
+  /** World position of the capsule 'b' endpoint (segment end). */
+  readonly epB: Center;
+}
+
+/** One spline control point: a world position + the joint index that tints it. */
+interface RenderNode {
+  readonly world: Center;
+  readonly joint: number;
+}
+
+/** A contiguous, un-broken run of control points spanning bodies [segStart, segEnd]. */
+interface RenderRun {
+  readonly nodes: readonly RenderNode[];
+  readonly segStart: number;
+  readonly segEnd: number;
 }
 
 export interface BridgeRendererOptions {
@@ -56,9 +85,8 @@ export class BridgeRenderer {
   private readonly lineWidthPx: number;
   private readonly borderWidthPx: number;
 
-  // Compound (method A) rigid reconstruction: build-time centres in body-local
-  // space + the body's initial pose (segments are created with identity rotation).
-  private readonly compoundLocalCenters: readonly Center[];
+  // Compound (method A) rigid reconstruction: build-time segment endpoints in
+  // body-local space + the body's initial pose (created with identity rotation).
   private readonly compoundInitial: Pose;
 
   constructor(scene: Phaser.Scene, chain: BridgeChain, transform: WorldToPixel, options: BridgeRendererOptions = {}) {
@@ -77,23 +105,13 @@ export class BridgeRenderer {
       chain.method === 'compound' && firstBody !== undefined
         ? readBodyPose(firstBody)
         : { x: 0, y: 0, angle: 0 };
-    this.compoundLocalCenters =
-      chain.method === 'compound'
-        ? chain.segments.map((segment) => ({
-            x: (segment.a.x + segment.b.x) / 2 - this.compoundInitial.x,
-            y: (segment.a.y + segment.b.y) / 2 - this.compoundInitial.y,
-          }))
-        : [];
   }
 
   update(alpha: number): void {
     this.graphics.clear();
-    const centers = this.readCenters(alpha);
-    if (centers.length < 1) {
-      return;
-    }
-    for (const run of this.splitIntoRuns(centers)) {
-      this.drawRun(centers, run);
+    const runs = this.chain.method === 'chain' ? this.buildChainRuns(alpha) : this.buildCompoundRuns(alpha);
+    for (const run of runs) {
+      this.drawRun(run);
     }
   }
 
@@ -106,49 +124,113 @@ export class BridgeRenderer {
     this.graphics.destroy();
   }
 
-  // ── centre extraction (interpolated) ────────────────────────────────────────
-
-  private readCenters(alpha: number): Center[] {
-    const poses = this.interpolator.sample(alpha, () => this.readLivePoses());
-    if (this.chain.method === 'chain') {
-      // One body per segment: its origin IS the segment centre.
-      return poses.map((pose) => ({ x: pose.x, y: pose.y }));
-    }
-    // Compound: rigidly transform the build-time local centres by the one body.
-    const body = poses[0];
-    if (body === undefined) {
-      return [];
-    }
-    const deltaAngle = body.angle - this.compoundInitial.angle;
-    const cos = Math.cos(deltaAngle);
-    const sin = Math.sin(deltaAngle);
-    return this.compoundLocalCenters.map((local) => ({
-      x: body.x + local.x * cos - local.y * sin,
-      y: body.y + local.x * sin + local.y * cos,
-    }));
-  }
+  // ── control-point extraction ────────────────────────────────────────────────
 
   private readLivePoses(): Pose[] {
     return this.chain.bodies.map((bodyId) => readBodyPose(bodyId));
   }
 
-  // ── runs (split at broken joints) ───────────────────────────────────────────
+  /** Per-body live geometry: centre + both rotated capsule endpoints (chain). */
+  private readChainGeometry(alpha: number): SegmentGeometry[] {
+    const poses = this.interpolator.sample(alpha, () => this.readLivePoses());
+    const geometry: SegmentGeometry[] = [];
+    for (let i = 0; i < poses.length; i++) {
+      const pose = poses[i] as Pose;
+      const center: Center = { x: pose.x, y: pose.y };
+      const segment = this.chain.segments[i];
+      if (segment === undefined) {
+        geometry.push({ center, epA: center, epB: center });
+        continue;
+      }
+      // Build-time capsule half-vector (endpoint - segment midpoint); bodies are
+      // built with identity rotation, so the live rotation applies directly.
+      const halfX = (segment.a.x - segment.b.x) / 2;
+      const halfY = (segment.a.y - segment.b.y) / 2;
+      const cos = Math.cos(pose.angle);
+      const sin = Math.sin(pose.angle);
+      const rotX = halfX * cos - halfY * sin;
+      const rotY = halfX * sin + halfY * cos;
+      geometry.push({
+        center,
+        epA: { x: pose.x + rotX, y: pose.y + rotY },
+        epB: { x: pose.x - rotX, y: pose.y - rotY },
+      });
+    }
+    return geometry;
+  }
 
-  /** Contiguous [start, end] index ranges not separated by a broken joint. */
-  private splitIntoRuns(centers: readonly Center[]): Array<{ readonly start: number; readonly end: number }> {
-    const runs: Array<{ start: number; end: number }> = [];
-    let start = 0;
-    for (let i = 0; i < centers.length; i++) {
-      const isBoundaryBroken = i < centers.length - 1 && this.isJointBroken(i);
-      if (isBoundaryBroken || i === centers.length - 1) {
-        runs.push({ start, end: i });
-        if (isBoundaryBroken) {
-          start = i + 1;
-        }
+  /**
+   * Chain control points: for each un-broken body i, the sequence
+   *   epA_i (run start only), centre_i, jointAnchor_i (= midpoint of epB_i and
+   *   epA_{i+1}), ... , epB_last (run end).
+   * A broken joint closes the current run at the tear (epB of the left body) and
+   * opens the next run at epA of the right body — so the curve visibly splits.
+   */
+  private buildChainRuns(alpha: number): RenderRun[] {
+    const geometry = this.readChainGeometry(alpha);
+    const n = geometry.length;
+    if (n === 0) {
+      return [];
+    }
+    const jointCount = n - 1;
+    const clampJoint = (value: number): number => Math.max(0, Math.min(Math.max(0, jointCount - 1), value));
+
+    const runs: RenderRun[] = [];
+    let nodes: RenderNode[] = [];
+    let segStart = 0;
+    for (let i = 0; i < n; i++) {
+      const g = geometry[i] as SegmentGeometry;
+      if (nodes.length === 0) {
+        segStart = i;
+        nodes.push({ world: g.epA, joint: clampJoint(i) });
+      }
+      nodes.push({ world: g.center, joint: clampJoint(i) });
+
+      const isLastBody = i === n - 1;
+      if (!isLastBody && this.isJointBroken(i)) {
+        nodes.push({ world: g.epB, joint: clampJoint(i) }); // close the left side at the tear
+        runs.push({ nodes, segStart, segEnd: i });
+        nodes = [];
+      } else if (!isLastBody) {
+        const next = geometry[i + 1] as SegmentGeometry;
+        nodes.push({ world: midpoint(g.epB, next.epA), joint: i }); // shared joint anchor = drawn apex
+      } else {
+        nodes.push({ world: g.epB, joint: clampJoint(i) }); // true far endpoint
+        runs.push({ nodes, segStart, segEnd: i });
+        nodes = [];
       }
     }
     return runs;
   }
+
+  /**
+   * Compound control points: the whole drawn polyline (resampled vertices)
+   * rigidly transformed by the single body's pose — one plain run, no joints.
+   */
+  private buildCompoundRuns(alpha: number): RenderRun[] {
+    const poses = this.interpolator.sample(alpha, () => this.readLivePoses());
+    const body = poses[0];
+    const segments = this.chain.segments;
+    if (body === undefined || segments.length === 0) {
+      return [];
+    }
+    const deltaAngle = body.angle - this.compoundInitial.angle;
+    const cos = Math.cos(deltaAngle);
+    const sin = Math.sin(deltaAngle);
+    const toWorld = (point: Center): Center => {
+      const localX = point.x - this.compoundInitial.x;
+      const localY = point.y - this.compoundInitial.y;
+      return { x: body.x + localX * cos - localY * sin, y: body.y + localX * sin + localY * cos };
+    };
+    const first = segments[0] as { a: Center; b: Center };
+    const nodes: RenderNode[] = [{ world: toWorld(first.a), joint: 0 }];
+    for (const segment of segments) {
+      nodes.push({ world: toWorld(segment.b), joint: 0 });
+    }
+    return [{ nodes, segStart: 0, segEnd: segments.length - 1 }];
+  }
+
+  // ── break / stress / orphan polling ─────────────────────────────────────────
 
   private isJointBroken(jointIndex: number): boolean {
     return this.stressTracker?.isBroken(jointIndex) ?? false;
@@ -173,19 +255,17 @@ export class BridgeRenderer {
 
   // ── drawing ─────────────────────────────────────────────────────────────────
 
-  private drawRun(centers: readonly Center[], run: { readonly start: number; readonly end: number }): void {
+  private drawRun(run: RenderRun): void {
     let runAlpha = 1;
-    for (let seg = run.start; seg <= run.end; seg++) {
+    for (let seg = run.segStart; seg <= run.segEnd; seg++) {
       runAlpha = Math.min(runAlpha, this.segmentAlpha(seg));
     }
     if (runAlpha <= 0) {
       return;
     }
 
-    const pixels: PixelPoint[] = [];
-    for (let i = run.start; i <= run.end; i++) {
-      pixels.push(this.transform.point(centers[i] as Center));
-    }
+    const nodes = run.nodes;
+    const pixels: PixelPoint[] = nodes.map((node) => this.transform.point(node.world));
     const first = pixels[0];
     if (first === undefined) {
       return;
@@ -196,56 +276,58 @@ export class BridgeRenderer {
     }
 
     // 1) Border underlay: whole smoothed run in one dark stroke.
-    const smoothed = this.smoothRun(pixels);
+    const smoothed = this.smoothWhole(pixels);
     this.strokePolyline(smoothed, this.lineWidthPx + this.borderWidthPx * 2, color.inkBorder, runAlpha);
     for (const point of pixels) {
       this.drawDot(point, (this.lineWidthPx + this.borderWidthPx * 2) / 2, color.inkBorder, runAlpha);
     }
 
-    // 2) Ink pass: each span tinted by its joint's stress.
-    for (let local = 0; local < pixels.length - 1; local++) {
-      const jointIndex = run.start + local; // joint between centre local and local+1
-      const spanColor = stressColor(this.jointStress(jointIndex));
-      this.strokePolyline(this.smoothSpan(pixels, local), this.lineWidthPx, spanColor, runAlpha);
+    // 2) Ink pass: each span tinted by its adjacent joints' stress.
+    for (let k = 0; k < pixels.length - 1; k++) {
+      const stress = Math.max(
+        this.jointStress((nodes[k] as RenderNode).joint),
+        this.jointStress((nodes[k + 1] as RenderNode).joint),
+      );
+      this.strokePolyline(this.smoothSpan(pixels, k), this.lineWidthPx, stressColor(stress), runAlpha);
     }
-    for (let local = 0; local < pixels.length; local++) {
-      const point = pixels[local] as PixelPoint;
-      const nearestJoint = run.start + Math.min(local, pixels.length - 2);
-      this.drawDot(point, this.lineWidthPx / 2, stressColor(this.jointStress(nearestJoint)), runAlpha);
+    for (let k = 0; k < pixels.length; k++) {
+      const point = pixels[k] as PixelPoint;
+      this.drawDot(point, this.lineWidthPx / 2, stressColor(this.jointStress((nodes[k] as RenderNode).joint)), runAlpha);
     }
 
     // 3) Jagged "torn" caps at ends that are breaks (not the true chain ends).
-    if (run.start > 0) {
+    const lastSegment = this.chain.segments.length - 1;
+    if (run.segStart > 0) {
       this.drawTornCap(pixels[0] as PixelPoint, pixels[1] as PixelPoint, runAlpha);
     }
-    if (run.end < centers.length - 1) {
+    if (run.segEnd < lastSegment) {
       this.drawTornCap(pixels[pixels.length - 1] as PixelPoint, pixels[pixels.length - 2] as PixelPoint, runAlpha);
     }
   }
 
-  /** Full smoothed polyline through all run centres (border pass). */
-  private smoothRun(centers: readonly PixelPoint[]): PixelPoint[] {
-    const out: PixelPoint[] = [centers[0] as PixelPoint];
-    for (let j = 0; j < centers.length - 1; j++) {
+  /** Full smoothed polyline through all run control points (border pass). */
+  private smoothWhole(points: readonly PixelPoint[]): PixelPoint[] {
+    const out: PixelPoint[] = [points[0] as PixelPoint];
+    for (let j = 0; j < points.length - 1; j++) {
       for (let s = 1; s <= SUBDIVISIONS; s++) {
-        out.push(this.spanPoint(centers, j, s / SUBDIVISIONS));
+        out.push(this.spanPoint(points, j, s / SUBDIVISIONS));
       }
     }
     return out;
   }
 
-  /** Smoothed sub-polyline for span j (centre j -> centre j+1 inclusive). */
-  private smoothSpan(centers: readonly PixelPoint[], j: number): PixelPoint[] {
-    const out: PixelPoint[] = [centers[j] as PixelPoint];
+  /** Smoothed sub-polyline for span j (point j -> point j+1 inclusive). */
+  private smoothSpan(points: readonly PixelPoint[], j: number): PixelPoint[] {
+    const out: PixelPoint[] = [points[j] as PixelPoint];
     for (let s = 1; s <= SUBDIVISIONS; s++) {
-      out.push(this.spanPoint(centers, j, s / SUBDIVISIONS));
+      out.push(this.spanPoint(points, j, s / SUBDIVISIONS));
     }
     return out;
   }
 
-  private spanPoint(centers: readonly PixelPoint[], j: number, t: number): PixelPoint {
-    const n = centers.length;
-    const at = (i: number): PixelPoint => centers[Math.min(Math.max(i, 0), n - 1)] as PixelPoint;
+  private spanPoint(points: readonly PixelPoint[], j: number, t: number): PixelPoint {
+    const n = points.length;
+    const at = (i: number): PixelPoint => points[Math.min(Math.max(i, 0), n - 1)] as PixelPoint;
     return catmullRom(at(j - 1), at(j), at(j + 1), at(j + 2), t);
   }
 
@@ -287,4 +369,9 @@ export class BridgeRenderer {
     this.graphics.lineTo(end.x + perpX * amp, end.y + perpY * amp);
     this.graphics.strokePath();
   }
+}
+
+/** Midpoint of two world points. */
+function midpoint(a: Center, b: Center): Center {
+  return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
 }

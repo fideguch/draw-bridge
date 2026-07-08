@@ -36,17 +36,43 @@ export const physics = {
 export const bridge = {
   /** Capsule segment radius in meters. spike-calibrated 2026-07-07 (S1, kept). */
   capsuleRadius: 0.12,
-  /** Revolute spring joint stiffness. Range 4-8. */
-  jointHertz: 6,
+  /**
+   * Revolute spring joint stiffness. Range 4-8.
+   * game-feel rebuild 2026-07-08: 6 -> 8 — snappier settle so a loaded bridge
+   * reads as a FIRM drawn line (subtle give) rather than a slow floppy spring.
+   */
+  jointHertz: 8,
   /** Joint spring damping ratio. Range 0.6-0.8. */
   jointDampingRatio: 0.7,
   /**
-   * Joint angle limit in radians (+/-). Range 0.2-0.4.
-   * spike-calibrated 2026-07-07 (S1): 0.3 -> 0.2 — the angle limits ARE the
-   * bridge structure; 0.2 arrests the sag-V early enough for the car to
-   * cross. At 0.3 a 6m-gap chain collapses through its own bend budget.
+   * TOTAL bend budget of a whole bridge, in radians, shared across ALL joints
+   * (game-feel rebuild 2026-07-08). The per-joint angle limit is DERIVED as
+   * clamp(totalFlexBudgetRad / jointCount, jointAngleLimitMinRad,
+   * jointAngleLimitRad) in BridgeChainBuilder, so total flex stays ~constant no
+   * matter how many segments a stroke resamples to. This is the "ふにゃふにゃ
+   * fix": with the shape-fidelity floor (SEGMENT_COUNT_MIN 6) short strokes now
+   * carry many joints, and a fixed per-joint limit would let total flex =
+   * jointCount x limit balloon into rope-like sag. Budget ~0.5-0.7 rad makes a
+   * 3m bridge under car load sag visibly-but-firmly (~0.1-0.2m), NOT rope-like.
+   * TUNED 2026-07-08 to 0.3: the initial 0.5-0.7 guess measured rope-like — a
+   * solidified 0.55m-bow arch flattened to <0.1m within 60 ticks (QG-6 probe).
+   * 0.3 holds ~0.37m of that bow (firm) while a loaded 3m span still gives
+   * ~0.1-0.2m; the shape reads as a firm drawn line with subtle give.
+   */
+  totalFlexBudgetRad: 0.3,
+  /**
+   * Per-joint angle-limit CEILING in radians (+/-) — the clamp upper bound on
+   * the derived per-joint limit (see totalFlexBudgetRad). At the segment floor
+   * (few joints) this caps each joint's give; spike-calibrated 2026-07-07 (S1):
+   * 0.2 arrests the sag-V early enough for the car to cross.
    */
   jointAngleLimitRad: 0.2,
+  /**
+   * Per-joint angle-limit FLOOR in radians (+/-) — the clamp lower bound on the
+   * derived per-joint limit. Keeps a high-N chain from becoming perfectly rigid
+   * (a hair of give per joint still creaks/breaks under overload).
+   */
+  jointAngleLimitMinRad: 0.02,
   /**
    * Break threshold = factor x vehicle static load.
    * spike-calibrated 2026-07-07 (S1): 2.5 -> 10, SUPERSEDES the paper range
@@ -111,15 +137,19 @@ export const car = {
   restitution: 0,
   /**
    * Rear-wheel motor angular speed base in rad/s (Lv0).
-   * spike-calibrated 2026-07-07 (S1, kept): 12 cannot climb out of a 6m
-   * sag-V (timeout); 15 clears every calibrated scenario.
+   * game-feel rebuild 2026-07-08: 15 -> 24 — real-device feedback was "car too
+   * slow, can't climb". 24 gives a brisk crossing and enough surface speed to
+   * climb the drawn arcs and the l08-style +2m ramps without stalling. Wheel
+   * surface speed = 24 x wheelRadius(0.3) = 7.2 m/s, far under
+   * physics.divergenceSpeedMax (80).
    */
-  motorSpeedBase: 15,
+  motorSpeedBase: 24,
   /**
-   * Max motor torque in N*m. spike-calibrated 2026-07-07 (S1, kept):
-   * 200 wheelies the car into a self-flip before the bridge; 50 clears.
+   * Max motor torque in N*m. game-feel rebuild 2026-07-08: 50 -> 110 — the old
+   * 50 stalled on the raised ramps; 110 climbs them. (200 wheelies the car into
+   * a self-flip before the bridge — kept well below that.)
    */
-  maxMotorTorque: 50,
+  maxMotorTorque: 110,
 };
 
 /** Fail judgement (game_design §8.1) */
@@ -193,8 +223,14 @@ export const draw = {
   pitchRandomPct: 5,
   /** Pen dust particles per frame (speed-proportional). Range 2-5. */
   penDustPerFrame: 3,
-  /** RDP simplification epsilon in world meters. */
-  rdpEpsilon: 0.08, // TBD (tuning) — provisional until stroke pipeline tuning
+  /**
+   * RDP simplification epsilon in world meters. game-feel rebuild 2026-07-08:
+   * 0.08 -> 0.02 — the "line reverts to straight" fix. At 0.08 a gently drawn
+   * arc's interior vertices were within tolerance and got collapsed to the
+   * endpoints, so the solidified bridge lost its bow. 0.02 preserves the drawn
+   * shape while still killing hand-jitter noise.
+   */
+  rdpEpsilon: 0.02,
 };
 
 /** Ink bar UI (game_design §8.3) */
