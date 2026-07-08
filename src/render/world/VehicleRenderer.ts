@@ -160,7 +160,14 @@ export class VehicleRenderer {
       width,
       height,
       this.chassisCornerPx,
-      { fill: color.carBody, border: color.inkBorder, borderWidth: strokeToken.game },
+      {
+        fill: color.carBody,
+        border: color.inkBorder,
+        // Proportional cap: at low pixels-per-meter the fixed stroke token
+        // exceeds half the chassis height and eats the body fill entirely
+        // (the all-dark-car bug, same class as the world-coin border bug).
+        borderWidth: Math.min(strokeToken.game, height * 0.18, width * 0.18),
+      },
     );
     this.graphics.restore();
   }

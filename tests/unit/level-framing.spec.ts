@@ -25,16 +25,24 @@ const VIEWPORT = { width: 390, height: 844, margin: 40 } as const;
 describe('levelContentBounds', () => {
   const level = loadFixtureLevel();
 
-  it('spans the terrain horizontally', () => {
-    const terrainXs = level.terrain.flatMap((line) => line.map(([x]) => x));
+  it('spans the PLAYABLE window (spawn ↔ flag + pad) — not the full terrain runway', () => {
     const bounds = levelContentBounds(level);
-    expect(bounds.minX).toBeLessThanOrEqual(Math.min(...terrainXs));
-    expect(bounds.maxX).toBeGreaterThanOrEqual(Math.max(...terrainXs));
+    const flagRight = level.goalFlag.x + level.goalFlag.width;
+    // Covers the action with padding…
+    expect(bounds.minX).toBeLessThanOrEqual(level.vehicleSpawn.x - 1.5);
+    expect(bounds.maxX).toBeGreaterThanOrEqual(flagRight + 1.5);
+    // …but does NOT balloon to distant scenery (the tiny-stage device bug):
+    const terrainXs = level.terrain.flatMap((line) => line.map(([x]) => x));
+    const runwaySpan = Math.max(...terrainXs) - Math.min(...terrainXs);
+    expect(bounds.maxX - bounds.minX).toBeLessThanOrEqual(runwaySpan);
   });
 
-  it('includes the pit floor (killY) so the gap reads as a hazard', () => {
+  it('shows a capped pit depth (hazard readable, never the full killY chasm)', () => {
     const bounds = levelContentBounds(level);
-    expect(bounds.minY).toBeLessThanOrEqual(level.killY);
+    const rimYs = level.terrain.flatMap((line) => line.map(([, y]) => y));
+    const lowestRim = Math.min(...rimYs.filter((y) => y > level.killY));
+    expect(bounds.minY).toBeLessThanOrEqual(lowestRim); // pit visible
+    expect(bounds.minY).toBeGreaterThanOrEqual(level.killY); // but bounded
   });
 
   it('leaves headroom above the highest content to draw into', () => {

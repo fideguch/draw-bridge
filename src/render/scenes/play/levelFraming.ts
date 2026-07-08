@@ -25,6 +25,10 @@ export interface FramingViewport {
 
 /** Extra world metres of headroom above the content so there is room to draw. */
 const DRAW_HEADROOM_M = 1.5;
+/** Horizontal padding (m) around the playable span (spawn ↔ flag). */
+const PLAY_PAD_X_M = 2.0;
+/** How much of the pit to show below the lowest rim (m) — NOT down to killY. */
+const PIT_VIEW_DEPTH_M = 3.0;
 
 interface Bounds {
   minX: number;
@@ -46,25 +50,48 @@ function extend(bounds: Bounds, x: number, y: number): void {
  * plus a little headroom above for the drawn arc.
  */
 export function levelContentBounds(level: Level): Bounds {
+  // PLAYABLE WINDOW, not the full terrain extent: terrain runways/pits extend
+  // far past the action (L1 spans 24 m wide, killY -8 m deep) and framing all
+  // of it rendered the stage tiny on device (2026-07-08 feedback). The player
+  // must read spawn -> gap -> flag; trailing terrain and the pit bottom are
+  // scenery the renderer still draws outside the frame.
+  const flagLeft = level.goalFlag.x;
+  const flagRight = level.goalFlag.x + level.goalFlag.width;
+  const minX = Math.min(level.vehicleSpawn.x, flagLeft) - PLAY_PAD_X_M;
+  const maxX = Math.max(level.vehicleSpawn.x, flagRight) + PLAY_PAD_X_M;
+
   const bounds: Bounds = {
-    minX: Number.POSITIVE_INFINITY,
-    maxX: Number.NEGATIVE_INFINITY,
+    minX,
+    maxX,
     minY: Number.POSITIVE_INFINITY,
     maxY: Number.NEGATIVE_INFINITY,
   };
+  // Vertical extent from content INSIDE the window only.
+  let lowestRimY = Number.POSITIVE_INFINITY;
   for (const polyline of level.terrain) {
     for (const [x, y] of polyline) {
-      extend(bounds, x, y);
+      if (x >= minX && x <= maxX) {
+        bounds.maxY = Math.max(bounds.maxY, y);
+        lowestRimY = Math.min(lowestRimY, y);
+        bounds.minY = Math.min(bounds.minY, y);
+      }
     }
   }
-  extend(bounds, level.goalFlag.x, level.goalFlag.y);
-  extend(bounds, level.goalFlag.x + level.goalFlag.width, level.goalFlag.y + level.goalFlag.height);
-  extend(bounds, level.vehicleSpawn.x, level.vehicleSpawn.y);
+  const extendY = (y: number): void => {
+    bounds.minY = Math.min(bounds.minY, y);
+    bounds.maxY = Math.max(bounds.maxY, y);
+  };
+  extendY(level.goalFlag.y);
+  extendY(level.goalFlag.y + level.goalFlag.height);
+  extendY(level.vehicleSpawn.y);
   for (const coin of level.coins) {
-    extend(bounds, coin.x, coin.y);
+    if (coin.x >= minX && coin.x <= maxX) {
+      extendY(coin.y);
+    }
   }
-  // Show the pit floor so the gap reads as a hazard, and headroom to draw above.
-  bounds.minY = Math.min(bounds.minY, level.killY);
+  // Show enough pit to read the hazard, capped — never the full killY depth.
+  const surfaceY = Number.isFinite(lowestRimY) ? lowestRimY : level.vehicleSpawn.y;
+  bounds.minY = Math.max(Math.min(bounds.minY, surfaceY - PIT_VIEW_DEPTH_M), level.killY);
   bounds.maxY += DRAW_HEADROOM_M;
   return bounds;
 }
