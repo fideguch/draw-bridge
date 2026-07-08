@@ -48,6 +48,10 @@ export const color = {
   carHeadlight: 0xfff1a8, // front headlight glow
   carTailLight: 0xff4632, // rear tail-light dot
   carRim: 0xe9e4d4, // alloy wheel rim face (silver-cream)
+  // Rock hazard (RockRenderer) — a fill-only slate boulder.
+  rockDark: 0x3f3b46, // dark base disc / outline (reads as stone shadow)
+  rockFill: 0x7b7683, // mid slate-grey body
+  rockLight: 0xa9a4b3, // lighter facet highlights (rotation legibility)
   coin: 0xffe14d,
   coinStroke: 0x8c6d1f,
   star: 0xffe14d,

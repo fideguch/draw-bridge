@@ -34,6 +34,28 @@ export interface Point {
   readonly y: number;
 }
 
+/**
+ * Rock hazard radius bounds (world meters). A rock below ROCK_MIN_RADIUS_M is a
+ * degenerate speck; above ROCK_MAX_RADIUS_M it dwarfs the car/level. Both are
+ * authoring guards, not tunables (they bound the schema, not the physics feel).
+ */
+export const ROCK_MIN_RADIUS_M = 0.1;
+export const ROCK_MAX_RADIUS_M = 5;
+
+/**
+ * A rolling/falling rock hazard placed in a level (optional `rocks[]`). Spawns as
+ * a dynamic circle at {x, y} with the given `radius`; `density` overrides the
+ * TuningConstants default; `initialVelocity` (m/s) seeds a roll/throw. Absent
+ * `rocks` == a level with no rocks (fully backward compatible, schemaVersion 1).
+ */
+export interface Rock {
+  readonly x: number;
+  readonly y: number;
+  readonly radius: number;
+  readonly density?: number;
+  readonly initialVelocity?: Point;
+}
+
 /** Bottom-left anchored rectangle (y-up). */
 export interface Rect {
   readonly x: number;
@@ -95,6 +117,8 @@ export interface Level {
   readonly ghostSolutions: readonly GhostSolution[];
   readonly maxTicks?: number;
   readonly bonusMultiplier?: number;
+  /** Rolling/falling rock hazards (optional; absent == none). */
+  readonly rocks?: readonly Rock[];
 }
 
 export type LevelValidation =
@@ -120,7 +144,10 @@ const LEVEL_KEYS = new Set([
   'ghostSolutions',
   'maxTicks',
   'bonusMultiplier',
+  'rocks',
 ]);
+
+const ROCK_KEYS = new Set(['x', 'y', 'radius', 'density', 'initialVelocity']);
 
 const GHOST_KEYS = new Set(['kind', 'stroke', 'sampleEveryTicks', 'samples', 'result']);
 const RESULT_KEYS = new Set(['outcome', 'ticks', 'finalPos', 'inkConsumed', 'starRating']);
@@ -180,6 +207,43 @@ function parseRect(value: unknown, path: string, errors: string[]): Rect | undef
     return undefined;
   }
   return { x, y, width, height };
+}
+
+function parseRock(value: unknown, path: string, errors: string[]): Rock | undefined {
+  if (!isRecord(value)) {
+    errors.push(`${path}: expected a rock object {x, y, radius, density?, initialVelocity?}`);
+    return undefined;
+  }
+  checkUnknownKeys(value, ROCK_KEYS, path, errors);
+  const before = errors.length;
+
+  if (!isFiniteNumber(value['x']) || !isFiniteNumber(value['y'])) {
+    errors.push(`${path}: x and y must be finite numbers`);
+  }
+  const radius = value['radius'];
+  if (!isFiniteNumber(radius) || radius < ROCK_MIN_RADIUS_M || radius > ROCK_MAX_RADIUS_M) {
+    errors.push(`${path}.radius: expected a number in ${ROCK_MIN_RADIUS_M}..${ROCK_MAX_RADIUS_M} m`);
+  }
+  const density = value['density'];
+  if (density !== undefined && (!isFiniteNumber(density) || density <= 0)) {
+    errors.push(`${path}.density: expected a number > 0 when present`);
+  }
+  let initialVelocity: Point | undefined;
+  const rawVelocity = value['initialVelocity'];
+  if (rawVelocity !== undefined) {
+    initialVelocity = parsePoint(rawVelocity, `${path}.initialVelocity`, errors);
+  }
+
+  if (errors.length > before) {
+    return undefined;
+  }
+  return {
+    x: value['x'] as number,
+    y: value['y'] as number,
+    radius: radius as number,
+    ...(density !== undefined ? { density: density as number } : {}),
+    ...(initialVelocity !== undefined ? { initialVelocity } : {}),
+  };
 }
 
 function parsePolyline(value: unknown, path: string, errors: string[]): Polyline | undefined {
@@ -331,6 +395,7 @@ interface CollectibleParts {
 interface OptionalParts {
   readonly maxTicks?: number;
   readonly bonusMultiplier?: number;
+  readonly rocks?: readonly Rock[];
 }
 
 /** schemaVersion const + id pattern + optional filename match. Returns the id. */
@@ -482,9 +547,14 @@ function validateGhosts(json: Record<string, unknown>, errors: string[]): GhostS
   return ghostSolutions;
 }
 
-/** Optional maxTicks (>= MIN_MAX_TICKS) + bonusMultiplier (iff bonus id, 5-10). */
+/**
+ * Optional maxTicks (>= MIN_MAX_TICKS) + bonusMultiplier (iff bonus id, 5-10) +
+ * rocks[] (absent == none). A present-but-invalid rocks entry pushes errors so
+ * validateLevel fails the whole level; an absent `rocks` leaves parts.rocks unset
+ * so the assembled Level has NO rocks key (byte-identical to pre-rock levels).
+ */
 function validateOptionalFields(json: Record<string, unknown>, rawId: unknown, errors: string[]): OptionalParts {
-  const parts: { maxTicks?: number; bonusMultiplier?: number } = {};
+  const parts: { maxTicks?: number; bonusMultiplier?: number; rocks?: readonly Rock[] } = {};
 
   const maxTicks = json['maxTicks'];
   if (maxTicks !== undefined && (!isInt(maxTicks) || maxTicks < MIN_MAX_TICKS)) {
@@ -503,6 +573,22 @@ function validateOptionalFields(json: Record<string, unknown>, rawId: unknown, e
     }
   } else if (bonusMultiplier !== undefined) {
     errors.push('bonusMultiplier: forbidden on non-bonus levels');
+  }
+
+  const rawRocks = json['rocks'];
+  if (rawRocks !== undefined) {
+    if (!Array.isArray(rawRocks)) {
+      errors.push('rocks: expected an array of rock objects (may be empty, or omit the key)');
+    } else {
+      const rocks: Rock[] = [];
+      for (const [i, entry] of rawRocks.entries()) {
+        const parsed = parseRock(entry, `rocks[${i}]`, errors);
+        if (parsed !== undefined) {
+          rocks.push(parsed);
+        }
+      }
+      parts.rocks = rocks;
+    }
   }
 
   return parts;

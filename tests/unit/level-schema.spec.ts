@@ -323,6 +323,68 @@ describe('validateLevel — bonusMultiplier iff bonus id', () => {
   });
 });
 
+describe('validateLevel — optional rocks[] hazards', () => {
+  it('a level with NO rocks key is valid and has no rocks (backward compatible)', () => {
+    const level = expectOk(validateLevel(cloneFixture()));
+    expect(level.rocks).toBeUndefined();
+    expect(level.schemaVersion).toBe(1); // additive optional field: version unchanged
+  });
+
+  it('accepts a present-but-empty rocks array (no rocks)', () => {
+    const json = cloneFixture();
+    json['rocks'] = [];
+    const level = expectOk(validateLevel(json));
+    expect(level.rocks).toEqual([]);
+  });
+
+  it('accepts a full rock (radius + density + initialVelocity)', () => {
+    const json = cloneFixture();
+    json['rocks'] = [{ x: 1, y: 3, radius: 0.4, density: 5, initialVelocity: { x: -2, y: 0 } }];
+    const level = expectOk(validateLevel(json));
+    expect(level.rocks).toHaveLength(1);
+    expect(level.rocks?.[0]).toEqual({ x: 1, y: 3, radius: 0.4, density: 5, initialVelocity: { x: -2, y: 0 } });
+  });
+
+  it('accepts a minimal rock (only x, y, radius)', () => {
+    const json = cloneFixture();
+    json['rocks'] = [{ x: 0, y: 2, radius: 0.5 }];
+    const level = expectOk(validateLevel(json));
+    expect(level.rocks?.[0]).toEqual({ x: 0, y: 2, radius: 0.5 });
+    expect(level.rocks?.[0]?.density).toBeUndefined();
+    expect(level.rocks?.[0]?.initialVelocity).toBeUndefined();
+  });
+
+  it.each([0.05, 6])('rejects an out-of-range rock radius (%f)', (radius) => {
+    const json = cloneFixture();
+    json['rocks'] = [{ x: 0, y: 2, radius }];
+    expectErrors(validateLevel(json));
+  });
+
+  it.each([0, -3])('rejects a non-positive rock density (%f)', (density) => {
+    const json = cloneFixture();
+    json['rocks'] = [{ x: 0, y: 2, radius: 0.4, density }];
+    expectErrors(validateLevel(json));
+  });
+
+  it('rejects a non-finite initialVelocity component', () => {
+    const json = cloneFixture();
+    json['rocks'] = [{ x: 0, y: 2, radius: 0.4, initialVelocity: { x: 1, y: Number.POSITIVE_INFINITY } }];
+    expectErrors(validateLevel(json));
+  });
+
+  it('rejects an unknown key inside a rock (additionalProperties: false)', () => {
+    const json = cloneFixture();
+    json['rocks'] = [{ x: 0, y: 2, radius: 0.4, bounce: true }];
+    expectErrors(validateLevel(json));
+  });
+
+  it('rejects rocks that is not an array', () => {
+    const json = cloneFixture();
+    json['rocks'] = { x: 0, y: 2, radius: 0.4 };
+    expectErrors(validateLevel(json));
+  });
+});
+
 describe('loadLevel — parse + validate + typed Level', () => {
   it('loads a valid level from JSON text', () => {
     const level = expectOk(loadLevel(JSON.stringify(exampleValid)));

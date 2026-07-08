@@ -19,6 +19,15 @@ export const CATEGORY_BRIDGE = 0x0002;
 /** Vehicle chassis + wheels. */
 export const CATEGORY_VEHICLE = 0x0004;
 
+/**
+ * Rolling/falling rock hazards (RockHazard). A distinct category so future
+ * filtering (e.g. debris that should ignore rocks) stays expressible; rocks
+ * themselves collide with EVERYTHING (terrain + bridge + vehicle + each other)
+ * via MASK_ALL, which is the "block falling/rolling objects with your line"
+ * mechanic — the drawn BridgeChain is a shield/deflector for them.
+ */
+export const CATEGORY_ROCK = 0x0008;
+
 /** Collide with everything (b2Filter default maskBits width). */
 export const MASK_ALL = 0xffff;
 

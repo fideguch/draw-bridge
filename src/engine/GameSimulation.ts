@@ -47,6 +47,7 @@ import { buildBridge } from './physics/BridgeChainBuilder';
 import { processStroke } from './physics/StrokePipeline';
 import { clipStrokeToSolids } from './physics/StrokeClipper';
 import { StressTracker, defaultBreakThresholds } from './physics/StressTracker';
+import { RockHazard } from './physics/RockHazard';
 import { Terrain } from './physics/Terrain';
 import { buildTerrainSolids, isPointInSolids } from './physics/TerrainSolids';
 import type { TerrainSolids } from './physics/TerrainSolids';
@@ -218,6 +219,7 @@ export class GameSimulation {
   private level!: Level;
   private terrainSolids!: TerrainSolids;
   private vehicle!: Vehicle;
+  private rockHazard!: RockHazard;
   private inkBudget!: InkBudget;
   private coinTracker!: CoinTracker;
   private judge!: Judge;
@@ -276,6 +278,14 @@ export class GameSimulation {
     for (let i = 0; i < ATTEMPT_SETTLE_TICKS; i++) {
       this.world.step();
     }
+    // Spawn rocks AFTER the settle (not before): a hazard begins at its authored
+    // position when the RUN starts, instead of rolling/falling through the
+    // pre-commit settle while the player is still drawing. Deterministic (level
+    // data drives it) and a NO-OP when the level has no rocks — the added bodies
+    // are the only difference from a pre-rock world, so a rock-free level keeps a
+    // byte-identical stateHash (determinism negative control). Rock bodies enter
+    // the World registry last, so they never perturb terrain/vehicle hash order.
+    this.rockHazard = new RockHazard(this.world, this.level.rocks ?? []);
   }
 
   /**
@@ -343,6 +353,11 @@ export class GameSimulation {
   /** The live vehicle (VehicleRenderer reads its body poses; never written). */
   get renderVehicle(): Vehicle {
     return this.vehicle;
+  }
+
+  /** The live rock hazards (RockRenderer reads their body poses; never written). */
+  get renderRocks(): RockHazard {
+    return this.rockHazard;
   }
 
   /** The built bridge chain, or null before commit / after reset (read-only). */

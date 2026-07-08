@@ -49,6 +49,9 @@ const COLORS = {
   coinEdge: '#a9760a',
   coinLabel: '#3a2a00',
   coinMissed: '#e03131',
+  rock: '#7b7683',
+  rockEdge: '#3f3b46',
+  rockLabel: '#f2f0f5',
 } as const;
 
 function fmt(n: number): number {
@@ -78,6 +81,10 @@ function boundsOf(data: CardData): Bounds {
   add(level.goalFlag.x, level.goalFlag.y);
   add(level.goalFlag.x + level.goalFlag.width, level.goalFlag.y + level.goalFlag.height);
   for (const c of level.coins) add(c.x, c.y);
+  for (const r of level.rocks ?? []) {
+    add(r.x - r.radius, r.y - r.radius);
+    add(r.x + r.radius, r.y + r.radius);
+  }
   for (const p of data.strokePts) add(p.x, p.y);
   for (const p of data.trajectory) add(p.x, p.y);
   // killY is a required element; keep the drop visible but bounded so the deep
@@ -194,6 +201,20 @@ function renderRoutes(data: CardData, proj: (x: number, y: number) => [number, n
   return parts.join('\n');
 }
 
+/** Rock hazards: grey discs (true radius) with a 岩 hazard label. */
+function renderRocks(data: CardData, proj: (x: number, y: number) => [number, number]): string {
+  return (data.level.rocks ?? [])
+    .map((r) => {
+      const [x, y] = proj(r.x, r.y);
+      const labelSize = Math.min(0.6, Math.max(0.28, r.radius * 0.9));
+      return (
+        `<circle cx="${x}" cy="${y}" r="${fmt(r.radius)}" fill="${COLORS.rock}" stroke="${COLORS.rockEdge}" stroke-width="0.08"/>` +
+        `<text x="${x}" y="${fmt(y + labelSize * 0.35)}" font-size="${fmt(labelSize)}" font-weight="700" text-anchor="middle" fill="${COLORS.rockLabel}">岩</text>`
+      );
+    })
+    .join('\n');
+}
+
 function renderCoins(data: CardData, proj: (x: number, y: number) => [number, number]): string {
   return data.level.coins
     .map((c, i) => {
@@ -226,6 +247,7 @@ export function renderLevelSvg(data: CardData): string {
     renderKillY(data, b, proj),
     renderGoal(data, proj),
     renderRoutes(data, proj),
+    renderRocks(data, proj),
     renderCar(data, proj),
     renderCoins(data, proj),
   ].join('\n');

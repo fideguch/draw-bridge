@@ -166,6 +166,23 @@ export const car = {
   maxMotorTorque: 110,
 };
 
+/**
+ * Rock hazard defaults (RockHazard entity). Per-rock position, radius, optional
+ * density and initial velocity live in the level JSON `rocks[]`; these are the
+ * fallbacks + fixed surface properties shared by every rock. A rock is a plain
+ * dynamic circle: it rolls/falls under normal gravity, collides with terrain,
+ * the drawn BridgeChain, and the car (MASK_ALL), and induces the existing
+ * tipOver/fall/timeout fail rules when it reaches the car undeflected.
+ */
+export const rock = {
+  /** Default surface density (kg/m^2) when a rock omits `density`. Range 1-10. */
+  density: 2.5,
+  /** Rock surface friction (rolling grip). Range 0.4-0.9. */
+  friction: 0.6,
+  /** Rock restitution (bounciness). Range 0-0.3. */
+  restitution: 0.1,
+};
+
 /** Fail judgement (game_design §8.1) */
 export const fail = {
   /** Roof-contact time to declare tip-over, seconds. Range 0.3-1.0. */

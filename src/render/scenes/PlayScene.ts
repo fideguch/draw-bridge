@@ -34,6 +34,7 @@ import type { FailCause } from '@engine/rules/Judge';
 import { BridgeRenderer } from '@render/world/BridgeRenderer';
 import { CoinRenderer } from '@render/world/CoinRenderer';
 import { FlagRenderer } from '@render/world/FlagRenderer';
+import { RockRenderer } from '@render/world/RockRenderer';
 import { TerrainRenderer } from '@render/world/TerrainRenderer';
 import { VehicleRenderer } from '@render/world/VehicleRenderer';
 import { WorldToPixel } from '@render/world/worldToPixel';
@@ -68,7 +69,7 @@ const LEVEL_JSON = import.meta.glob('/levels/*.json', { eager: true, import: 'de
 >;
 
 /** Draw-order layers (world below the HUD below the overlay). */
-const DEPTH = { terrain: 1, flag: 2, coins: 3, bridge: 4, vehicle: 5, stroke: 6, hud: 1500 } as const;
+const DEPTH = { terrain: 1, flag: 2, coins: 3, bridge: 4, rocks: 5, vehicle: 6, stroke: 7, hud: 1500 } as const;
 
 /** Viewport inset for the level-fit framing (px). */
 const FRAME_MARGIN_PX = 40;
@@ -150,6 +151,7 @@ export class PlayScene extends Phaser.Scene {
   private terrain: TerrainRenderer | null = null;
   private coins: CoinRenderer | null = null;
   private flag: FlagRenderer | null = null;
+  private rocks: RockRenderer | null = null;
   private vehicle: VehicleRenderer | null = null;
   private bridge: BridgeRenderer | null = null;
   private strokeRenderer: StrokeRenderer | null = null;
@@ -495,6 +497,7 @@ export class PlayScene extends Phaser.Scene {
     this.terrain?.destroy();
     this.coins?.destroy();
     this.flag?.destroy();
+    this.rocks?.destroy();
     this.vehicle?.destroy();
     this.bridge?.destroy();
     this.bridge = null;
@@ -507,6 +510,7 @@ export class PlayScene extends Phaser.Scene {
       events: sim.events,
       depth: DEPTH.coins,
     });
+    this.rocks = new RockRenderer(this, sim.renderRocks, this.transform, { depth: DEPTH.rocks });
     this.vehicle = new VehicleRenderer(this, sim.renderVehicle, this.transform, { depth: DEPTH.vehicle });
   }
 
@@ -775,6 +779,7 @@ export class PlayScene extends Phaser.Scene {
   private renderFrame(): void {
     const alpha = this.lastAlpha;
     this.bridge?.update(alpha);
+    this.rocks?.update(alpha);
     this.vehicle?.update(alpha);
     this.flag?.update(alpha);
     if (this.playState === 'anticipation' || this.playState === 'running') {
@@ -1087,6 +1092,7 @@ export class PlayScene extends Phaser.Scene {
     this.terrain?.destroy();
     this.coins?.destroy();
     this.flag?.destroy();
+    this.rocks?.destroy();
     this.vehicle?.destroy();
     this.bridge?.destroy();
     this.director?.destroy();
