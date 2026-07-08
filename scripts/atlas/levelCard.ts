@@ -17,6 +17,19 @@
 
 import type { Level, Point } from '../../src/engine/level/LevelSchema';
 
+/**
+ * One rock hazard's recorded MOTION over the ghost run (round-5 shield atlas).
+ * `points[0]` is the authored spawn (run start, drawn hollow), the last point is
+ * the final resting/exit position (drawn as the solid rock disc). The whole path
+ * is the falling/rolling arc the drawn line has to shield or deflect.
+ */
+export interface RockPath {
+  /** Per-tick centre positions (world m): first = spawn, last = final. */
+  readonly points: readonly Point[];
+  /** Rock radius (world m). */
+  readonly radius: number;
+}
+
 export interface CardData {
   readonly level: Level;
   /** Archetype / design label from the level source. */
@@ -27,6 +40,8 @@ export interface CardData {
   readonly trajectory: readonly Point[];
   /** Per-coin collection order (1-based) along the route, or null if missed. */
   readonly coinOrder: readonly (number | null)[];
+  /** Per-rock recorded trajectory (same order as level.rocks; empty when none). */
+  readonly rockPaths: readonly RockPath[];
   /** Raw stroke polyline length (m). */
   readonly strokeLen: number;
   /** Ink consumed by the primary ghost (m). */
@@ -52,6 +67,8 @@ const COLORS = {
   rock: '#7b7683',
   rockEdge: '#3f3b46',
   rockLabel: '#f2f0f5',
+  rockPath: '#6f6a78',
+  rockArrow: '#403c48',
 } as const;
 
 function fmt(n: number): number {
@@ -81,9 +98,13 @@ function boundsOf(data: CardData): Bounds {
   add(level.goalFlag.x, level.goalFlag.y);
   add(level.goalFlag.x + level.goalFlag.width, level.goalFlag.y + level.goalFlag.height);
   for (const c of level.coins) add(c.x, c.y);
-  for (const r of level.rocks ?? []) {
-    add(r.x - r.radius, r.y - r.radius);
-    add(r.x + r.radius, r.y + r.radius);
+  // Rock MOTION drives the shield levels: bound the full recorded arc (spawn ->
+  // final) plus radius so neither the drop/roll path nor the discs get clipped.
+  for (const rp of data.rockPaths) {
+    for (const p of rp.points) {
+      add(p.x - rp.radius, p.y - rp.radius);
+      add(p.x + rp.radius, p.y + rp.radius);
+    }
   }
   for (const p of data.strokePts) add(p.x, p.y);
   for (const p of data.trajectory) add(p.x, p.y);
@@ -201,16 +222,80 @@ function renderRoutes(data: CardData, proj: (x: number, y: number) => [number, n
   return parts.join('\n');
 }
 
-/** Rock hazards: grey discs (true radius) with a 岩 hazard label. */
+/** Unit travel direction at the path end (last segment longer than eps), or null. */
+function endDirection(pts: readonly Point[]): Point | null {
+  const final = pts[pts.length - 1];
+  if (final === undefined) return null;
+  for (let i = pts.length - 2; i >= 0; i--) {
+    const prev = pts[i];
+    if (prev === undefined) continue;
+    const dx = final.x - prev.x;
+    const dy = final.y - prev.y;
+    const len = Math.hypot(dx, dy);
+    if (len > 0.12) return { x: dx / len, y: dy / len };
+  }
+  return null;
+}
+
+/** A small filled arrowhead poking out of the final disc along travel direction. */
+function rockArrow(
+  final: Point,
+  dir: Point,
+  radius: number,
+  proj: (x: number, y: number) => [number, number],
+): string {
+  const base = radius + 0.02; // sit just outside the disc rim
+  const len = 0.34;
+  const wing = 0.19;
+  const perp = { x: -dir.y, y: dir.x };
+  const tip = { x: final.x + dir.x * (base + len), y: final.y + dir.y * (base + len) };
+  const b1 = { x: final.x + dir.x * base + perp.x * wing, y: final.y + dir.y * base + perp.y * wing };
+  const b2 = { x: final.x + dir.x * base - perp.x * wing, y: final.y + dir.y * base - perp.y * wing };
+  const at = (p: Point): string => proj(p.x, p.y).join(',');
+  return `<polygon points="${at(tip)} ${at(b1)} ${at(b2)}" fill="${COLORS.rockArrow}"/>`;
+}
+
+/**
+ * Rock hazards: the recorded MOTION of each rock — a dotted grey polyline from
+ * the spawn (hollow circle) through the fall/roll to its final position, an
+ * arrowhead showing the exit direction, and the solid rock disc + 岩 label at
+ * the final resting/exit point. This is the whole point of the shield levels:
+ * the drawn line has to catch or deflect this arc.
+ */
 function renderRocks(data: CardData, proj: (x: number, y: number) => [number, number]): string {
-  return (data.level.rocks ?? [])
-    .map((r) => {
-      const [x, y] = proj(r.x, r.y);
-      const labelSize = Math.min(0.6, Math.max(0.28, r.radius * 0.9));
-      return (
-        `<circle cx="${x}" cy="${y}" r="${fmt(r.radius)}" fill="${COLORS.rock}" stroke="${COLORS.rockEdge}" stroke-width="0.08"/>` +
-        `<text x="${x}" y="${fmt(y + labelSize * 0.35)}" font-size="${fmt(labelSize)}" font-weight="700" text-anchor="middle" fill="${COLORS.rockLabel}">岩</text>`
+  return data.rockPaths
+    .map((rp) => {
+      const pts = rp.points;
+      const start = pts[0];
+      const final = pts[pts.length - 1];
+      if (start === undefined || final === undefined) return '';
+      const parts: string[] = [];
+      // Dotted grey path (falling/rolling arc).
+      if (pts.length >= 2) {
+        parts.push(
+          `<polyline points="${polyPoints(pts, proj)}" fill="none" stroke="${COLORS.rockPath}" ` +
+            `stroke-width="0.07" stroke-dasharray="0.04 0.2" stroke-linecap="round" opacity="0.9"/>`,
+        );
+      }
+      // Hollow spawn marker.
+      const [sx, sy] = proj(start.x, start.y);
+      parts.push(
+        `<circle cx="${sx}" cy="${sy}" r="${fmt(rp.radius)}" fill="none" stroke="${COLORS.rockPath}" ` +
+          `stroke-width="0.06" stroke-dasharray="0.14 0.1" opacity="0.85"/>`,
       );
+      // Exit-direction arrowhead (skip when the rock never really moved).
+      const dir = endDirection(pts);
+      if (dir !== null) parts.push(rockArrow(final, dir, rp.radius, proj));
+      // Solid rock disc at the final resting/exit position + hazard label.
+      const [fx, fy] = proj(final.x, final.y);
+      const labelSize = Math.min(0.6, Math.max(0.28, rp.radius * 0.9));
+      parts.push(
+        `<circle cx="${fx}" cy="${fy}" r="${fmt(rp.radius)}" fill="${COLORS.rock}" stroke="${COLORS.rockEdge}" stroke-width="0.08"/>`,
+      );
+      parts.push(
+        `<text x="${fx}" y="${fmt(fy + labelSize * 0.35)}" font-size="${fmt(labelSize)}" font-weight="700" text-anchor="middle" fill="${COLORS.rockLabel}">岩</text>`,
+      );
+      return parts.join('\n');
     })
     .join('\n');
 }

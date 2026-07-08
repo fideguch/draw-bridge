@@ -20,9 +20,10 @@ import { join } from 'node:path';
 import type { Level, Point } from '../../src/engine/level/LevelSchema';
 import { validateLevel } from '../../src/engine/level/LevelSchema';
 import { collectCoinsAlongTrajectory, recordGhostTrajectory } from '../../src/engine/replay/GhostPlayer';
+import { GameSimulation } from '../../src/engine/GameSimulation';
 import { World } from '../../src/engine/physics/World';
 import { CH1_SOURCES } from '../levels/ch1';
-import { renderLevelCard, type CardData } from './levelCard';
+import { renderLevelCard, type CardData, type RockPath } from './levelCard';
 
 function polylineLength(pts: readonly Point[]): number {
   let total = 0;
@@ -41,6 +42,48 @@ function loadLevel(id: string, levelsDir: string): Level {
     throw new Error(`atlas: ${id}.json failed validation:\n  - ${parsed.errors.join('\n  - ')}`);
   }
   return parsed.level;
+}
+
+/**
+ * Re-drive the ghost through GameSimulation and record every rock's per-tick
+ * centre — the falling/rolling arc the drawn line has to shield/deflect (the
+ * point of the shield levels). Mirrors recordGhostTrajectory's harness but reads
+ * the live RockHazard (renderRocks), which the trajectory recorder's onTick does
+ * not expose. Rocks spawn AT run start (post-settle) at their authored position,
+ * so the first sample is the spawn and the last is the final resting/exit point.
+ * Deterministic + reuses the caller's recycled world (32-slot cap discipline).
+ */
+function recordRockPaths(level: Level, strokePts: readonly Point[], world: World): RockPath[] {
+  if ((level.rocks ?? []).length === 0) return [];
+  const simulation = new GameSimulation(level, {
+    upgrades: { inkCapacityLv: 0, engineSpeedLv: 0 },
+    world,
+  });
+  try {
+    const rocks = simulation.renderRocks;
+    const count = rocks.count;
+    const points: Point[][] = Array.from({ length: count }, () => []);
+    const capture = (): void => {
+      const states = rocks.renderState();
+      for (let i = 0; i < count; i++) {
+        const s = states[i];
+        if (s !== undefined) points[i]?.push({ x: s.x, y: s.y });
+      }
+    };
+    capture(); // spawn snapshot (run start, before the first step)
+    const commit = simulation.commitStroke(strokePts);
+    if (commit.committed) {
+      let outcome = simulation.outcome;
+      while (outcome === null) {
+        outcome = simulation.step();
+        capture();
+      }
+    }
+    const radii = rocks.radii;
+    return points.map((pts, i) => ({ points: pts, radius: radii[i] ?? 0 }));
+  } finally {
+    simulation.destroy();
+  }
 }
 
 /** Re-derive the primary ghost's driven route + coin collection order. */
@@ -71,6 +114,7 @@ function cardDataFor(level: Level, design: string, world: World): CardData {
     strokePts,
     trajectory,
     coinOrder,
+    rockPaths: recordRockPaths(level, strokePts, world),
     strokeLen: polylineLength(strokePts),
     inkConsumed: ghost.result.inkConsumed,
   };
@@ -87,6 +131,7 @@ const LEGEND = `<section class="legend">
     <li><span class="sw coin"></span>コイン（番号=獲得順、全て金=100%回収）</li>
     <li><span class="sw miss"></span>未回収コイン（×印・本来ゼロ）</li>
     <li><span class="sw kill"></span>killY（落下ライン）</li>
+    <li><span class="sw rockpath"></span>岩の軌道（○=開始位置 / 灰円=最終位置・矢印=進行方向）</li>
     <li><span class="tag ad">直線封じ</span>= anti-dominant（直線ではクリア不能）</li>
   </ul>
 </section>`;
@@ -110,6 +155,7 @@ const STYLE = `
   .sw.coin { background: #f5b301; border: 1px solid #a9760a; border-radius: 50%; width: 14px; height: 14px; }
   .sw.miss { background: #e03131; clip-path: polygon(20% 0,50% 30%,80% 0,100% 20%,70% 50%,100% 80%,80% 100%,50% 70%,20% 100%,0 80%,30% 50%,0 20%); }
   .sw.kill { background: repeating-linear-gradient(90deg, #e03131 0 5px, transparent 5px 8px); height: 4px; }
+  .sw.rockpath { background: repeating-linear-gradient(90deg, #6f6a78 0 2px, transparent 2px 6px); height: 5px; }
   .tag { font-size: 11px; padding: 1px 7px; border-radius: 999px; font-weight: 700; }
   .tag.ad { background: #ffe3e3; color: #c92a2a; }
   .grid { max-width: 1180px; margin: 0 auto; display: grid;
