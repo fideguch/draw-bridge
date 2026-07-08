@@ -43,8 +43,11 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { GhostSample, GhostSolution, Level, Point } from '../../src/engine/level/LevelSchema';
 import { validateLevel } from '../../src/engine/level/LevelSchema';
-import { runScriptedAttempt } from '../../src/engine/replay/GhostPlayer';
+import { collectCoinsAlongTrajectory, runScriptedAttempt } from '../../src/engine/replay/GhostPlayer';
+import type { TrajectorySample } from '../../src/engine/replay/GhostPlayer';
 import { World } from '../../src/engine/physics/World';
+import { COIN_ROOF_OFFSET_M, placeCoinsAlongTrajectory } from './coinPlacement';
+import { buildAtlas } from '../atlas/atlas';
 import { CH1_SOURCES } from './ch1';
 import type { LevelSource, StrokeSource } from './ch1';
 
@@ -82,6 +85,8 @@ interface MeasuredStroke {
 interface RecordedGhost {
   readonly ghost: GhostSolution;
   readonly source: StrokeSource;
+  /** Dense per-tick VehicleReferencePoint path — the coin auto-placement route. */
+  readonly trajectory: readonly TrajectorySample[];
 }
 
 /** A provisional level for the MEASURE pass — budget wide so nothing is rejected. */
@@ -89,12 +94,17 @@ function provisionalLevel(src: LevelSource): Level {
   return finalizeLevel(src, 9999, { star2: 9500, star3: 9000 }, []);
 }
 
-/** Assemble a Level object (no validation) from a source + economy + ghosts. */
+/**
+ * Assemble a Level object (no validation) from a source + economy + ghosts.
+ * `coins` defaults to the source coins (used by the MEASURE/RECORD passes, where
+ * coins are inert to physics); emitLevel passes the auto-placed route coins.
+ */
 function finalizeLevel(
   src: LevelSource,
   inkBudget: number,
   starThresholds: { star2: number; star3: number },
   ghostSolutions: readonly GhostSolution[],
+  coins: readonly Point[] = src.coins,
 ): Level {
   return {
     schemaVersion: 1,
@@ -105,7 +115,7 @@ function finalizeLevel(
     killY: src.killY,
     inkBudget,
     starThresholds,
-    coins: src.coins,
+    coins,
     gimmickTags: src.gimmickTags,
     ghostSolutions,
     ...(src.maxTicks !== undefined ? { maxTicks: src.maxTicks } : {}),
@@ -204,10 +214,14 @@ function deriveEconomy(
 function record(src: LevelSource, level: Level, recordWorld: World): RecordedGhost[] {
   return src.strokes.map((source, index) => {
     const samples: GhostSample[] = [];
+    const trajectory: TrajectorySample[] = [];
     const attempt = runScriptedAttempt(level, source.points, {
       upgrades: { inkCapacityLv: 0, engineSpeedLv: 0 },
       world: recordWorld,
       onTick: (t, referencePoint) => {
+        // Dense per-tick capture drives coin auto-placement; onTick is a pure
+        // observer, so this leaves the recorded run bit-identical to Gate 2's.
+        trajectory.push({ t, x: referencePoint.x, y: referencePoint.y });
         if (t % SAMPLE_EVERY_TICKS === 0) {
           samples.push({ t, x: referencePoint.x, y: referencePoint.y });
         }
@@ -241,7 +255,7 @@ function record(src: LevelSource, level: Level, recordWorld: World): RecordedGho
         starRating: attempt.starRating,
       },
     };
-    return { ghost, source };
+    return { ghost, source, trajectory };
   });
 }
 
@@ -253,6 +267,8 @@ interface LevelReport {
   readonly star2: number;
   readonly star3: number;
   readonly antiDominant: boolean;
+  /** Coins auto-placed on the route / total, proven collected by the primary ghost. */
+  readonly coins: number;
   readonly ghosts: readonly {
     readonly kind: string;
     readonly role: string;
@@ -281,9 +297,28 @@ function prepareLevel(src: LevelSource, measureWorld: World): PreparedLevel {
  */
 function emitLevel(prepared: PreparedLevel, recordWorld: World, outDir: string): LevelReport {
   const { src, inkBudget, starThresholds } = prepared;
+  // Coins are inert to physics (CoinTracker only OBSERVES the reference point),
+  // so the record pass runs on the source coins and yields the driving route.
   const levelForRecording = finalizeLevel(src, inkBudget, starThresholds, []);
   const recorded = record(src, levelForRecording, recordWorld);
-  const level = finalizeLevel(src, inkBudget, starThresholds, recorded.map((r) => r.ghost));
+
+  // Auto-place coins ON the primary (canonical, index-0) ghost's driven route
+  // and machine-prove the same route sweeps up every one (mandate A). The count
+  // is preserved so the currency economy is unchanged.
+  const primary = recorded[0];
+  if (primary === undefined) {
+    fail(`${src.id} has no recorded ghost to derive the coin route from`);
+  }
+  const routeCoins = placeCoinsAlongTrajectory(primary.trajectory, src.coins.length);
+  const collection = collectCoinsAlongTrajectory(primary.trajectory, routeCoins);
+  if (collection.collectedCount !== routeCoins.length) {
+    fail(
+      `${src.id} coin auto-placement left ${routeCoins.length - collection.collectedCount}/${routeCoins.length} coin(s) UNCOLLECTED on the primary ghost route ` +
+        `(offset ${COIN_ROOF_OFFSET_M}m vs collectRadius — recalibrate placement)`,
+    );
+  }
+
+  const level = finalizeLevel(src, inkBudget, starThresholds, recorded.map((r) => r.ghost), routeCoins);
 
   const validation = validateLevel(level, { filenameStem: src.id });
   if (!validation.ok) {
@@ -300,6 +335,7 @@ function emitLevel(prepared: PreparedLevel, recordWorld: World, outDir: string):
     star2: starThresholds.star2,
     star3: starThresholds.star3,
     antiDominant: src.gimmickTags.includes('anti-dominant'),
+    coins: routeCoins.length,
     ghosts: recorded.map((r) => ({
       kind: r.ghost.kind,
       role: r.source.role,
@@ -321,17 +357,21 @@ function parseOnly(argv: readonly string[]): string | undefined {
 
 function printReport(reports: readonly LevelReport[]): void {
   process.stderr.write('\n=== Chapter 1 authoring report ===\n');
-  process.stderr.write('id        feel      budget  star2  star3  AD  ghosts\n');
+  process.stderr.write('id        feel      budget  star2  star3  AD  coins  ghosts\n');
   for (const r of reports) {
     const ghosts = r.ghosts
       .map((g) => `${g.kind}[${g.role}] t=${g.ticks} ink=${g.ink} ${g.stars}★`)
       .join('  |  ');
     process.stderr.write(
       `${r.id.padEnd(9)} ${r.inkFeel.padEnd(9)} ${String(r.inkBudget).padStart(6)} ` +
-        `${String(r.star2).padStart(6)} ${String(r.star3).padStart(6)}  ${r.antiDominant ? 'Y' : '.'}   ${ghosts}\n`,
+        `${String(r.star2).padStart(6)} ${String(r.star3).padStart(6)}  ${r.antiDominant ? 'Y' : '.'}   ` +
+        `${String(r.coins).padStart(4)}   ${ghosts}\n`,
     );
   }
-  process.stderr.write(`\n${reports.length} level(s) emitted to levels/.\n`);
+  const totalCoins = reports.reduce((sum, r) => sum + r.coins, 0);
+  process.stderr.write(
+    `\n${reports.length} level(s) emitted to levels/ — ${totalCoins} coins auto-placed on-route (100% collectable).\n`,
+  );
 }
 
 function main(): void {
@@ -370,6 +410,13 @@ function main(): void {
     printReport(reports);
   } finally {
     recordWorld.destroy();
+  }
+
+  // Optional: regenerate the route/coin atlas in the same flow (--atlas). Runs
+  // AFTER the record/emit worlds are destroyed so the atlas owns a clean slot.
+  if (argv.includes('--atlas')) {
+    const atlasPath = buildAtlas();
+    process.stderr.write(`\natlas regenerated: ${atlasPath}\n`);
   }
 }
 

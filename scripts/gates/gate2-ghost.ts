@@ -6,6 +6,14 @@
  * 1 and 2 must match exactly (in-process determinism regression check).
  * `kind:"3star"` ghosts additionally assert the replayed star rating is 3.
  *
+ * COIN GATE (Gate 2.5, round-4 mandate A): coins must lie ON the intended
+ * driving route and be machine-proved collectable — "絶対に取れないコイン" is a
+ * hard failure. Per ghost we capture run 1's per-tick reference-point TRAJECTORY
+ * (a pure observer — zero extra attempts, so the recycled-world sequence and the
+ * determinism check are untouched) and count how many coins that route sweeps
+ * up. The level passes iff at least ONE recorded ghost collects EVERY coin
+ * (the canonical route). An off-route coin is collected by no ghost -> exit 1.
+ *
  * stateHash note: emitted as a digest of the end state (outcome | ticks |
  * exact float bits of finalPos) per replay. Full body-state hashing lives in
  * World.stateHash; composing it here needs engine surface not yet exposed by
@@ -13,7 +21,13 @@
  * hash definition to be canonical-serialization based; this digest is the v1).
  */
 import { validateLevel, type GhostSolution, type Level } from '../../src/engine/level/LevelSchema';
-import { compareToRecorded, runScriptedAttempt, type ScriptedAttemptResult } from '../../src/engine/replay/GhostPlayer';
+import {
+  collectCoinsAlongTrajectory,
+  compareToRecorded,
+  runScriptedAttempt,
+  type ScriptedAttemptResult,
+  type TrajectorySample,
+} from '../../src/engine/replay/GhostPlayer';
 import { World } from '../../src/engine/physics/World';
 import { parseCliOptions, resolveLevelFiles, runGate } from './lib';
 
@@ -59,16 +73,32 @@ function digest(result: ScriptedAttemptResult): string {
   ]);
 }
 
-function checkGhost(level: Level, ghost: GhostSolution, index: number): { errors: string[]; hash: string } {
+function checkGhost(
+  level: Level,
+  ghost: GhostSolution,
+  index: number,
+): { errors: string[]; hash: string; coinsCollected: number } {
   const errors: string[] = [];
   const strokePoints = ghost.stroke.map(([x, y]) => ({ x, y }));
   const { a, b } = gateWorlds();
-  const run1 = runScriptedAttempt(level, strokePoints, { upgrades: { inkCapacityLv: 0, engineSpeedLv: 0 }, world: a });
+  // Capture run 1's per-tick reference-point path for the coin gate. onTick is a
+  // pure observer (no physics effect, no extra attempt) — the digest/band checks
+  // and the cross-world determinism guarantee are unchanged.
+  const trajectory: TrajectorySample[] = [];
+  const run1 = runScriptedAttempt(level, strokePoints, {
+    upgrades: { inkCapacityLv: 0, engineSpeedLv: 0 },
+    world: a,
+    onTick: (t, referencePoint) => {
+      trajectory.push({ t, x: referencePoint.x, y: referencePoint.y });
+    },
+  });
   const run2 = runScriptedAttempt(level, strokePoints, { upgrades: { inkCapacityLv: 0, engineSpeedLv: 0 }, world: b });
 
   if (!run1.committed) {
-    return { errors: [`ghost[${index}]: stroke did not commit (${run1.reason})`], hash: 'uncommitted' };
+    return { errors: [`ghost[${index}]: stroke did not commit (${run1.reason})`], hash: 'uncommitted', coinsCollected: 0 };
   }
+
+  const coinsCollected = collectCoinsAlongTrajectory(trajectory, level.coins).collectedCount;
 
   // Cross-world determinism: the same attempt at the same sequence position in
   // two independent recycled worlds must match bit-exactly (measured property).
@@ -97,7 +127,7 @@ function checkGhost(level: Level, ghost: GhostSolution, index: number): { errors
     );
   }
 
-  return { errors, hash: hash1 };
+  return { errors, hash: hash1, coinsCollected };
 }
 
 export function gate2Check(loaded: { json: unknown }): { errors: string[]; stateHash?: string } {
@@ -108,11 +138,25 @@ export function gate2Check(loaded: { json: unknown }): { errors: string[]; state
   const level = parsed.level;
   const errors: string[] = [];
   const hashes: string[] = [];
+  let bestCoinsCollected = 0;
   level.ghostSolutions.forEach((ghost, index) => {
     const result = checkGhost(level, ghost, index);
     errors.push(...result.errors);
     hashes.push(result.hash);
+    bestCoinsCollected = Math.max(bestCoinsCollected, result.coinsCollected);
   });
+
+  // Coin gate (Gate 2.5, mandate A): the canonical route must sweep up EVERY
+  // coin. At least one recorded ghost collecting all of them proves the coins lie
+  // on a real driving line — an off-route coin fails here (exit 1).
+  if (level.coins.length > 0 && bestCoinsCollected < level.coins.length) {
+    errors.push(
+      `coin-gate: best ghost route collected ${bestCoinsCollected}/${level.coins.length} coins — ` +
+        `${level.coins.length - bestCoinsCollected} coin(s) lie off every recorded route ` +
+        `(mandate A: coins must be ON the driving line, machine-collectable)`,
+    );
+  }
+
   return { errors, stateHash: hashes.join(',') };
 }
 

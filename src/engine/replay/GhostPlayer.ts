@@ -29,6 +29,7 @@ import type { FailCause } from '../rules/Judge';
 import type { StarCount } from '../rules/StarRating';
 import type { CommitDiscardReason, UpgradeLevels } from '../GameSimulation';
 import { GameSimulation } from '../GameSimulation';
+import { CoinTracker } from '../rules/CoinTracker';
 import { World } from '../physics/World';
 
 /** Gate 2 final-position tolerance in meters (CONTRACT-FROZEN, see header). */
@@ -230,4 +231,96 @@ export function replayGhostSuite(items: readonly GhostReplayItem[]): GhostReplay
   } finally {
     world.destroy();
   }
+}
+
+// ── Trajectory recording + coin-collection (round-4 coin overhaul) ───────────
+// The user mandate: coins must lie ON the intended driving route, machine-proved
+// collectable. The driving route IS the per-tick VehicleReferencePoint path
+// (chassis AABB center) — the exact point CoinTracker judges against. Recording
+// it lets the authoring pipeline place coins along the route, the coin gate
+// prove 100% collection, and the atlas draw the driven line.
+
+/** One per-tick VehicleReferencePoint sample of a driven attempt (world m). */
+export interface TrajectorySample {
+  /** Run tick (0-based from the commit frame). */
+  readonly t: number;
+  readonly x: number;
+  readonly y: number;
+}
+
+export interface GhostTrajectoryResult {
+  readonly committed: boolean;
+  /** null when the stroke never committed. */
+  readonly outcome: 'clear' | 'fail' | null;
+  readonly ticks: number;
+  /** Per-tick VehicleReferencePoint, from the first run tick to the outcome. */
+  readonly trajectory: readonly TrajectorySample[];
+  /** Reference point at the outcome tick, or null when uncommitted. */
+  readonly finalPos: Point | null;
+}
+
+/**
+ * Drive one scripted attempt at Lv0 and capture the per-tick reference-point
+ * TRAJECTORY. onTick is a pure observer (no physics effect), so recording is
+ * bit-identical to a plain runScriptedAttempt and honours the caller-owned
+ * recycled `world` (32-slot cap discipline, World header).
+ */
+export function recordGhostTrajectory(
+  level: Level,
+  strokePoints: readonly Point[],
+  world?: World,
+): GhostTrajectoryResult {
+  const trajectory: TrajectorySample[] = [];
+  const attempt = runScriptedAttempt(level, strokePoints, {
+    upgrades: { inkCapacityLv: 0, engineSpeedLv: 0 },
+    ...(world !== undefined ? { world } : {}),
+    onTick: (t, referencePoint) => {
+      trajectory.push({ t, x: referencePoint.x, y: referencePoint.y });
+    },
+  });
+  if (!attempt.committed) {
+    return { committed: false, outcome: null, ticks: 0, trajectory, finalPos: null };
+  }
+  return {
+    committed: true,
+    outcome: attempt.outcome,
+    ticks: attempt.ticks,
+    trajectory,
+    finalPos: attempt.finalPos,
+  };
+}
+
+/** Which coin was collected, and on which run tick, along a driven trajectory. */
+export interface CoinCollectionEvent {
+  /** Index into the level's coins[] array. */
+  readonly index: number;
+  /** Run tick at which the reference point first entered collectRadiusM. */
+  readonly t: number;
+}
+
+export interface CoinCollectionResult {
+  /** Newly-collected events in collection order (ascending tick). */
+  readonly events: readonly CoinCollectionEvent[];
+  readonly collectedCount: number;
+  readonly total: number;
+}
+
+/**
+ * Replay a recorded trajectory through the REAL CoinTracker rule to determine
+ * which coins the driven route sweeps up (and when). Pure over trajectory + coin
+ * set (no physics), so authoring (placement), gate2 (the coin gate), and the
+ * atlas (collection labels) all share the exact in-game collection semantics.
+ */
+export function collectCoinsAlongTrajectory(
+  trajectory: readonly TrajectorySample[],
+  coins: readonly Point[],
+): CoinCollectionResult {
+  const tracker = new CoinTracker(coins);
+  const events: CoinCollectionEvent[] = [];
+  for (const sample of trajectory) {
+    for (const index of tracker.update({ x: sample.x, y: sample.y })) {
+      events.push({ index, t: sample.t });
+    }
+  }
+  return { events, collectedCount: tracker.collectedCount, total: coins.length };
 }
