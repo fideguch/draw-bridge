@@ -274,7 +274,12 @@ export class PlayScene extends Phaser.Scene {
     this.speedLines = new SpeedLines(this, { widthPx: layout.width, heightPx: layout.height, color: color.inkLine, depth: DEPTH.hud - 1 });
 
     this.buildWorldRenderers();
-    this.strokeRenderer = new StrokeRenderer(this, { transform: this.transform, depth: DEPTH.stroke });
+    this.strokeRenderer = new StrokeRenderer(this, {
+      transform: this.transform,
+      depth: DEPTH.stroke,
+      // Live clip preview: the line stops at the ground surface (round-4 bug).
+      isInsideTerrain: (point) => this.sim?.isInsideTerrain(point) ?? false,
+    });
     this.inkBar = this.makeInkBar();
     this.overlay = new ResultOverlay(this, this.services);
     this.strokeInput = new StrokeInput(this, {
@@ -362,7 +367,12 @@ export class PlayScene extends Phaser.Scene {
       });
     }
     this.strokeRenderer?.destroy();
-    this.strokeRenderer = new StrokeRenderer(this, { transform: this.transform, depth: DEPTH.stroke });
+    this.strokeRenderer = new StrokeRenderer(this, {
+      transform: this.transform,
+      depth: DEPTH.stroke,
+      // Live clip preview: the line stops at the ground surface (round-4 bug).
+      isInsideTerrain: (point) => this.sim?.isInsideTerrain(point) ?? false,
+    });
     this.inkBar?.destroy();
     this.inkBar = this.makeInkBar();
     this.inkBar.update(this.sim.inkState.ratio, this.sim.inkState.zone);

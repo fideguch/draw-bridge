@@ -45,8 +45,11 @@ import type { StarCount } from './rules/StarRating';
 import { EngineEvents } from './EngineEvents';
 import { buildBridge } from './physics/BridgeChainBuilder';
 import { processStroke } from './physics/StrokePipeline';
+import { clipStrokeToSolids } from './physics/StrokeClipper';
 import { StressTracker, defaultBreakThresholds } from './physics/StressTracker';
 import { Terrain } from './physics/Terrain';
+import { buildTerrainSolids, isPointInSolids } from './physics/TerrainSolids';
+import type { TerrainSolids } from './physics/TerrainSolids';
 import { Vehicle } from './physics/Vehicle';
 import { World } from './physics/World';
 import { CoinTracker } from './rules/CoinTracker';
@@ -181,6 +184,7 @@ export class GameSimulation {
   private method: PhysicsMethod;
   private upgrades: UpgradeLevels;
   private level!: Level;
+  private terrainSolids!: TerrainSolids;
   private vehicle!: Vehicle;
   private inkBudget!: InkBudget;
   private coinTracker!: CoinTracker;
@@ -216,6 +220,7 @@ export class GameSimulation {
    */
   private build(level: Level): void {
     this.level = level;
+    this.terrainSolids = buildTerrainSolids(level.terrain, level.killY);
     new Terrain(this.world, level);
     this.vehicle = new Vehicle(this.world, level.vehicleSpawn, {
       engineSpeedLv: this.upgrades.engineSpeedLv ?? 0,
@@ -285,6 +290,16 @@ export class GameSimulation {
   /** VehicleReferencePoint (UL): chassis AABB center. */
   referencePoint(): Point {
     return this.vehicle.referencePoint();
+  }
+
+  /**
+   * True when a world-metre point sits INSIDE solid terrain (the same test the
+   * commit-time stroke clip uses). The render layer calls this per live stroke
+   * vertex so the drawing preview stops the line at the ground surface (a stroke
+   * cannot exist inside solids — round-4 bug fix).
+   */
+  isInsideTerrain(point: Point): boolean {
+    return isPointInSolids(point, this.terrainSolids);
   }
 
   // ── Render-observation surface (constitution IV) ────────────────────────────
@@ -369,7 +384,23 @@ export class GameSimulation {
     }
     const consumedRaw = this.inkBudget.consume(rawLength); // same-frame decrement (FR-002)
 
-    const stroke = processStroke(rawPoints);
+    // TERRAIN CLIP (round-4 bug): a line cannot exist inside solid ground. Split
+    // the stroke into outside runs flush at the terrain surface and keep the
+    // LONGEST; a stroke that never touches a solid passes through unchanged
+    // (byte-identical — ghosts / determinism probe are unaffected). The clipped
+    // ink is refunded via the settlement below (committed simplified length).
+    const clip = clipStrokeToSolids(rawPoints, this.terrainSolids);
+
+    // Best-effort: the clip IMPROVES the stroke but must never make an otherwise
+    // valid line un-committable. A line that hugs concave/staircase terrain
+    // fragments into sub-minimum runs — rather than deny the whole draw, fall
+    // back to the UNCLIPPED stroke (the clip only wins when it leaves a usable
+    // run; through-plateau lines have a long outside approach, so they still
+    // clip; only lines drawn almost wholly inside solid fall back).
+    let stroke = processStroke(clip.longestRun);
+    if (stroke.discarded && clip.clipped) {
+      stroke = processStroke(rawPoints);
+    }
     if (stroke.discarded) {
       this.inkBudget.refund(consumedRaw); // full refund on discard (FR-003)
       return { committed: false, reason: stroke.reason };
