@@ -175,4 +175,16 @@ describe('DangerZone — determinism (zones are static, no bodies)', () => {
     expect(withFarZone.hash).toBe(NO_HAZARD_PROBE_HASH); // exact float bits, unchanged
     expect(withFarZone.ticks).toBe(baseline.ticks);
   });
+
+  it('the render-only `style` tag is physics-inert (spike-tagged == untagged)', () => {
+    // A zone on the right platform the car must cross (same as the integration test).
+    const geom = { x: 3, y: -0.5, width: 2, height: 3 } as const;
+    const untagged = runFreshToOutcome(spikeLevelWithZones(4, [{ ...geom }]), arcStroke(4));
+    const tagged = runFreshToOutcome(spikeLevelWithZones(4, [{ ...geom, style: 'spike' }]), arcStroke(4));
+    // The Judge collides only the base rect — the silhouette tag changes nothing.
+    expect(tagged.outcome).toBe(untagged.outcome);
+    expect(tagged.cause).toBe(untagged.cause);
+    expect(tagged.ticks).toBe(untagged.ticks);
+    expect(tagged.hash).toBe(untagged.hash); // exact float bits
+  });
 });

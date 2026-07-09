@@ -76,14 +76,31 @@ export interface Rect {
 }
 
 /**
- * A DangerZone hazard band (optional `dangerZones[]`): an axis-aligned,
- * bottom-left anchored rectangle (same geometry as `Rect`). The CAR (chassis or
- * a wheel) overlapping a zone fails the attempt with FailCause 'hazard' (Judge;
- * clear-beats-fail per BR-009). Bridge segments and rocks passing through a zone
- * are UNAFFECTED — a zone only kills the car. Additive schemaVersion 1 (absent ==
- * none), fully backward compatible like `rocks`.
+ * DangerZone VISUAL style (render-only, additive schemaVersion 1). `zone` = a
+ * plain hatched hazard band; `spike` = a floor spike pit (up-pointing saw teeth);
+ * `spikeDown` = a ceiling of stalactites (down-pointing teeth). The tag is INERT
+ * to physics/Judge — the engine always collides the base rect (x/y/width/height)
+ * regardless of style, so adding/omitting it never moves the determinism hash.
+ * Only the renderers (in-game DangerZoneRenderer + atlas levelCard) read it to
+ * pick the hazard silhouette (DESIGN.md §4.9). Absent == `zone`.
  */
-export type DangerZone = Rect;
+export type DangerStyle = 'zone' | 'spike' | 'spikeDown';
+
+/** Allowed `style` values (validation vocabulary). */
+export const DANGER_STYLES: readonly DangerStyle[] = ['zone', 'spike', 'spikeDown'];
+
+/**
+ * A DangerZone hazard band (optional `dangerZones[]`): an axis-aligned,
+ * bottom-left anchored rectangle (`Rect` geometry) plus an optional render-only
+ * `style` tag. The CAR (chassis or a wheel) overlapping a zone fails the attempt
+ * with FailCause 'hazard' (Judge; clear-beats-fail per BR-009). Bridge segments
+ * and rocks passing through a zone are UNAFFECTED — a zone only kills the car.
+ * Additive schemaVersion 1 (absent == none), fully backward compatible like `rocks`.
+ */
+export interface DangerZone extends Rect {
+  /** Render-only silhouette tag (physics-inert). Absent == 'zone'. */
+  readonly style?: DangerStyle;
+}
 
 /** `[x, y]` vertex pair as stored in level JSON polylines. */
 export type PolylinePoint = readonly [number, number];
@@ -231,6 +248,41 @@ function parseRect(value: unknown, path: string, errors: string[]): Rect | undef
     return undefined;
   }
   return { x, y, width, height };
+}
+
+/**
+ * A DangerZone: a Rect plus an optional render-only `style` tag (DANGER_STYLES
+ * vocabulary). Kept separate from parseRect so `goalFlag` stays strict — only a
+ * dangerZone may carry `style`. Absent `style` yields a zone with NO style key
+ * (byte-identical to a pre-style zone), so backward compatibility holds.
+ */
+function parseDangerZone(value: unknown, path: string, errors: string[]): DangerZone | undefined {
+  if (!isRecord(value)) {
+    errors.push(`${path}: expected an object {x, y, width, height, style?}`);
+    return undefined;
+  }
+  checkUnknownKeys(value, new Set(['x', 'y', 'width', 'height', 'style']), path, errors);
+  const before = errors.length;
+  const { x, y, width, height } = value;
+  if (!isFiniteNumber(x) || !isFiniteNumber(y) || !isFiniteNumber(width) || !isFiniteNumber(height)) {
+    errors.push(`${path}: x, y, width, height must be finite numbers`);
+  } else if (width <= 0 || height <= 0) {
+    errors.push(`${path}: width and height must be > 0`);
+  }
+  const style = value['style'];
+  if (style !== undefined && !DANGER_STYLES.includes(style as DangerStyle)) {
+    errors.push(`${path}.style: expected one of ${DANGER_STYLES.join(' | ')} when present`);
+  }
+  if (errors.length > before) {
+    return undefined;
+  }
+  return {
+    x: x as number,
+    y: y as number,
+    width: width as number,
+    height: height as number,
+    ...(style !== undefined ? { style: style as DangerStyle } : {}),
+  };
 }
 
 function parseRock(value: unknown, path: string, errors: string[]): Rock | undefined {
@@ -627,16 +679,16 @@ function validateOptionalFields(json: Record<string, unknown>, rawId: unknown, e
   }
 
   // dangerZones[] — same additive/optional model as rocks. Each entry is a Rect
-  // (parseRect enforces width/height > 0); absent leaves parts.dangerZones unset
-  // (byte-identical to a pre-DangerZone level).
+  // plus an optional render-only `style` tag (parseDangerZone); absent leaves
+  // parts.dangerZones unset (byte-identical to a pre-DangerZone level).
   const rawZones = json['dangerZones'];
   if (rawZones !== undefined) {
     if (!Array.isArray(rawZones)) {
-      errors.push('dangerZones: expected an array of {x, y, width, height} rects (may be empty, or omit the key)');
+      errors.push('dangerZones: expected an array of {x, y, width, height, style?} rects (may be empty, or omit the key)');
     } else {
       const zones: DangerZone[] = [];
       for (const [i, entry] of rawZones.entries()) {
-        const parsed = parseRect(entry, `dangerZones[${i}]`, errors);
+        const parsed = parseDangerZone(entry, `dangerZones[${i}]`, errors);
         if (parsed !== undefined) {
           zones.push(parsed);
         }

@@ -48,19 +48,23 @@ export const color = {
   carHeadlight: 0xfff1a8, // front headlight glow
   carTailLight: 0xff4632, // rear tail-light dot
   carRim: 0xe9e4d4, // alloy wheel rim face (silver-cream)
-  // Rock hazard (RockRenderer) — a fill-only slate boulder.
-  rockDark: 0x3f3b46, // dark base disc / outline (reads as stone shadow)
-  rockFill: 0x7b7683, // mid slate-grey body
-  rockLight: 0xa9a4b3, // lighter facet highlights (rotation legibility)
-  // Triggered-rock ARMED warning (RockRenderer, pre-spawn): a translucent amber
-  // "incoming" pulse + a bright "!" aura so the player SEES the threat coming (fairness).
-  rockWarn: 0xffb020, // amber warning wash (drawn translucent, pulsing)
-  rockWarnCore: 0xfff3d6, // bright cream "!" glyph core
-  // DangerZone hazard band (DangerZoneRenderer) — the unmistakable "danger" language:
-  // translucent red fill + darker-red diagonal hatch stripes + a thin red border.
-  hazardFill: 0xff3b30, // translucent red wash (drawn at low fillAlpha)
-  hazardStripe: 0xd42a24, // darker-red diagonal hatch (fill-quad stripes)
-  hazardBorder: 0xff3b30, // thin solid red border
+  // ═══════════════════════════════════════════════════════════════════════════
+  // RESERVED HAZARD SIGNAL PALETTE (DESIGN.md §4.9) — used for HAZARDS ONLY.
+  // Never reused by UI, terrain, coins, the bridge, or the car. A hazard is coded
+  // REDUNDANTLY (reserved color + shape + motion) so danger reads at thumbnail
+  // size on BOTH the pale sky (#A8E4FF) and the brown terrain (#A06A3F): a vivid
+  // red/orange family carried on a near-black charcoal base + outline (hyper-casual
+  // hazard convention — high contrast, redundant coding, instant readability).
+  // ═══════════════════════════════════════════════════════════════════════════
+  hazardRed: 0xe11d0e, // primary danger red — spike tips, zone wash + hatch, rock cracks
+  hazardRedDeep: 0x8a0f06, // deep red shadow — tooth roots, hatch stripes, crack cores
+  hazardBorderRed: 0xb00d04, // darker red zone border (frames the band, reads on any bg)
+  hazardWarn: 0xff9500, // amber "incoming" warning — armed-rock aura, drop beam, target ring
+  hazardWarnCore: 0xfff0c2, // bright warm core — the "!" glyph + warning highlights
+  hazardDark: 0x161011, // near-black charcoal — boulder rim/outline, tooth base, all edges
+  hazardCharcoal: 0x2a2327, // warm dark charcoal — boulder body (reads as heavy dark stone)
+  hazardStone: 0x4a3f47, // lighter charcoal facet highlight (gives the boulder form/volume)
+  hazardCrack: 0xff5a1e, // red-orange crack / heat-fissure accent on the boulder
   coin: 0xffe14d,
   coinStroke: 0x8c6d1f,
   star: 0xffe14d,

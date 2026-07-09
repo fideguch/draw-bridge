@@ -77,16 +77,21 @@ const COLORS = {
   ink: '#1f2d5a',
   shove: '#8a93c4', // faint mid-crossing settled line (the "pushed / shoved" bridge)
   trajectory: '#f08c00',
-  hazardFill: '#ff3b30',
-  hazardStripe: '#c42a24',
-  hazardBorder: '#e0352b',
+  // RESERVED hazard signal palette (matches theme.ts §4.9 — hazards only).
+  hazardFill: '#e11d0e', // saturated red wash
+  hazardStripe: '#8a0f06', // deep-red diagonal hatch
+  hazardBorder: '#b00d04', // darker-red band border
+  hazardToothTip: '#e11d0e', // red spike-tip
+  hazardToothMid: '#8a0f06', // deep-red mid
+  hazardToothBase: '#161011', // near-black tooth base
   coin: '#f5b301',
   coinEdge: '#a9760a',
   coinLabel: '#3a2a00',
   coinMissed: '#e03131',
-  rock: '#7b7683',
-  rockEdge: '#3f3b46',
-  rockLabel: '#f2f0f5',
+  rock: '#2a2327', // dark charcoal boulder body
+  rockEdge: '#161011', // near-black rim
+  rockCrack: '#ff5a1e', // red-orange crack accent
+  rockLabel: '#fff0c2', // warm label on the dark boulder
   rockPath: '#6f6a78',
   rockArrow: '#403c48',
 } as const;
@@ -283,10 +288,10 @@ function renderDangerZones(
     const [x1, yBottom] = proj(z.x + z.width, z.y);
     const w = fmt(x1 - x0);
     const h = fmt(yBottom - yTop);
-    // Translucent fill.
+    // Saturated red wash.
     parts.push(
       `<rect x="${fmt(x0)}" y="${fmt(yTop)}" width="${w}" height="${h}" fill="${COLORS.hazardFill}" ` +
-        `fill-opacity="0.16"/>`,
+        `fill-opacity="0.3"/>`,
     );
     // 45° diagonal hatch (x + y = c family), clipped to the rect.
     const spacing = 0.32;
@@ -296,17 +301,55 @@ function renderDangerZones(
       if (xa <= xb) {
         parts.push(
           `<line x1="${fmt(xa)}" y1="${fmt(c - xa)}" x2="${fmt(xb)}" y2="${fmt(c - xb)}" ` +
-            `stroke="${COLORS.hazardStripe}" stroke-width="0.05" opacity="0.55"/>`,
+            `stroke="${COLORS.hazardStripe}" stroke-width="0.05" opacity="0.7"/>`,
         );
       }
     }
-    // Thin border.
+    // Teeth (redundant shape coding) for spike / spikeDown zones — matches the
+    // in-game DangerZoneRenderer (near-black base -> deep-red -> red tip).
+    if (z.style === 'spike' || z.style === 'spikeDown') {
+      parts.push(renderTeeth(z.style === 'spike', x0, x1, yTop, yBottom, z.width));
+    }
+    // Darker-red band border.
     parts.push(
       `<rect x="${fmt(x0)}" y="${fmt(yTop)}" width="${w}" height="${h}" fill="none" ` +
-        `stroke="${COLORS.hazardBorder}" stroke-width="0.06"/>`,
+        `stroke="${COLORS.hazardBorder}" stroke-width="0.09"/>`,
     );
   }
   return parts.join('\n');
+}
+
+/**
+ * A saw row of near-black teeth with a red-tip gradient (fill-only triangles),
+ * in projected SVG coords. `up` = floor spikes (apex toward the smaller y / top);
+ * else stalactites (apex toward the larger y / bottom).
+ */
+function renderTeeth(up: boolean, x0: number, x1: number, yTop: number, yBottom: number, worldWidth: number): string {
+  const count = Math.max(2, Math.round(worldWidth * 1.7));
+  const bandH = yBottom - yTop;
+  const toothH = bandH * 0.9;
+  const baseY = up ? yBottom : yTop;
+  const apexY = up ? baseY - toothH : baseY + toothH;
+  const tris: string[] = [];
+  const tri = (ax: number, ay: number, bx: number, by: number, cx: number, cy: number, fill: string): string =>
+    `<polygon points="${fmt(ax)},${fmt(ay)} ${fmt(bx)},${fmt(by)} ${fmt(cx)},${fmt(cy)}" fill="${fill}"/>`;
+  for (let i = 0; i < count; i++) {
+    const xL = x0 + ((x1 - x0) * i) / count;
+    const xR = x0 + ((x1 - x0) * (i + 1)) / count;
+    const xc = (xL + xR) / 2;
+    const half = (xR - xL) / 2;
+    // Full near-black tooth.
+    tris.push(tri(xL, baseY, xc, apexY, xR, baseY, COLORS.hazardToothBase));
+    // Deep-red upper 55%.
+    const midHalf = half * 0.55;
+    const midY = apexY + (baseY - apexY) * 0.55;
+    tris.push(tri(xc, apexY, xc - midHalf, midY, xc + midHalf, midY, COLORS.hazardToothMid));
+    // Bright-red top 42%.
+    const tipHalf = half * 0.42;
+    const tipY = apexY + (baseY - apexY) * 0.42;
+    tris.push(tri(xc, apexY, xc - tipHalf, tipY, xc + tipHalf, tipY, COLORS.hazardToothTip));
+  }
+  return tris.join('\n');
 }
 
 /** Unit travel direction at the path end (last segment longer than eps), or null. */
@@ -392,8 +435,21 @@ function renderRocks(data: CardData, proj: (x: number, y: number) => [number, nu
       const [fx, fy] = proj(final.x, final.y);
       const labelSize = Math.min(0.6, Math.max(0.28, rp.radius * 0.9));
       parts.push(
-        `<circle cx="${fx}" cy="${fy}" r="${fmt(rp.radius)}" fill="${COLORS.rock}" stroke="${COLORS.rockEdge}" stroke-width="0.08"/>`,
+        `<circle cx="${fx}" cy="${fy}" r="${fmt(rp.radius)}" fill="${COLORS.rock}" stroke="${COLORS.rockEdge}" stroke-width="0.1"/>`,
       );
+      // Red-orange crack facets + glowing core (matches the in-game boulder).
+      const crackN = 7;
+      for (let k = 0; k < crackN; k++) {
+        const a = (k / crackN) * Math.PI * 2;
+        const ix = fx + Math.cos(a) * rp.radius * 0.18;
+        const iy = fy + Math.sin(a) * rp.radius * 0.18;
+        const ox = fx + Math.cos(a) * rp.radius * 0.82;
+        const oy = fy + Math.sin(a) * rp.radius * 0.82;
+        parts.push(
+          `<line x1="${fmt(ix)}" y1="${fmt(iy)}" x2="${fmt(ox)}" y2="${fmt(oy)}" stroke="${COLORS.rockCrack}" stroke-width="${fmt(rp.radius * 0.1)}" stroke-linecap="round"/>`,
+        );
+      }
+      parts.push(`<circle cx="${fx}" cy="${fy}" r="${fmt(rp.radius * 0.22)}" fill="${COLORS.rockCrack}"/>`);
       parts.push(
         `<text x="${fx}" y="${fmt(fy + labelSize * 0.35)}" font-size="${fmt(labelSize)}" font-weight="700" text-anchor="middle" fill="${COLORS.rockLabel}">岩</text>`,
       );

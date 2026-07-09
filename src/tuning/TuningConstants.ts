@@ -183,6 +183,50 @@ export const rock = {
   restitution: 0.1,
 };
 
+/**
+ * Hazard VISUAL LANGUAGE render tunables (DESIGN.md §4.9). Render-ONLY — these
+ * never touch physics/Judge (DangerZone `style` is inert metadata), so changing
+ * any value cannot move the determinism hash. Centralised here per the
+ * no-magic-numbers rule; the RockRenderer / DangerZoneRenderer read them.
+ */
+export const hazardRender = {
+  // ── DangerZone teeth (spike / spikeDown) ──
+  /** Spike teeth per world metre of zone width (density of the saw row). */
+  teethPerMeter: 1.7,
+  /** Tooth height as a fraction of the zone band height (apex reach into the band). */
+  toothHeightFrac: 0.9,
+  /** Red tip fraction of a tooth (upper portion painted hazardRed over the dark base). */
+  toothTipFrac: 0.42,
+  // ── DangerZone wash + hatch ──
+  /** Red wash alpha at the pulse trough / peak (was a pale 0.16 — now unmistakable). */
+  zoneFillAlphaMin: 0.28,
+  zoneFillAlphaMax: 0.42,
+  /** Diagonal hatch stripe alpha. */
+  zoneStripeAlpha: 0.7,
+  /** Hatch spacing / stripe width / border width in design px (ui-scaled). */
+  zoneHatchSpacingPx: 15,
+  zoneHatchWidthPx: 4,
+  zoneBorderPx: 3,
+  /** Stripe-scroll speed (design px per second) — the "live danger" barber-pole crawl. */
+  zoneStripeScrollPxPerSec: 22,
+  /** Wash breathing-pulse period (ms). */
+  zonePulsePeriodMs: 1200,
+  // ── Rock motion streaks ──
+  /** Screen-space speed (px/frame) above which a moving rock grows motion streaks. */
+  streakSpeedMinPx: 1.6,
+  /** Streak length as a multiple of the per-frame screen displacement. */
+  streakLengthMult: 4,
+  /** Max streak alpha (scales up with speed). */
+  streakAlphaMax: 0.6,
+  // ── Armed-rock warning ──
+  /** Warning-pulse angular speed (radians per update tick) — a calm ~1 Hz throb. */
+  warnPulseSpeed: 0.12,
+  /** Downward drop-beam length in world metres (armed rock → predicted landing lane). */
+  warnBeamLengthM: 7,
+  /** Target reticle outer radius as a multiple of the rock radius. */
+  warnReticleRadiusMult: 1.15,
+};
+
 /** Fail judgement (game_design §8.1) */
 export const fail = {
   /** Roof-contact time to declare tip-over, seconds. Range 0.3-1.0. */

@@ -205,7 +205,8 @@
       "x": -0.5,
       "y": -2.7,
       "width": 1,
-      "height": 0.85
+      "height": 0.85,
+      "style": "spike"
     }
   ]
 }

@@ -229,7 +229,8 @@
       "x": -2.6,
       "y": -3.4,
       "width": 5.2,
-      "height": 0.9
+      "height": 0.9,
+      "style": "spike"
     }
   ]
 }
