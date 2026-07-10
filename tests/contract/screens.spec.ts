@@ -63,7 +63,10 @@ describe('Chapter 1 catalog + sequential unlock (SC-002, FR-016)', () => {
     return tile;
   };
 
-  it('has 18 tiles (15 main + 3 bonus) with bonus after L5/L10/L15', () => {
+  // The catalog is the v5 28-slot slate (scripts/levels/manifest.ts §5) filtered
+  // to the levels whose JSON currently ships (18: L1-L15 + B1-B3 = the first 18
+  // slots). Bonuses sit AFTER L4/L7/L11 in that order (B4/B5 land with I2b).
+  it('has 18 shipped tiles (15 main + 3 bonus) in v5 slate order (bonus after L4/L7/L11)', () => {
     expect(CHAPTER1_TILES).toHaveLength(18);
     expect(CHAPTER1_TILES.filter((tile) => tile.isBonus)).toHaveLength(3);
     expect(CHAPTER1_TILES.map((tile) => tile.id).slice(0, 7)).toEqual([
@@ -71,8 +74,8 @@ describe('Chapter 1 catalog + sequential unlock (SC-002, FR-016)', () => {
       'ch1-l02',
       'ch1-l03',
       'ch1-l04',
-      'ch1-l05',
       'ch1-b1',
+      'ch1-l05',
       'ch1-l06',
     ]);
   });
@@ -84,10 +87,12 @@ describe('Chapter 1 catalog + sequential unlock (SC-002, FR-016)', () => {
     expect(isLevelUnlocked(tileById('ch1-b1'), fresh)).toBe(false);
   });
 
-  it('unlocks bonus B1 and main L6 from clearing L5 (bonus does not gate progression)', () => {
-    const afterL5 = cleared(['ch1-l01', 'ch1-l02', 'ch1-l03', 'ch1-l04', 'ch1-l05']);
-    expect(isLevelUnlocked(tileById('ch1-b1'), afterL5)).toBe(true);
-    expect(isLevelUnlocked(tileById('ch1-l06'), afterL5)).toBe(true);
+  it('unlocks bonus B1 and main L5 from clearing L4 (bonus does not gate progression)', () => {
+    const afterL4 = cleared(['ch1-l01', 'ch1-l02', 'ch1-l03', 'ch1-l04']);
+    // B1 is placed after L4 and unlocks WITH L4 (its preceding numbered level).
+    expect(isLevelUnlocked(tileById('ch1-b1'), afterL4)).toBe(true);
+    // L5 unlocks from L4 directly — the numbered spine skips over the bonus.
+    expect(isLevelUnlocked(tileById('ch1-l05'), afterL4)).toBe(true);
   });
 
   it('finds the earliest unlocked, uncleared main level to highlight', () => {

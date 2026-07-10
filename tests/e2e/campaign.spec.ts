@@ -1,25 +1,31 @@
 /**
- * campaign — full 18-level Chapter 1 playthrough (PRIORITY-0 user demand).
+ * campaign — full Chapter 1 playthrough (PRIORITY-0 user demand).
  *
  * Real-device report: "線が引けない箇所がある / 引っかからない地形がある → 進行不可能。
  * プレイ一通りができるテストを設計せよ" (some spots can't be drawn / some terrain has
  * no collision → progression impossible. Design a test that plays a full run).
  *
- * This machine-plays ALL 18 tiles IN DISPLAY ORDER (= the order the clear
- * screen's Next button walks, CHAPTER1_TILES: 15 main + 3 bonus) through the
- * REAL render + input + engine pipeline: for each level it loads the level's own
- * recorded GHOST stroke, worldToScreen()s it, draws it with real pointer events,
- * and asserts the attempt CLEARS. Between levels it advances ONLY via the clear
- * overlay's Next button (resultNextReady → tap result-next), so a full green run
- * proves the entire play + sequential-progression chain end-to-end — the exact
- * "can't draw / doesn't collide / can't progress" class the user hit on device.
+ * This machine-plays every SHIPPED tile IN CAMPAIGN ORDER (= the order the clear
+ * screen's Next button walks) through the REAL render + input + engine pipeline:
+ * for each level it loads the level's own recorded GHOST stroke, worldToScreen()s
+ * it, draws it with real pointer events, and asserts the attempt CLEARS. Between
+ * levels it advances ONLY via the clear overlay's Next button (resultNextReady →
+ * tap result-next), so a full green run proves the entire play +
+ * sequential-progression chain end-to-end — the exact "can't draw / doesn't
+ * collide / can't progress" class the user hit on device.
+ *
+ * MANIFEST-DRIVEN: the order comes from scripts/levels/manifest.ts (the ONE
+ * chapter slate) filtered to the levels whose JSON exists on disk — so it plays
+ * the shipped 18 today and auto-scales to 28 when the remaining JSON lands (I2b),
+ * with no edit here.
  *
  * Dev hook (window.__inkbridge): scene/state/outcome/resultNextReady +
  * worldToScreen(x,y) + buttonRect(id). See src/render/devhook.ts.
  */
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
+import { CHAPTER1_MANIFEST } from '../../scripts/levels/manifest';
 
 interface InkbridgeHook {
   scene: string;
@@ -42,12 +48,15 @@ type HookWindow = {
   __inkbridge?: InkbridgeHook;
 };
 
-/** CHAPTER1_TILES display order (src/render/ui/levelCatalog.ts): main+bonus interleaved. */
-const LEVEL_ORDER = [
-  'ch1-l01', 'ch1-l02', 'ch1-l03', 'ch1-l04', 'ch1-l05', 'ch1-b1',
-  'ch1-l06', 'ch1-l07', 'ch1-l08', 'ch1-l09', 'ch1-l10', 'ch1-b2',
-  'ch1-l11', 'ch1-l12', 'ch1-l13', 'ch1-l14', 'ch1-l15', 'ch1-b3',
-] as const;
+/**
+ * Campaign order = the manifest slate filtered to the levels whose JSON ships
+ * (same filter the Hub grid + Next chain apply). Today: the shipped 18; grows to
+ * 28 automatically as level JSON is authored — this test never hardcodes either.
+ */
+const LEVELS_DIR = join(process.cwd(), 'levels');
+const LEVEL_ORDER: readonly string[] = CHAPTER1_MANIFEST.map((entry) => entry.id).filter((id) =>
+  existsSync(join(LEVELS_DIR, `${id}.json`)),
+);
 
 interface Snapshot {
   scene: string;
@@ -111,11 +120,12 @@ async function drawStroke(page: Page, worldPoints: ReadonlyArray<[number, number
 }
 
 test.describe('Chapter 1 full campaign', () => {
-  // One long serial test that plays all 18 levels — well under the 8-min budget.
+  // One long serial test that plays every shipped level — well under the 8-min budget.
   test.describe.configure({ retries: 0 });
 
-  test('plays all 18 levels in order via the clear→Next chain (progression unblocked)', async ({ page }) => {
+  test('plays every shipped level in order via the clear→Next chain (progression unblocked)', async ({ page }) => {
     test.setTimeout(480_000);
+    expect(LEVEL_ORDER.length, 'at least one shipped level to play').toBeGreaterThan(0);
 
     await page.goto('/');
     // Hub merges Home + LevelSelect (DESIGN.md §6.1): the grid is the entry screen.

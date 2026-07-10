@@ -1,58 +1,55 @@
 /**
  * levelCatalog.ts — the SC-002 tile catalog + sequential-unlock logic.
  *
- * Ch1 ships 15 main levels + 3 bonus levels placed after L5/L10/L15
- * (ui_design_brief §6.2, game_design §6/§7.4). Display order interleaves the
- * bonus tiles; the unlock chain is decoupled from display order via
- * `unlockAfter` so a bonus level never gates main progression: L6 unlocks from
- * L5 (not B1), while B1 unlocks from L5.
+ * The ORDER, labels, bonus flags, and unlock chain all come from the ONE ordered
+ * slate in scripts/levels/manifest.ts (round-7 I2a). This module is the render
+ * projection of that slate: it filters the declared 28-slot slate down to the
+ * levels whose JSON actually ships, and keeps the Phaser-free unlock helpers the
+ * Hub / PlayScene / Editor depend on.
  *
- * PlayScene is a stub in this phase, so the catalog carries no level content —
- * only the ids + presentation. Phase 5 loads the matching level JSON.
+ * WHY FILTER: the slate declares all 28 chapter slots, but level CONTENT lands
+ * incrementally (levels/<id>.json). The Hub grid, the continue-CTA, and the
+ * clear→Next chain must only ever surface a level that can actually load, so the
+ * grid is `CHAPTER1_MANIFEST ∩ (JSON that exists)`. Today that is the first 18
+ * slots (L1-L15 + B1-B3); the same code renders all 28 the moment the remaining
+ * JSON lands (I2b) — no edit here.
+ *
+ * The unlock chain is decoupled from display order via `unlockAfter` so a bonus
+ * level never gates main progression: L5 unlocks from L4 (the numbered spine),
+ * while B1 (placed after L4) also unlocks from L4.
  */
 
-export interface LevelTile {
-  readonly id: string;
-  /** User-facing tile label (日本語 UI): '1'..'15' or 'B1'..'B3'. */
-  readonly label: string;
-  readonly isBonus: boolean;
-  /** Level id that must be cleared to unlock this tile; null = always unlocked. */
-  readonly unlockAfter: string | null;
-}
+import {
+  CHAPTER1_MANIFEST,
+  CHAPTER1_TITLE,
+  manifestForAuthored,
+  type LevelManifestEntry,
+} from '../../../scripts/levels/manifest';
 
-export const CHAPTER1_TITLE = 'Chapter 1';
-const MAIN_LEVEL_COUNT = 15;
-const BONUS_INTERVAL = 5;
+/** A render tile === a manifest slot (id + presentation + unlock predecessor). */
+export type LevelTile = LevelManifestEntry;
 
-function mainId(index: number): string {
-  return `ch1-l${String(index).padStart(2, '0')}`;
-}
+export { CHAPTER1_TITLE };
+/** The full declared 28-slot slate (campaign order), independent of what ships. */
+export { CHAPTER1_MANIFEST };
 
-function buildChapter1Tiles(): readonly LevelTile[] {
-  const tiles: LevelTile[] = [];
-  let bonusIndex = 0;
-  for (let level = 1; level <= MAIN_LEVEL_COUNT; level += 1) {
-    tiles.push({
-      id: mainId(level),
-      label: String(level),
-      isBonus: false,
-      unlockAfter: level === 1 ? null : mainId(level - 1),
-    });
-    if (level % BONUS_INTERVAL === 0) {
-      bonusIndex += 1;
-      tiles.push({
-        id: `ch1-b${bonusIndex}`,
-        label: `B${bonusIndex}`,
-        isBonus: true,
-        unlockAfter: mainId(level),
-      });
-    }
-  }
-  return tiles;
-}
+/**
+ * Ids of levels whose JSON is bundled. `import.meta.glob` is resolved at build
+ * time by Vite (and vitest), so this is a static set derived from the levels/
+ * directory — it grows automatically as level JSON is authored.
+ */
+const AUTHORED_LEVEL_IDS: ReadonlySet<string> = new Set(
+  Object.keys(import.meta.glob('/levels/*.json')).map((path) => {
+    const stem = path.slice(path.lastIndexOf('/') + 1);
+    return stem.replace(/\.json$/, '');
+  }),
+);
 
-/** The Chapter 1 tiles in display order (18 tiles: 15 main + 3 bonus). */
-export const CHAPTER1_TILES: readonly LevelTile[] = buildChapter1Tiles();
+/**
+ * The Chapter 1 tiles in display order — the declared slate filtered to the
+ * levels that actually ship (18 today: 15 main + 3 bonus; auto-scales to 28).
+ */
+export const CHAPTER1_TILES: readonly LevelTile[] = manifestForAuthored(AUTHORED_LEVEL_IDS);
 
 /** A tile is unlocked when its predecessor level is cleared (or it has none). */
 export function isLevelUnlocked(tile: LevelTile, isCleared: (levelId: string) => boolean): boolean {
