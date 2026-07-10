@@ -1,5 +1,3 @@
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import type { Level, Polyline } from '@engine/level/LevelSchema';
 import {
@@ -13,12 +11,9 @@ import {
  * Gate 4 — stage size standards (round-7 F2, game_plan_v5 §3). The gate MACHINE-
  * enforces per-tier floors on W_win / L_path / D_sg / span_y / ratio so the boards
  * can never be re-shrunk. Tests: the metric math on synthetic levels, the tier
- * floors, and the check on a real (undersized) level as the negative control.
+ * floors, and the check on a synthetic undersized level as the negative control
+ * (kept independent of the shipped slate, which the v5 resize lifts above floors).
  */
-
-function loadLevel(id: string): { json: unknown } {
-  return { json: JSON.parse(readFileSync(join(process.cwd(), 'levels', `${id}.json`), 'utf-8')) };
-}
 
 /** A full, typed Level for the pure-metric functions (no validation needed). */
 function mkLevel(over: {
@@ -116,14 +111,33 @@ describe('sizeStandardsCheck — tier map + floor enforcement', () => {
     expect(SIZE_CLASS_BY_ID['ch1-b5']).toBe('M');
   });
 
-  it('NEGATIVE CONTROL: the shipped (undersized) ch1-l01 FAILS the S floor', () => {
-    const result = sizeStandardsCheck(loadLevel('ch1-l01'));
+  it('NEGATIVE CONTROL: a synthetic undersized S level FAILS the S floor', () => {
+    // Synthetic (not a shipped level, which the v5 slate resizes above the floor):
+    // a small, close, flat board mapped to the S tier must trip the S floor.
+    const undersized = mkLevel({
+      terrain: [[[-4, 0], [6, 0]]],
+      spawn: { x: 0, y: 0 },
+      goal: { x: 3, y: 0, width: 1, height: 1.5 },
+      samples: [{ t: 0, x: 0, y: 0 }, { t: 60, x: 3.5, y: 0.5 }],
+    });
+    const result = sizeStandardsCheck({ json: undersized });
     expect(result.errors.length).toBeGreaterThan(0);
     expect(result.errors.join(' ')).toContain('size-standards[S]');
   });
 
   it('surfaces the measured metrics as a warning line even when it passes/fails', () => {
-    const result = sizeStandardsCheck(loadLevel('ch1-l09'));
+    const passing = mkLevel({
+      terrain: [[[-13, 8], [-6, 0], [6, 0], [13, 8]]],
+      spawn: { x: -10, y: 6 },
+      goal: { x: 9, y: 6, width: 1.5, height: 2 },
+      samples: [
+        { t: 0, x: -10, y: 6 },
+        { t: 60, x: -4, y: 0.5 },
+        { t: 120, x: 4, y: 0.5 },
+        { t: 200, x: 9.7, y: 6.5 },
+      ],
+    });
+    const result = sizeStandardsCheck({ json: passing });
     expect((result.warnings ?? []).join(' ')).toMatch(/W_win=.*L_path=.*D_sg=/);
   });
 });

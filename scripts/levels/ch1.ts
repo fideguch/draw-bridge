@@ -104,19 +104,23 @@ function coinCount(n: number): Point[] {
 
 export const CH1_SOURCES: readonly LevelSource[] = [
   // ═══════════════════════════════════════════════════════════════════════════
-  // L1 — road / tutorial. Small 1-hole valley, one hanging bridge. Straight OK
-  // (tutorial teaches "離す＝走る"). atlas: 枠12×8.5, 縦/横0.71.
+  // L1 (v5 slate #1) — road / flat / S. atlas-design-v5 card 1 (はじめの一歩).
+  // Shallow 1-hole valley, one firm up-bow bridge. Tutorial teaches "離す＝走る".
+  // REALIZATION: the atlas draws the SETTLED line as a downward scoop, but a drawn
+  // scoop collapses (measured: falls); the engine settles a firm UP-bow into the
+  // design's shape. arch bow 0.12 keeps car-path displacement 0.17m (<=0.3, F5).
+  // Wide platforms keep spawn/goal at ±5 (D_sg 10.0, S floor) with a 4.4m span.
   {
     id: 'ch1-l01',
-    design: '道(road): まっすぐ橋を架ける — 既存 tutorial (InkBridge FTUE)',
+    design: 'road/flat/S: 浅い谷を1本橋で渡る — v5 #1 (研究09 A1)',
     inkFeel: 'generous',
-    terrain: twoPlatforms({ leftFar: -6, leftRim: -1.6, leftY: 0, rightRim: 1.6, rightY: 0, rightFar: 6, chasmY: -4.2 }),
-    vehicleSpawn: p(-4, 0.35),
-    goalFlag: flag(2.4, 0, 1, 2),
+    terrain: twoPlatforms({ leftFar: -7, leftRim: -2.2, leftY: 0, rightRim: 2.2, rightY: 0, rightFar: 7, chasmY: -4.5 }),
+    vehicleSpawn: p(-5, 0.35),
+    goalFlag: flag(5, 0, 1, 2),
     killY: -4.5,
     coins: coinCount(5),
     gimmickTags: [],
-    strokes: [{ kind: 'any', role: 'road-bridge', points: arch(-1.85, 0.08, 1.85, 0.08, 0.18) }],
+    strokes: [{ kind: 'any', role: 'road-bridge', points: arch(-2.9, 0.06, 2.9, 0.06, 0.12) }],
   },
 
   // L2 — road / climb. Low-left → high-right shelf ramp (+2.6m up). Straight ramp
