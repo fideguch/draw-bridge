@@ -65,14 +65,15 @@ describe('Chapter 1 catalog + sequential unlock (SC-002, FR-016)', () => {
 
   // The catalog is the v5 28-slot slate (scripts/levels/manifest.ts §5) filtered to the
   // levels whose JSON currently ships. WAVE 2 shipped the 7 hazard-free tiles; WAVE 3 added
-  // the 6 spike/DangerZone levels (l04, l08, l09, l10, l12, l17); WAVE 4 adds the 7 rock /
-  // ceiling-spike levels (l05, l06, l07, l11, l13, l14, l15) for 20 shipped tiles (16 main +
-  // 4 bonus). The bonuses sit at their sawtooth valleys, so the shipped set is a SUBSET of the
-  // slate, not a contiguous prefix; manifestForAuthored keeps it in campaign order. The
-  // remaining hazard levels (l16, l18-l23, b5) land later.
-  it('has 20 shipped tiles (16 main + 4 bonus) in v5 slate campaign order', () => {
-    expect(CHAPTER1_TILES).toHaveLength(20);
-    expect(CHAPTER1_TILES.filter((tile) => tile.isBonus)).toHaveLength(4);
+  // the 6 spike/DangerZone levels (l04, l08, l09, l10, l12, l17); WAVE 4 added the 7 rock /
+  // ceiling-spike levels (l05, l06, l07, l11, l13, l14, l15); WAVE 5 adds the FINAL 8 —
+  // the XL tier + boss (l16, l18, l19, l20, l21, l22, l23, b5) — completing the full
+  // 28-slate (23 main + 5 bonus) in campaign order. The bonuses sit at their sawtooth
+  // valleys (L4→B1 / L7→B2 / L11→B3 / L15→B4 / L23→B5); manifestForAuthored keeps the
+  // full set in campaign order.
+  it('has 28 shipped tiles (23 main + 5 bonus) in v5 slate campaign order', () => {
+    expect(CHAPTER1_TILES).toHaveLength(28);
+    expect(CHAPTER1_TILES.filter((tile) => tile.isBonus)).toHaveLength(5);
     expect(CHAPTER1_TILES.map((tile) => tile.id)).toEqual([
       'ch1-l01',
       'ch1-l02',
@@ -93,7 +94,15 @@ describe('Chapter 1 catalog + sequential unlock (SC-002, FR-016)', () => {
       'ch1-l14',
       'ch1-l15',
       'ch1-b4',
+      'ch1-l16',
       'ch1-l17',
+      'ch1-l18',
+      'ch1-l19',
+      'ch1-l20',
+      'ch1-l21',
+      'ch1-l22',
+      'ch1-l23',
+      'ch1-b5',
     ]);
   });
 

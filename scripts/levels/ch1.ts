@@ -757,6 +757,261 @@ export const CH1_SOURCES: readonly LevelSource[] = [
       },
     ],
   },
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // WAVE 5 — XL tier + BOSS (the FINAL 8). This wave DELIBERATELY BREAKS from the
+  // wave-4 deep-pit-sag core (l05/l06/l13/l14 shared it) so the 28-card atlas reads
+  // as 28 distinct thumbnails. The NEW core for the dome-dual levels (l16/l21/l23/b5)
+  // is the car RIDING A DRAWN UP-BOW ARCH: the bridge's angle-limited spring joints
+  // (jointHertz 9, totalFlexBudget ~0.5-0.7 rad — TuningConstants) hold a drawn bow
+  // as "a firm plank", so a compression arch settles ~0.1-0.2 m (car-path displacement
+  // <0.3 m, F5-legal) instead of collapsing into a rope catenary. The falling/rolling
+  // rock is a VALLEY hazard the arch's HEIGHT clears: the naive idle car drives off the
+  // near rim INTO the valley and lands on the boulder (hazardContact); the ghost's arch
+  // carries the car metres ABOVE it. L16/L21 are ARCH_EXEMPT (compression span >5.5 m,
+  // verified non-breaking by the ghost clear + displacement, not the tension-span gate).
+  //
+  // The XL non-dome levels (l18/l19/l20/l22) are long MULTI-FEATURE JOURNEYS built from
+  // already-shipped role skeletons (sag / catch / shield), NOT the deep-pit-sag: l19 is
+  // a genuine SHAFT (縦>横, L_path ≥18 m via a deep switchback well), l20 a two-shelf S
+  // over a valley island, l18/l22 descents/tiers with spike+rock compounds. Distinct
+  // silhouettes: dome (∩ over valley), shaft (│ deep well), two-shelf S, tiered descent.
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // L16 (v5 slate #16, NEW id) — dome-dual / U / L · falling rock. atlas card 20
+  // (守る屋根＝走る道). The dome-dual INTRODUCTION (★3, right after B4 — the sawtooth
+  // valley). A firm wide UP-BOW ARCH is BOTH the road AND the roof: the car rides over
+  // the deep valley while the boulder resting on the valley floor is cleared overhead.
+  // ARCH_EXEMPT (compression span ~5.9 m > 5.5 m tension limit) — the ghost clear +
+  // <0.3 m car-path displacement prove the arch holds, not the tension-span gate. The
+  // naive idle car drives off the near rim, drops into the valley, and lands on the
+  // boulder (hazardContact). Silhouette: a single tall ∩ over a U — unlike any sag.
+  {
+    id: 'ch1-l16',
+    design: 'dome-dual/U/L: 深い谷に張った高いアーチが「屋根＝道」— 車は上を渡り谷底の岩を頭上に越える（無線は谷へ落ち岩に当たる）— v5 #16 (R14 dome)',
+    inkFeel: 'standard',
+    gimmickTags: [],
+    terrain: [pl(p(-9.2, 1.0), p(-3.0, 1.0), p(-3.2, -5.6), p(3.2, -5.6), p(3.0, 1.0), p(9.2, 1.0))],
+    vehicleSpawn: p(-6.2, 1.4),
+    goalFlag: flag(5.6, 1.0, 1, 2),
+    killY: -5,
+    coins: coinCount(6),
+    rocks: [{ x: 1.0, y: -5.15, radius: 0.5, density: 5 }],
+    strokes: [{ kind: 'any', role: 'roof-road-dome', points: arch(-3.7, 1.02, 3.7, 1.02, 1.35) }],
+  },
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // L18 (v5 slate #18, NEW id) — shield-static / descent / XL · composite (spike+rock).
+  // atlas card 22 (くだり覆い). A DESCENDING journey: from a high-left shelf the car ramps
+  // down to a deep spike GORGE holding a boulder, crosses it on a firm covering seal, and
+  // drops to a low-right goal. Compound hazard (spike-floor zone + rock). Distinct
+  // descending silhouette (high→low, unlike the level domes / flat gorges).
+  {
+    id: 'ch1-l18',
+    design: 'shield-static/descent/XL: 高い左棚から降り、岩の深い谷を覆い床で渡って低いゴールへ（無線は谷底の岩へ落ちる）— v5 #18 (R07+R04)',
+    inkFeel: 'tight',
+    gimmickTags: [],
+    terrain: [
+      pl(
+        p(-9.8, 2.8), p(-5.2, 2.8), p(-4.0, 1.4), p(-2.7, 1.4), p(-2.9, -8.0),
+        p(2.9, -8.0), p(2.7, 0.2), p(8.6, 0.2),
+      ),
+      pillar(0.0, 0.66, -8.0, 0.5, 0.9), // mid support splits the descending cover
+    ],
+    vehicleSpawn: p(-7.3, 3.15),
+    goalFlag: flag(6.6, 0.2, 1, 2),
+    killY: -6,
+    coins: coinCount(6),
+    rocks: [{ x: -1.7, y: -7.55, radius: 0.45, density: 5 }],
+    strokes: [
+      {
+        kind: 'any',
+        role: 'descent-cover',
+        points: spline([p(-2.7, 1.42), p(-1.35, 0.94), p(0, 0.68), p(1.35, 0.46), p(2.7, 0.22)]),
+      },
+    ],
+  },
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // L19 (v5 slate #19, NEW id) — sag / shaft / XL · composite (spike+rock). atlas card
+  // 23 (深井戸の綱). THE vertical headline: a deep WELL (縦>横). The car descends a
+  // switchback stair into the shaft, crosses the bottom on a firm V-sag hung over a
+  // central island (clearing the spike floor + boulder below), and climbs the far wall
+  // out to the goal. The LONGEST course (L_path ≥18 m per plan) — distinct │ shaft
+  // silhouette, unlike every flat/valley crossing.
+  {
+    id: 'ch1-l19',
+    design: 'sag/shaft/XL: 深い井戸へ坂を降り、中州に載せた張り綱で底の岩を浅く渡り、対岸の坂を登って出る（無線は井戸底の岩へ落ちる）— v5 #19 (R03-deep 竪穴)',
+    inkFeel: 'tight',
+    gimmickTags: [],
+    terrain: [
+      pl(
+        p(-10.4, 3.2), p(-7.4, 3.2),
+        p(-2.7, 0.2), p(-2.9, -7.4),
+        p(2.9, -7.4), p(2.7, 0.2),
+        p(7.4, 3.2), p(10.4, 3.2),
+      ),
+      pillar(0.0, -0.35, -7.4, 0.9, 1.15), // firm central island the crossing rests on (idle still falls past)
+    ],
+    vehicleSpawn: p(-8.2, 3.55),
+    goalFlag: flag(8.0, 3.2, 1, 2),
+    killY: -6,
+    coins: coinCount(7),
+    rocks: [{ x: -2.0, y: -7.0, radius: 0.5, density: 5 }],
+    strokes: [
+      {
+        kind: 'any',
+        role: 'shaft-crossing',
+        points: spline([p(-2.7, 0.2), p(-1.35, -0.3), p(0, -0.35), p(1.35, -0.3), p(2.7, 0.2)]),
+      },
+    ],
+  },
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // L20 (v5 slate #20, NEW id) — catch-redirect / S / XL · rolling rock. atlas card 24
+  // (併走の抜け道). A two-shelf S: the car dips down into a valley on a scoop, crosses
+  // the bottom past a boulder (deep enough to time it out of the rolling rock's lane),
+  // and re-ascends the far shelf — an S-glide. Distinct sweeping-S silhouette.
+  {
+    id: 'ch1-l20',
+    design: 'catch-redirect/U/XL: 深い谷を受け皿U弧で渡り、谷底の岩をやり過ごして対岸へ（無線は谷底の岩へ落ちる）— v5 #20 (R13 受け流し)',
+    inkFeel: 'tight',
+    gimmickTags: [],
+    terrain: [
+      pl(
+        p(-10.0, 2.2), p(-3.4, 2.2), p(-3.6, -6.8), p(3.6, -6.8), p(3.4, 2.2), p(10.0, 2.2),
+      ),
+      pillar(0.0, 1.05, -6.8, 0.6, 1.0), // high central island — a SHALLOW firm catch (l10-scaled)
+    ],
+    vehicleSpawn: p(-7.2, 2.55),
+    goalFlag: flag(6.4, 2.2, 1, 2),
+    killY: -6,
+    coins: coinCount(7),
+    rocks: [{ x: 1.7, y: -6.35, radius: 0.45, density: 5 }],
+    strokes: [
+      {
+        kind: 'any',
+        role: 'u-catch-island',
+        points: spline([p(-3.4, 2.2), p(-1.8, 1.35), p(0, 1.05), p(1.8, 1.35), p(3.4, 2.2)]),
+      },
+    ],
+  },
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // L21 (v5 slate #21, NEW id) — dome-dual / climb / XL · falling rock. atlas card 25
+  // (そびえるアーチ). A TOWERING asymmetric arch that BOTH shields the boulder AND
+  // climbs from the low-left shelf to a high-right goal (+1.8 m). ARCH_EXEMPT
+  // (compression span ~6.0 m). The car rides the rising arch; the naive car drops into
+  // the wide valley onto the boulder. Silhouette: an ascending ∩ (vs L16's level ∩).
+  {
+    id: 'ch1-l21',
+    design: 'dome-dual/climb/XL: 谷にそびえる高いアーチ＝屋根＝道を渡り、右の坂を登って高台ゴールへ、谷底の岩を頭上に越える（無線は谷へ落ち岩に当たる）— v5 #21 (R01 arch)',
+    inkFeel: 'tight',
+    gimmickTags: [],
+    terrain: [
+      pl(
+        p(-9.4, 0.9), p(-3.1, 0.9), p(-3.3, -7.2), p(3.3, -7.2), p(3.1, 0.9),
+        p(4.2, 0.9), p(5.2, 1.5), p(6.3, 1.5), p(7.3, 2.1), p(10.0, 2.1),
+      ),
+    ],
+    vehicleSpawn: p(-6.5, 1.25),
+    goalFlag: flag(7.7, 2.1, 1, 2),
+    killY: -6,
+    coins: coinCount(6),
+    rocks: [{ x: 0.9, y: -6.75, radius: 0.5, density: 5 }],
+    strokes: [{ kind: 'any', role: 'tower-arch', points: arch(-3.7, 0.92, 3.7, 0.92, 1.3) }],
+  },
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // L22 (v5 slate #22, NEW id) — catch-redirect / tier / XL · composite (spike+rock).
+  // atlas card 26 (段の受け流し). Cross a deep spike-GORGE holding a boulder on a firm
+  // covering arch, THEN climb terrain tiers to a high goal. Compound: the naive straight
+  // sags into the spike floor while the idle car drops onto the boulder. Distinct tiered
+  // ascent silhouette (arch-cross then stair-climb).
+  {
+    id: 'ch1-l22',
+    design: 'catch-redirect/tier/XL: 棘の深い谷を覆いアーチで受け流し、段々を登って高台ゴールへ（無線は谷の棘へ沈む）— v5 #22 (R12+R13)',
+    inkFeel: 'tight',
+    gimmickTags: [],
+    terrain: [
+      pl(
+        p(-9.8, 0.8), p(-2.7, 0.8), p(-2.9, -6.8),
+        p(2.9, -6.8), p(2.7, 0.8),
+        p(3.7, 0.8), p(4.7, 1.5), p(5.9, 1.5), p(6.9, 2.2), p(10.4, 2.2),
+      ),
+    ],
+    vehicleSpawn: p(-6.3, 1.15),
+    goalFlag: flag(7.6, 2.2, 1, 2),
+    killY: -6,
+    coins: coinCount(6),
+    dangerZones: [{ x: -2.6, y: -6.3, width: 5.2, height: 0.9, style: 'spike' }],
+    strokes: [
+      {
+        kind: 'any',
+        role: 'gorge-cover-arch',
+        points: arch(-3.1, 0.82, 3.1, 0.82, 0.62),
+      },
+    ],
+  },
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // L23 (v5 slate #23, BOSS, NEW id) — dome-dual / S / XL · TWO rocks (compound). atlas
+  // card 27 (章ボス：試練の連なり). The chapter's hardest: a wide deep spike-GORGE holding
+  // TWO boulders side by side, crossed by a firm MEANDER (M) that rides two humps over a
+  // central island — the drawn line is BOTH the road AND the shield for both rocks. The
+  // naive idle car drops into the gorge onto BOTH boulders (per-hazard: each rock is
+  // independently attributed on the fail tick); the straight sags into the spike floor.
+  // Tight ink, multi-point support (max free span ≤3 m). The convergence of every wave-5
+  // mechanic: cover + dome shed + spike + climb-out.
+  {
+    id: 'ch1-l23',
+    design: 'BOSS dome-dual/S/XL: 二つの岩を抱えた広い深谷を、そびえるアーチ＝屋根＝道で受け流して渡り、段々を登り切る — 試練の連なり（無線は谷底の二岩へ落ちる）— v5 #23 (R15=R07+R14+R05)',
+    inkFeel: 'tight',
+    gimmickTags: [],
+    terrain: [
+      pl(
+        p(-9.8, 0.8), p(-2.7, 0.8), p(-2.9, -6.8),
+        p(2.9, -6.8), p(2.7, 0.8),
+        p(3.7, 0.8), p(4.7, 1.5), p(5.9, 1.5), p(6.9, 2.2), p(10.4, 2.2),
+      ),
+    ],
+    vehicleSpawn: p(-6.3, 1.15),
+    goalFlag: flag(7.6, 2.2, 1, 2),
+    killY: -6,
+    coins: coinCount(7),
+    rocks: [
+      { x: 0.7, y: -6.42, radius: 0.35, density: 5 },
+      { x: 1.4, y: -6.42, radius: 0.35, density: 5 },
+    ],
+    strokes: [
+      {
+        kind: 'any',
+        role: 'boss-tower-arch',
+        points: arch(-3.1, 0.82, 3.1, 0.82, 0.62),
+      },
+    ],
+  },
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // B5 (v5 slate, after L23) — bonus dome-dual / M / rolling rock. atlas card 28
+  // (ゆるいドーム). The dome-dual PILOT: a gentle wide UP-BOW arch the car rides over a
+  // deep valley; a boulder rests in the left valley where the naive car falls. Breather
+  // (★2): generous ink, a broad forgiving arch. Non-AD.
+  {
+    id: 'ch1-b5',
+    design: 'dome-dual/M/rolling: 高い左から低い右へ降りる緩ドームで谷の転石を頭上に越える（無線は谷へ落ち石に当たる）— v5 #B5 (R01-lite Draw Line arch)',
+    inkFeel: 'generous',
+    bonusMultiplier: 5,
+    gimmickTags: [],
+    terrain: [pl(p(-9.0, 1.3), p(-2.3, 1.3), p(-2.5, -5.7), p(2.5, -5.7), p(2.3, 0.3), p(9.0, 0.3))],
+    vehicleSpawn: p(-5.9, 1.65),
+    goalFlag: flag(5.5, 0.3, 1, 2),
+    killY: -5,
+    coins: coinCount(7),
+    rocks: [{ x: 0.9, y: -5.25, radius: 0.45, density: 5 }],
+    strokes: [{ kind: 'any', role: 'descent-dome', points: arch(-3.0, 1.32, 3.0, 0.32, 1.0) }],
+  },
 ];
 
 // Keep the Gap type reachable for downstream tooling / Ch2 sources.
