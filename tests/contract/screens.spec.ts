@@ -63,20 +63,22 @@ describe('Chapter 1 catalog + sequential unlock (SC-002, FR-016)', () => {
     return tile;
   };
 
-  // The catalog is the v5 28-slot slate (scripts/levels/manifest.ts §5) filtered
-  // to the levels whose JSON currently ships (18: L1-L15 + B1-B3 = the first 18
-  // slots). Bonuses sit AFTER L4/L7/L11 in that order (B4/B5 land with I2b).
-  it('has 18 shipped tiles (15 main + 3 bonus) in v5 slate order (bonus after L4/L7/L11)', () => {
-    expect(CHAPTER1_TILES).toHaveLength(18);
-    expect(CHAPTER1_TILES.filter((tile) => tile.isBonus)).toHaveLength(3);
-    expect(CHAPTER1_TILES.map((tile) => tile.id).slice(0, 7)).toEqual([
+  // The catalog is the v5 28-slot slate (scripts/levels/manifest.ts §5) filtered to the
+  // levels whose JSON currently ships. WAVE 2 (hazard-free) ships 7 tiles: L1-L3 + B1-B4
+  // (the hazard-free subset). The bonuses sit at their sawtooth valleys, so the shipped set
+  // is a SUBSET of the slate, not a contiguous prefix; manifestForAuthored keeps it in
+  // campaign order. The hazard waves (l04-l15, l16-l23, b5) land later.
+  it('has 7 shipped tiles (3 main + 4 bonus) in v5 slate campaign order', () => {
+    expect(CHAPTER1_TILES).toHaveLength(7);
+    expect(CHAPTER1_TILES.filter((tile) => tile.isBonus)).toHaveLength(4);
+    expect(CHAPTER1_TILES.map((tile) => tile.id)).toEqual([
       'ch1-l01',
       'ch1-l02',
       'ch1-l03',
-      'ch1-l04',
       'ch1-b1',
-      'ch1-l05',
-      'ch1-l06',
+      'ch1-b2',
+      'ch1-b3',
+      'ch1-b4',
     ]);
   });
 
@@ -87,12 +89,14 @@ describe('Chapter 1 catalog + sequential unlock (SC-002, FR-016)', () => {
     expect(isLevelUnlocked(tileById('ch1-b1'), fresh)).toBe(false);
   });
 
-  it('unlocks bonus B1 and main L5 from clearing L4 (bonus does not gate progression)', () => {
-    const afterL4 = cleared(['ch1-l01', 'ch1-l02', 'ch1-l03', 'ch1-l04']);
-    // B1 is placed after L4 and unlocks WITH L4 (its preceding numbered level).
-    expect(isLevelUnlocked(tileById('ch1-b1'), afterL4)).toBe(true);
-    // L5 unlocks from L4 directly — the numbered spine skips over the bonus.
-    expect(isLevelUnlocked(tileById('ch1-l05'), afterL4)).toBe(true);
+  it('a bonus unlocks WITH its preceding numbered level (unlock predicate, not shipped-gated)', () => {
+    // B1 sits after L4 and unlocks WITH L4 (game_plan_v5 §5.1). In WAVE 2 the numbered
+    // predecessors (L4/L7/L11/L15) are not yet shipped, but the unlock predicate is the
+    // same; the campaign reaches the shipped bonuses via the clear→Next chain
+    // (PlayScene.nextLevelId, unconditional), so an unshipped predecessor never blocks it.
+    expect(tileById('ch1-b1').unlockAfter).toBe('ch1-l04');
+    expect(isLevelUnlocked(tileById('ch1-b1'), cleared(['ch1-l04']))).toBe(true);
+    expect(isLevelUnlocked(tileById('ch1-b1'), cleared([]))).toBe(false);
   });
 
   it('finds the earliest unlocked, uncleared main level to highlight', () => {

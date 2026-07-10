@@ -85,8 +85,19 @@ describe('unsupportedSpanCheck', () => {
     expect(ARCH_EXEMPT_IDS.has('ch1-l21')).toBe(true);
   });
 
-  it('NEGATIVE CONTROL: a real wide-gap level (ch1-l09) FAILS the span limit', () => {
-    const result = unsupportedSpanCheck(loadLevel('ch1-l09'));
+  it('NEGATIVE CONTROL: a synthetic wide-gap (7 m) level FAILS the span limit', () => {
+    // Synthetic (the hazard-free wave ships no >5.5 m unsupported span): a 7 m rim-to-rim
+    // gap with no mid support must trip the limit. mkLevel builds a schema-valid level so
+    // the check reaches the span metric (not a gate0 rejection).
+    const wide = mkLevel(
+      [
+        [[-10, 0], [-3.5, 0]],
+        [[3.5, 0], [10, 0]],
+      ],
+      -8,
+      8,
+    );
+    const result = unsupportedSpanCheck({ json: wide });
     expect(result.errors.length).toBeGreaterThan(0);
     expect(result.errors[0]).toContain('unsupported-span');
   });

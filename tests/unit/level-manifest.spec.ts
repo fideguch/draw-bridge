@@ -85,21 +85,27 @@ describe('Chapter 1 level manifest (game_plan_v5 §5 — 28-slot slate)', () => 
     expect(manifestForAuthored(authored).map((e) => e.id)).toEqual(['ch1-l01', 'ch1-b1', 'ch1-l05']);
   });
 
-  // The "pure refactor today" invariant: every shipped level JSON is a declared
-  // slot, and the shipped set is exactly the first N slots of the slate (a
-  // contiguous prefix). This is what keeps the Hub/campaign green while the tail
-  // slots wait for their content (I2b).
-  it('every shipped level JSON is a slate slot forming a contiguous prefix', () => {
+  // WAVE-BASED invariant (round-7 I2, hazard-free wave 2): every shipped level JSON is a
+  // declared slot, and manifestForAuthored orders the shipped set by campaign order. The
+  // shipped set is a SUBSET of the slate, NOT necessarily a contiguous prefix — the
+  // hazard-free wave ships l01-l03 + b1-b4 (the bonuses sit at their sawtooth valleys), so
+  // there are gaps (l04-l15) waiting for the hazard waves. The clear→Next chain walks the
+  // authored tiles in display order unconditionally, so a gap never blocks progression.
+  it('every shipped level JSON is a declared slate slot, ordered by campaign order', () => {
     const shippedIds = readdirSync(join(process.cwd(), 'levels'))
       .filter((name) => name.endsWith('.json'))
       .map((name) => name.replace(/\.json$/, ''));
+    expect(shippedIds.length).toBeGreaterThan(0);
 
     for (const id of shippedIds) {
       expect(isManifestLevel(id), `${id} must be declared in the slate`).toBe(true);
     }
 
-    const shippedInOrder = CHAPTER1_MANIFEST_IDS.filter((id) => shippedIds.includes(id));
-    const prefix = CHAPTER1_MANIFEST_IDS.slice(0, shippedInOrder.length);
-    expect(shippedInOrder, 'shipped levels are the leading slots of the slate').toEqual(prefix);
+    // manifestForAuthored yields exactly the shipped ids, in campaign (slate) order.
+    const authoredInOrder = manifestForAuthored(new Set(shippedIds)).map((e) => e.id);
+    expect(new Set(authoredInOrder)).toEqual(new Set(shippedIds));
+    expect(authoredInOrder, 'authored tiles are a subsequence of the slate order').toEqual(
+      CHAPTER1_MANIFEST_IDS.filter((id) => shippedIds.includes(id)),
+    );
   });
 });

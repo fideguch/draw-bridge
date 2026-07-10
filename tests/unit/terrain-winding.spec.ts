@@ -40,7 +40,7 @@ function reverseWinding(terrain: readonly Polyline[]): Polyline[] {
 const LEVELS = loadLevels();
 
 describe('terrain winding — static Gate 1 collision-side check', () => {
-  it('reports zero winding errors across all 18 shipped levels', () => {
+  it('reports zero winding errors across all shipped levels (wave 2: 7)', () => {
     for (const { name, level } of LEVELS) {
       const errors = windingErrors(level.terrain);
       expect(errors, `${name}: ${errors.join(' | ')}`).toEqual([]);
@@ -57,16 +57,18 @@ describe('terrain winding — static Gate 1 collision-side check', () => {
   });
 
   it('NEGATIVE CONTROL: a reversed (left→right) ceiling is flagged', () => {
-    // ch1-l09 carries a rock ceiling (2-point polyline, underside solid).
-    const l09 = LEVELS.find((l) => l.name === 'ch1-l09')!;
-    const broken = reverseWinding(l09.level.terrain);
+    // Synthetic ceiling (the hazard-free wave ships no ceiling levels): a 2-point polyline
+    // authored right→left has a solid underside; reversing it to left→right must be flagged
+    // as a GHOST ceiling by windingErrors.
+    const ceilingRightToLeft: Polyline[] = [[[1.4, 5.4], [-1.4, 5.4]]];
+    const broken = reverseWinding(ceilingRightToLeft);
     const errors = windingErrors(broken);
     expect(errors.some((e) => e.includes('ceiling'))).toBe(true);
   });
 });
 
 describe('terrain winding — dynamic collision probe', () => {
-  it('every drive surface is solid from above and every ceiling from below (all 18 levels)', () => {
+  it('every drive surface is solid from above and every ceiling from below (all shipped levels)', () => {
     for (const { name, level } of LEVELS) {
       const ghosts = probeLevel(name, level).filter((f) => !f.ok);
       expect(
