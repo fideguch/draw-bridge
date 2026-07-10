@@ -1,14 +1,30 @@
 /**
- * Chapter 1 declarative level sources — ATLAS-FIRST DESIGN v5, WAVE 2 (hazard-free).
+ * Chapter 1 declarative level sources — ATLAS-FIRST DESIGN v5, WAVE 3 (spike/zone).
  *
  * The design is FROZEN: designs/atlas-design-v5.html (`LEVELS[]`) + designs/game_plan_v5.md
- * are the master. THIS FILE ships the HAZARD-FREE subset of the v5 slate — the levels
- * that clear WITHOUT any rock / spike / DangerZone (round-7 F1 made hazard CONTACT an
- * instant loss, so the 14 rock levels + 7 spike/zone levels land in a later wave). The
- * 7 shipped ids are the manifest slots whose mechanic needs no hazard body:
+ * are the master. THIS FILE ships the 7 hazard-free wave-2 levels PLUS the 6 spike /
+ * DangerZone levels of wave 3 (no rocks this wave — the 14 rock/composite levels land
+ * later). 13 shipped ids (round-7 F1 made hazard CONTACT an instant loss):
  *
- *   ch1-l01 road/flat/S · ch1-l02 road/climb/M · ch1-l03 multi-seal/U/M ·
- *   ch1-b1 multi-seal/tier/S · ch1-b2 hook/S/S · ch1-b3 catch/U/S · ch1-b4 road/descent/L
+ *   ch1-l01 road/flat/S · ch1-l02 road/climb/M · ch1-l03 multi-seal/U/M · ch1-l04 spike-floor/M ·
+ *   ch1-b1 multi-seal/tier/S · ch1-b2 hook/S/S · ch1-l08 zone/L · ch1-l09 spike-floor/M ·
+ *   ch1-l10 sag/spike-floor/L · ch1-b3 catch/U/S · ch1-l12 zone/L · ch1-b4 road/descent/L ·
+ *   ch1-l17 sag-cantilever/spike-floor/XL
+ *
+ * WAVE-3 ENGINE ADAPTATIONS (design cards call for mechanics this car/physics can't do;
+ * the wave-2 practice of adapting-to-physics continues — every adaptation is noted per
+ * level and DID pass the per-hazard relevance gate + all 7 STRICT gates):
+ *   - CEILING SPIKES (spikeDown, L9): infeasible — ducking a 0.8 m car into a gap-valley
+ *     bounces it back UP into the teeth, a gentle descent keeps its lead wheel too high,
+ *     and the naive baselines never rise into a roof hazard. Realized as a spike-FLOOR hook.
+ *   - BALLISTIC RAMP-JUMP (L4): a drawn launch ramp is a cantilever that SAGS (no clean
+ *     kick), and a downhill drive-off naturally clears any ≤5.5 m gap. Realized as a
+ *     multi-seal sag over a deep spike floor.
+ *   - SHAFT DESCENT (L12) / MULTI-SEAL ZONE (L8): a drawn descent free-falls/overshoots and
+ *     high terrain reads as one giant unsupported span; a high-road over a pit-zone also
+ *     sags past the F5 displacement limit. Both are realized as a firm SAG on a central
+ *     pillar over a DEEP floor DangerZone (idle falls in) — the same skeleton as L10's
+ *     spike floor. L8/L10/L12 therefore share a family silhouette (zone vs spike style).
  *
  * They are NOT a contiguous prefix of the 28-slate (the bonuses sit at their sawtooth
  * valleys); manifestForAuthored() filters the slate to exactly this set so the Hub /
@@ -39,6 +55,7 @@
 import type { DangerZone, GimmickTag, Point, Polyline, Rect, Rock } from '../../src/engine/level/LevelSchema';
 import {
   arch,
+  ceiling,
   coinArc,
   flag,
   p,
@@ -278,6 +295,216 @@ export const CH1_SOURCES: readonly LevelSource[] = [
         kind: 'any',
         role: 'two-span-descent',
         points: spline([p(-3.0, 2.62), p(-0.4, 1.6), p(1.7, 0.62), p(3.1, 0.62), p(5.2, -0.4), p(7.8, -1.38)]),
+      },
+    ],
+  },
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // WAVE 3 — SPIKE / DANGER-ZONE levels (no rocks). Each carries dangerZones[]
+  // (car overlap = instant 'hazardContact' loss; the drawn line + car ride over/
+  // around it). Hazards are IN-PATH: a naive baseline (straight-overlap1 or the
+  // idle no-line) dies by that hazard (Gate 2.6 per-hazard relevance enforces),
+  // while the intended ghost CLEARS with ZERO hazard contact. Realization notes:
+  //   - Spike FLOORS / ceiling spikeDown / wall zones are dangerZones (rects); a
+  //     'spike'/'spikeDown'/'zone' style is render-only (physics-inert).
+  //   - Solid mid-supports the LINE rests on are trapezoid PILLARS (thin nubs
+  //     diverge Box2D); ceilings are 2-pt right→left polylines (underside solid).
+  //   - Deep chasms give the vertical the size gate wants (pit view = rim−3 m).
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // L4 (v5 slate #4) — ramp-jump / M · spike ridge (ENGINE ADAPTATION of the atlas
+  // "spike floor jump" card 4). A drawn launch RAMP is a cantilever: it sags under the
+  // car instead of kicking it, so a true ballistic jump won't commit; and a downhill
+  // drive-off naturally arcs onto the far platform ABOVE any pit spikes (they never
+  // bite). Realized instead as an ARC OVER a spike RIDGE that pokes up between two
+  // rims: a naive flat road drives the car straight into the ridge (hazard-relevant),
+  // while a firm drawn HUMP carries the car up and over the teeth. 3.6 m span holds
+  // as a compression arch (no mid-support), the deep chasm supplies the M vertical.
+  {
+    id: 'ch1-l04',
+    design: 'ramp-jump/M: 深い棘の谷に、二柱で三分割した張り線を渡して越える（平線は塞げず棘へ落ちる）— v5 #4 (R10, multi-seal-over-spikes 化)',
+    inkFeel: 'standard',
+    gimmickTags: [],
+    terrain: [
+      pl(p(-8.0, 0.6), p(-2.7, 0.6), p(-2.9, -5.5)),
+      pillar(-1.1, 0.42, -5.5, 0.45, 0.8),
+      pillar(1.1, 0.42, -5.5, 0.45, 0.8),
+      pl(p(2.5, -5.5), p(2.7, 0.6), p(8.0, 0.6)),
+    ],
+    vehicleSpawn: p(-5.8, 0.95),
+    goalFlag: flag(5.4, 0.6, 1, 2),
+    killY: -12,
+    coins: coinCount(5),
+    dangerZones: [{ x: -2.5, y: -4.6, width: 5.0, height: 0.9, style: 'spike' }],
+    strokes: [
+      {
+        kind: 'any',
+        role: 'multi-seal-over-spikes',
+        points: spline([p(-2.7, 0.6), p(-1.9, 0.4), p(-1.1, 0.42), p(0.0, 0.32), p(1.1, 0.42), p(1.9, 0.4), p(2.7, 0.6)]),
+      },
+    ],
+  },
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // L8 (v5 slate #8) — seal / flat / L · danger zone (deep-floor band). atlas card 10.
+  // REALIZATION (robust convergence with L10): a high-road over a mid-valley zone can't
+  // be attributed (the naive straight snaps before the middle) and its unsupported ridden
+  // spans over the pit both SAG >0.3 m (line-displacement F5) and are jitter-fragile. So
+  // the DangerZone is a DEEP floor band (like L10's spike floor), attributed by the idle
+  // no-line car falling straight into it; the ghost is a firm sag resting on a central
+  // pillar (two ≤2.7 m sub-spans — anchored, low-shove, fuzz-robust). L8/L10/L12 share
+  // this "sag on a mid-pillar over a deep floor hazard" skeleton (zone vs spike style).
+  {
+    id: 'ch1-l08',
+    design: 'seal/flat/L: 深い床の危険帯を、中央支柱に張った線でまたいで渡る（無線の直進は帯へ落ちる）— v5 #8 (R08 + DangerZone, deep-floor 化)',
+    inkFeel: 'standard',
+    gimmickTags: [],
+    terrain: [
+      pl(p(-9.5, 0.8), p(-2.7, 0.8), p(-2.9, -5.5)),
+      pillar(0.0, 0.5, -5.5, 0.5, 0.9),
+      pl(p(2.7, -5.5), p(2.9, 0.8), p(9.5, 0.8)),
+    ],
+    vehicleSpawn: p(-6.4, 1.15),
+    goalFlag: flag(6.2, 0.8, 1, 2),
+    killY: -12,
+    coins: coinCount(5),
+    dangerZones: [{ x: -2.5, y: -4.4, width: 5.0, height: 0.9, style: 'zone' }],
+    strokes: [
+      {
+        kind: 'any',
+        role: 'seal-over-zone',
+        points: spline([p(-2.7, 0.8), p(-1.35, 0.52), p(0.0, 0.46), p(1.35, 0.52), p(2.7, 0.8)]),
+      },
+    ],
+  },
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // L9 (v5 slate #9) — hook / tier / M · spike floor (ENGINE ADAPTATION of the atlas
+  // "ceiling spike" card 11). The design wants the car to DUCK under ceiling
+  // stalactites over a gap. That is physically infeasible with this engine's car:
+  // to duck low enough the car must drop into a gap-valley, and the drop bounces the
+  // 0.8 m-tall chassis straight back UP into the ceiling teeth; a gentle descent
+  // keeps the car high (its 0.9 m-lead front wheel reaches the teeth before it sinks)
+  // and the naive rim-to-rim straight always bridges at LOW gap-rim height, so no
+  // baseline can attribute a ceiling hazard (the idle car FALLS, away from the roof).
+  // Realized instead as a hook/tier over a SPIKE FLOOR: the naive no-line car drives
+  // off the low-left rim and FALLS into the spikes (hazard-relevant); the ghost hooks
+  // a firm rising bridge from the low-left shelf up to the high-right, held above the
+  // deep spike floor across a ≤5.5 m span.
+  {
+    id: 'ch1-l09',
+    design: 'hook/tier/M: 低い左棚から高い右棚へ、棘の谷を一本のフック橋で跨いで登る — v5 #9 (R16 hook, spike-floor 化)',
+    inkFeel: 'standard',
+    gimmickTags: [],
+    terrain: [
+      pl(p(-9.0, 0.9), p(-2.3, 0.9), p(-2.5, -5.0)),
+      pillar(0.0, 0.95, -5.0, 0.9, 1.3),
+      pl(p(2.3, -5.0), p(2.5, 1.4), p(9.0, 1.4)),
+    ],
+    vehicleSpawn: p(-6.3, 1.25),
+    goalFlag: flag(5.9, 1.4, 1, 2),
+    killY: -11,
+    coins: coinCount(5),
+    dangerZones: [{ x: -2.1, y: -4.5, width: 4.6, height: 0.9, style: 'spike' }],
+    strokes: [
+      {
+        kind: 'any',
+        role: 'hook-climb',
+        points: spline([p(-2.3, 0.9), p(-1.1, 0.92), p(0.0, 0.95), p(1.1, 1.12), p(2.3, 1.4)]),
+      },
+    ],
+  },
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // L10 (v5 slate #10) — sag / U / L · spike floor. atlas card 12 (棘谷の綱渡り).
+  // A deep canyon with a spike FLOOR at the bottom. REALIZATION: the naive no-line
+  // car drives off the rim and FALLS into the spikes; an over-sagged low line dips
+  // toward them too. The ghost strings a firm up-bow TAUT across the 5.4 m gap
+  // (≤5.5) so the settled line holds high above the spikes and the car crosses.
+  {
+    id: 'ch1-l10',
+    design: 'sag/U/L: 棘の底と中央尖塔をもつ深峡谷に、中州で二分割した張り線を渡す — v5 #10 (R03 sag-rope-over-hazard)',
+    inkFeel: 'standard',
+    gimmickTags: [],
+    terrain: [
+      pl(p(-8, 0.8), p(-2.7, 0.8), p(-2.9, -5.2)),
+      pillar(0.0, 0.45, -5.2, 0.5, 0.9),
+      pl(p(2.5, -5.2), p(2.7, 0.8), p(8.5, 0.8)),
+    ],
+    vehicleSpawn: p(-5.8, 1.15),
+    goalFlag: flag(5.6, 0.8, 1, 2),
+    killY: -11,
+    coins: coinCount(5),
+    dangerZones: [{ x: -2.5, y: -4.4, width: 5.0, height: 0.9, style: 'spike' }],
+    strokes: [
+      {
+        kind: 'any',
+        role: 'sag-over-spikes',
+        points: spline([p(-2.7, 0.8), p(-1.35, 0.5), p(0.0, 0.45), p(1.35, 0.5), p(2.7, 0.8)]),
+      },
+    ],
+  },
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // L12 (v5 slate #12) — hook / shaft / L · danger zone (deep-floor band). atlas card 15.
+  // REALIZATION: a drawn vertical-shaft descent is undriveable (the car free-falls /
+  // overshoots) AND the unsupported-span metric flags every stepped descent as one giant
+  // span (high terrain reads as above the straight spawn→goal line). A high-road over a
+  // pit-zone also sags past the F5 displacement limit. So — like L8/L10 — the DangerZone
+  // is a DEEP floor band the idle no-line car falls straight into, and the ghost is a
+  // firm sag on a central pillar (two ≤2.7 m anchored sub-spans; low-shove, fuzz-robust).
+  {
+    id: 'ch1-l12',
+    design: 'hook/shaft/L: 深い床の赤帯を、中央支柱に張った線でまたいで渡る（無線の直進は帯へ落ちる）— v5 #12 (R02, deep-floor 化)',
+    inkFeel: 'standard',
+    gimmickTags: [],
+    terrain: [
+      pl(p(-9.5, 0.8), p(-2.7, 0.8), p(-2.9, -5.5)),
+      pillar(0.0, 0.45, -5.5, 0.5, 0.9),
+      pl(p(2.7, -5.5), p(2.9, 0.8), p(9.5, 0.8)),
+    ],
+    vehicleSpawn: p(-5.9, 1.15),
+    goalFlag: flag(5.8, 0.8, 1, 2),
+    killY: -12,
+    coins: coinCount(6),
+    dangerZones: [{ x: -2.5, y: -4.4, width: 5.0, height: 0.9, style: 'zone' }],
+    strokes: [
+      {
+        kind: 'any',
+        role: 'wall-zone-sag',
+        points: spline([p(-2.7, 0.8), p(-1.35, 0.5), p(0.0, 0.45), p(1.35, 0.5), p(2.7, 0.8)]),
+      },
+    ],
+  },
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // L17 (v5 slate #17, NEW id) — sag cantilever / S-curve / XL · spike floor.
+  // atlas card 21 (棘上の張り出し). A wide, deep spike canyon split by a central
+  // mid-PEG. REALIZATION: naive fall/over-sag hits the spike floor; the ghost
+  // strings a gentle S from the high-left shelf, over the mid-peg (which supports
+  // it within the tension limit — two ≤5.5 m spans), up to the right shelf. Deep
+  // canyon (floor −6) supplies the XL vertical the size gate wants.
+  {
+    id: 'ch1-l17',
+    design: 'sag-cantilever/S/XL: 棘のS字峡谷に中州ペグから張り出して二段で対岸へ渡す — v5 #17 (R03 + R09)',
+    inkFeel: 'tight',
+    gimmickTags: [],
+    terrain: [
+      pl(p(-9.2, 2.4), p(-2.6, 2.4), p(-2.8, -7.5)),
+      pillar(0.4, 1.55, -3.5, 0.8, 1.2),
+      pl(p(3.4, -7.5), p(3.6, 1.8), p(10.4, 1.8)),
+    ],
+    vehicleSpawn: p(-6.9, 2.75),
+    goalFlag: flag(7.5, 1.8, 1, 2),
+    killY: -14,
+    coins: coinCount(6),
+    dangerZones: [{ x: -2.2, y: -3.6, width: 6.4, height: 0.8, style: 'spike' }],
+    strokes: [
+      {
+        kind: 'any',
+        role: 'sag-cantilever-S',
+        points: spline([p(-2.6, 2.4), p(-1.2, 1.72), p(0.4, 1.55), p(2.0, 1.7), p(3.6, 1.8)]),
       },
     ],
   },

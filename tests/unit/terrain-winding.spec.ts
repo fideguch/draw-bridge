@@ -40,7 +40,7 @@ function reverseWinding(terrain: readonly Polyline[]): Polyline[] {
 const LEVELS = loadLevels();
 
 describe('terrain winding — static Gate 1 collision-side check', () => {
-  it('reports zero winding errors across all shipped levels (wave 2: 7)', () => {
+  it('reports zero winding errors across all shipped levels (wave 3: 13)', () => {
     for (const { name, level } of LEVELS) {
       const errors = windingErrors(level.terrain);
       expect(errors, `${name}: ${errors.join(' | ')}`).toEqual([]);
