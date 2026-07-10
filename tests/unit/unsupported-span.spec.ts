@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
 import type { Level, Point, Polyline } from '@engine/level/LevelSchema';
+import { GameSimulation } from '@engine/GameSimulation';
 import { World } from '@engine/physics/World';
 import {
   ARCH_EXEMPT_IDS,
@@ -137,7 +138,65 @@ describe('measureUnsupportedSpan (engine settle)', () => {
     expect(result.committed).toBe(true);
     expect(result.span).toBeLessThanOrEqual(MAX_UNSUPPORTED_SPAN_M);
   });
+
+  it('F1: span is measured from the PRE-DRIVE snapshot (before the first motor step), not after', () => {
+    // Review R7 F1: measureUnsupportedSpan must read the chain captured at
+    // launchReleased BEFORE the first motor-driven world.step, so the first
+    // motor shove/sag is NOT baked into the baseline span. Drive a sim by hand,
+    // capture the launch snapshot and the post-first-step chain, and confirm the
+    // gate's measured span equals longestFreeSpan of the PRE-DRIVE snapshot.
+    const terrain: Polyline[] = [
+      [[-10, 0], [-3.25, 0], [-3.45, -6]],
+      [[3.45, -6], [3.25, 0], [10, 0]],
+    ];
+    const strokeRaw: [number, number][] = [[-3.6, 0.12], [0, 0.02], [3.6, 0.12]];
+    const level = mkLevel(terrain, strokeRaw, -6, 6);
+    const strokePts: Point[] = strokeRaw.map(([x, y]) => ({ x, y }));
+
+    const sim = new GameSimulation(level, { upgrades: { inkCapacityLv: 0, engineSpeedLv: 0 }, world });
+    let atLaunch: readonly Point[] | null = null;
+    let preDriveChain: readonly Point[] = [];
+    let afterFirstStep: readonly Point[] = [];
+    try {
+      expect(sim.commitStroke(strokePts).committed).toBe(true);
+      sim.events.on('launchReleased', () => {
+        atLaunch = sim.renderChainPolyline();
+      });
+      let outcome = sim.outcome;
+      while (sim.preDriveSettledPolyline === null && outcome === null) {
+        outcome = sim.step();
+      }
+      expect(sim.preDriveSettledPolyline).not.toBeNull();
+      expect(atLaunch).not.toBeNull();
+      preDriveChain = sim.preDriveSettledPolyline!;
+      afterFirstStep = sim.renderChainPolyline();
+      // Captured at launchReleased, BEFORE the first world.step → == the launch snapshot.
+      expect(maxNodeDelta(preDriveChain, atLaunch!)).toBe(0);
+    } finally {
+      sim.destroy();
+    }
+
+    // The gate (fresh sim on the same recycled world — deterministic) reports the
+    // PRE-DRIVE span: exactly longestFreeSpan of the snapshot captured pre-drive.
+    const measured = measureUnsupportedSpan(level, world);
+    expect(measured.committed).toBe(true);
+    expect(measured.span).toBeCloseTo(longestFreeSpan(preDriveChain, terrain), 6);
+    // Non-vacuous: the first motor step really moved the chain, so the pre-drive
+    // snapshot the gate uses is a genuinely EARLIER shape than the post-step chain
+    // the old code measured (node-level delta, ~mm — deterministic).
+    expect(maxNodeDelta(preDriveChain, afterFirstStep)).toBeGreaterThan(0);
+  });
 });
+
+/** Max paired-node displacement (m) between two chain polylines (test helper). */
+function maxNodeDelta(a: readonly Point[], b: readonly Point[]): number {
+  const n = Math.min(a.length, b.length);
+  let max = 0;
+  for (let i = 0; i < n; i++) {
+    max = Math.max(max, Math.hypot(a[i]!.x - b[i]!.x, a[i]!.y - b[i]!.y));
+  }
+  return max;
+}
 
 describe('unsupportedSpanCheck', () => {
   it('the compression-arch exemption set names L16 and L21 (§8.2)', () => {

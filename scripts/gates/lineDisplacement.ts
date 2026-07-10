@@ -14,11 +14,16 @@
  * deflections as failures. So we measure displacement ONLY where and when the CAR
  * traverses the chain:
  *
- *   settled snapshot   := the chain shape the instant the car launches (settled
- *                         through anticipation, car not yet on it), then
+ *   settled snapshot   := the chain shape the instant the car launches, captured
+ *                         at launchReleased BEFORE the first motor-driven world.step
+ *                         (settled through anticipation, car not yet on it, no motor
+ *                         shove yet — GameSimulation.preDriveSettledPolyline), then
  *   per running tick   := for each chain node inside the CAR's contact window
  *                         (its occupied AABBs + a small skin), compare that node's
- *                         LIVE position to its settled position and bound the max.
+ *                         LIVE position to its settled position and bound the max —
+ *                         starting with the FIRST running tick (review R7 F1+F2:
+ *                         the first motor shove is neither baked into the baseline
+ *                         nor skipped, so a severe one-tick shove is caught).
  *
  * Consequences (all intended):
  *   • Rock-impact deflection AWAY from the car's contact window is UNBOUNDED —
@@ -83,6 +88,44 @@ function nodeInCarWindow(node: Point, boxes: readonly Aabb[]): boolean {
   return false;
 }
 
+export interface CarWindowShove {
+  /** Max settled→live displacement (m) of any chain node inside the car window. */
+  readonly maxDisplacement: number;
+  /** True when at least one node was inside the car window this frame. */
+  readonly hasCarContact: boolean;
+}
+
+/**
+ * Per-frame reducer: the max displacement (m) of any chain node whose LIVE
+ * position (`now`) lies inside the car's contact window, measured against the
+ * `settled` (pre-drive) baseline. Index i pairs the same capsule endpoint in both
+ * polylines. Pure — the gate calls it every running tick FROM THE FIRST inclusive,
+ * so a severe shove on the first running tick is caught, not skipped (review R7
+ * F2). Exported so the negative control can drive it with synthetic frames.
+ */
+export function maxShoveUnderCar(
+  settled: readonly Point[],
+  now: readonly Point[],
+  carBoxes: readonly Aabb[],
+): CarWindowShove {
+  let maxDisplacement = 0;
+  let hasCarContact = false;
+  const n = Math.min(settled.length, now.length);
+  for (let i = 0; i < n; i++) {
+    const node = now[i]!;
+    if (!nodeInCarWindow(node, carBoxes)) {
+      continue;
+    }
+    hasCarContact = true;
+    const anchor = settled[i]!;
+    const disp = Math.hypot(node.x - anchor.x, node.y - anchor.y);
+    if (disp > maxDisplacement) {
+      maxDisplacement = disp;
+    }
+  }
+  return { maxDisplacement, hasCarContact };
+}
+
 export interface LineDisplacementResult {
   /**
    * Max settled→driven displacement (m) of any chain node WHILE the car rode it.
@@ -123,27 +166,24 @@ export function measureLineDisplacement(
     let outcome = sim.outcome;
     while (outcome === null) {
       outcome = sim.step();
-      // Snapshot the SETTLED shape the first running tick (post-anticipation
-      // settle, pre-drive), then, as the car crosses, measure the shove ONLY at
-      // nodes inside the car's contact window (car-path truthfulness — header).
-      if (settled === null && sim.phase === 'running') {
-        settled = sim.renderChainPolyline();
-      } else if (settled !== null) {
-        const now = sim.renderChainPolyline();
-        const carBoxes = sim.renderVehicle.occupiedAABBs();
-        const n = Math.min(settled.length, now.length);
-        for (let i = 0; i < n; i++) {
-          const node = now[i]!;
-          if (!nodeInCarWindow(node, carBoxes)) {
-            continue;
-          }
-          hasCarRidden = true;
-          const anchor = settled[i]!;
-          const disp = Math.hypot(node.x - anchor.x, node.y - anchor.y);
-          if (disp > maxDisplacement) {
-            maxDisplacement = disp;
-          }
-        }
+      // BASELINE = the SETTLED, PRE-DRIVE chain captured at launchReleased, BEFORE
+      // the first motor-driven world.step (review R7 / F1+F2). Measuring from here
+      // counts the FIRST running tick's shove inclusive; the previous code sampled
+      // the baseline AFTER the first running step, baking that first motor shove
+      // into the baseline AND skipping the first tick — a severe one-tick shove
+      // (even one that rebounds) went unmeasured. Once the baseline exists, measure
+      // the shove ONLY at nodes inside the car's contact window (car-path
+      // truthfulness — header), STARTING with the tick that established it.
+      settled ??= sim.preDriveSettledPolyline;
+      if (settled === null) {
+        continue; // still in anticipation — no pre-drive baseline captured yet
+      }
+      const shove = maxShoveUnderCar(settled, sim.renderChainPolyline(), sim.renderVehicle.occupiedAABBs());
+      if (shove.hasCarContact) {
+        hasCarRidden = true;
+      }
+      if (shove.maxDisplacement > maxDisplacement) {
+        maxDisplacement = shove.maxDisplacement;
       }
     }
     return {

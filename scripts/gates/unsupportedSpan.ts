@@ -15,10 +15,12 @@
  * (the exact 似て非なるステージ complaint). Terrain shape is irrelevant here except
  * WHERE THE CHAIN TOUCHES IT.
  *
- * METRIC (engine settle snapshot, mirrors lineDisplacement.ts / atlas). Commit the
- * primary ghost stroke, settle it through the anticipation countdown (car not yet
- * on it), and read the SETTLED chain polyline (renderChainPolyline — capsule-centre
- * nodes; a settled chain physically cannot lie inside solids). A chain node is
+ * METRIC (engine settle snapshot, mirrors lineDisplacement.ts). Commit the primary
+ * ghost stroke, settle it through the anticipation countdown (car not yet on it),
+ * and read the SETTLED chain polyline captured at launchReleased BEFORE the first
+ * motor-driven world.step (GameSimulation.preDriveSettledPolyline — capsule-centre
+ * nodes; a settled chain physically cannot lie inside solids). Snapshotting pre-drive
+ * keeps the first motor shove/sag out of the span baseline (review R7 F1). A chain node is
  * SUPPORTED when it rests within CONTACT_CLEARANCE_M of a TOP-SOLID terrain surface
  * directly below it (rim / pillar / ledge / tier); otherwise it hangs FREE. The
  * metric is the longest straight-line gap between consecutive support contacts
@@ -210,12 +212,16 @@ export function measureUnsupportedSpan(level: Level, world: World = getSpanWorld
       return { span: 0, committed: false, reason: commit.reason };
     }
     // Settle through the anticipation countdown; snapshot the settled (unloaded)
-    // chain the instant the car starts running (atlas.recordSettledChain pattern).
+    // chain the instant the car launches, captured at launchReleased BEFORE the
+    // first motor-driven world.step (review R7 / F1). Stepping until the pre-drive
+    // snapshot exists and reading THAT — rather than renderChainPolyline() after
+    // the anticipation loop — keeps the first motor shove/sag OUT of the measured
+    // span baseline. Falls back to the live shape if the run ends in anticipation.
     let outcome = sim.outcome;
-    while (sim.phase === 'anticipation' && outcome === null) {
+    while (sim.preDriveSettledPolyline === null && outcome === null) {
       outcome = sim.step();
     }
-    const chain = sim.renderChainPolyline();
+    const chain = sim.preDriveSettledPolyline ?? sim.renderChainPolyline();
     return { span: longestFreeSpan(chain, level.terrain), committed: true };
   } finally {
     sim.destroy();

@@ -247,6 +247,12 @@ export class GameSimulation {
 
   private chain: BridgeChain | null = null;
   private stressTracker: StressTracker | null = null;
+  /**
+   * The settled chain polyline captured at launchReleased — BEFORE the first
+   * motor-driven world.step (review R7). null until the anticipation->running
+   * transition and after reset(). See preDriveSettledPolyline.
+   */
+  private preDriveSettledChain: readonly Point[] | null = null;
   private currentPhase: SimulationPhase = 'drawing';
   private attemptOutcome: AttemptOutcome | null = null;
   private lastEvaluatedTick = -1;
@@ -295,6 +301,7 @@ export class GameSimulation {
     });
     this.chain = null;
     this.stressTracker = null;
+    this.preDriveSettledChain = null;
     this.currentPhase = 'drawing';
     this.attemptOutcome = null;
     this.lastEvaluatedTick = -1;
@@ -434,6 +441,18 @@ export class GameSimulation {
       points.push(segment.b);
     }
     return points;
+  }
+
+  /**
+   * The SETTLED bridge-chain polyline captured at launchReleased — the instant the
+   * car launches, BEFORE the first motor-driven world.step (review R7). This is the
+   * true pre-drive baseline for the span / line-displacement gates: measuring from
+   * here counts the first running tick's shove, whereas sampling renderChainPolyline
+   * AFTER the run starts bakes the first motor shove into the baseline (F1/F2). null
+   * before the run starts (drawing/anticipation) and after reset(). Read-only.
+   */
+  get preDriveSettledPolyline(): readonly Point[] | null {
+    return this.preDriveSettledChain;
   }
 
   /** The stress tracker for the current chain, or null (compound/pre-commit). */
@@ -587,6 +606,13 @@ export class GameSimulation {
     // motorized tick (emission is inert to physics — determinism unchanged).
     if (this.currentPhase === 'anticipation' && this.vehicle.phase === 'running') {
       this.currentPhase = 'running';
+      // Capture the SETTLED, PRE-DRIVE chain shape the instant the car launches —
+      // BEFORE the first motor-driven world.step below (review R7). This is the
+      // baseline the span / line-displacement gates measure from; sampling it
+      // AFTER the first running step would bake the first motor shove into the
+      // baseline and skip measuring the first running tick. Pure read of live
+      // body poses (physics-inert) — the determinism stateHash is untouched.
+      this.preDriveSettledChain = this.renderChainPolyline();
       this.events.emit('launchReleased');
     }
     this.world.step();
