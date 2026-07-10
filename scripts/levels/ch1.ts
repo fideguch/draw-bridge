@@ -521,6 +521,242 @@ export const CH1_SOURCES: readonly LevelSource[] = [
       },
     ],
   },
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // WAVE 4 — ROCK levels (boulder hazards). Each carries rocks[] (car↔rock CONTACT
+  // = instant 'hazardContact' loss, round-7 §2.1). IN-PATH: a naive baseline (the
+  // idle no-line car) crosses the deep pit, falls off the far rim, and lands on the
+  // BOULDER resting on a mid-depth ledge → hazardContact (Gate 2.6 per-hazard
+  // relevance enforces); the intended ghost rides a FIRM sag seated on a mid-pillar
+  // OVER the pit with ZERO contact (the boulder is metres below it).
+  //
+  // WAVE-4 ENGINE ADAPTATION (the atlas cards call for a floating tilted roof/chute/
+  // wall that DEFLECTS a falling rock aside; that shape is INFEASIBLE — a drawn chain
+  // has NO terrain weld (BridgeChainBuilder is a free capsule chain), so an elevated
+  // roof over the lane collapses onto the car, and a car riding a tall deflecting arch
+  // busts the 0.3 m displacement gate. Measured across ~200 configs. Realized instead,
+  // per the wave-2/3 adapt-to-physics practice, as a DEEP pit crossed by a firm
+  // mid-pillar sag (disp ≈ 0.08 m, well under the 0.3 m gate — the deep pit + short
+  // pillar-split spans keep the ridden line taut) with the BOULDER on a ledge in the
+  // far half of the pit where the naive car falls. Distinct silhouettes: flat / climb /
+  // descent / two-step tier / far-goal tier / twin-pit M, plus L11's spike-gorge seal.
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // L5 (v5 slate #5) — shield-static / flat / M · falling rock. atlas card 6
+  // (落石よけの屋根). Flat deep pit, mid-pillar sag; the idle car crosses and drops off
+  // the far rim onto the boulder on the ledge. The ghost's firm sag carries the car
+  // over. Flat silhouette.
+  {
+    id: 'ch1-l05',
+    design: 'shield-static/flat/M: 深い谷を中州柱の張り床で渡り、谷の岩を頭上に越える（無線は谷へ落ち岩に当たる）— v5 #5 (R04 落石よけ→ deep-pit rock-ledge 化)',
+    inkFeel: 'standard',
+    gimmickTags: [],
+    terrain: [
+      pl(p(-9, 0.4), p(-2.7, 0.4), p(-2.9, -5.2), p(2.9, -5.2), p(2.7, 0.4), p(6.8, 0.4)),
+      pillar(0, 0.1, -5.2, 0.5, 0.9),
+      pl(p(1.5, -5.2), p(1.6, -2.4), p(2.6, -2.4), p(2.7, -5.2)),
+    ],
+    vehicleSpawn: p(-6.8, 0.75),
+    goalFlag: flag(4.2, 0.4, 1, 2),
+    killY: -11,
+    coins: coinCount(5),
+    rocks: [{ x: 2.2, y: -1.95, radius: 0.5, density: 5 }],
+    strokes: [
+      {
+        kind: 'any',
+        role: 'pit-sag-flat',
+        points: spline([p(-2.7, 0.4), p(-1.35, 0.14), p(0, 0.08), p(1.35, 0.14), p(2.7, 0.4)]),
+      },
+    ],
+  },
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // L6 (v5 slate #6) — shield-dynamic / climb / M · rolling rock. atlas card 7
+  // (転がり石の壁). Same deep-pit sag but the far platform RAMPS UP to a raised goal
+  // (+1.0 m): the idle car crosses, drops onto the boulder; the ghost crosses and
+  // climbs the terrain ramp to the high goal. Ascending silhouette (vs L5 flat).
+  {
+    id: 'ch1-l06',
+    design: 'shield-dynamic/climb/M: 深い谷を渡り高い右棚へ登る、谷の岩を頭上に越える（無線は谷へ落ち岩に当たる）— v5 #6 (R05 転石の壁→ deep-pit + climb 化)',
+    inkFeel: 'standard',
+    gimmickTags: [],
+    terrain: [
+      pl(p(-9, 0.4), p(-2.7, 0.4), p(-2.9, -5.2), p(2.9, -5.2), p(2.7, 0.4), p(4.4, 0.4), p(5.4, 1.0), p(9, 1.0)),
+      pillar(0, 0.1, -5.2, 0.5, 0.9),
+      pl(p(1.5, -5.2), p(1.6, -2.4), p(2.6, -2.4), p(2.7, -5.2)),
+    ],
+    vehicleSpawn: p(-6.8, 0.75),
+    goalFlag: flag(6.2, 1.0, 1, 2),
+    killY: -11,
+    coins: coinCount(5),
+    rocks: [{ x: 2.2, y: -1.95, radius: 0.5, density: 5 }],
+    strokes: [
+      {
+        kind: 'any',
+        role: 'pit-sag-climb',
+        points: spline([p(-2.7, 0.4), p(-1.35, 0.14), p(0, 0.08), p(1.35, 0.14), p(2.7, 0.4)]),
+      },
+    ],
+  },
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // L7 (v5 slate #7) — catch-redirect / descent / L · rolling rock. atlas card 8
+  // (そらしランプ). Spawn on a HIGH-left shelf (+1.4 m), a terrain down-ramp to the
+  // deep pit, the boulder on the ledge, then across to the low goal. The idle car
+  // rolls down and drops onto the boulder; the ghost's sag carries it over.
+  // Descending silhouette. L size (long course, tall drop).
+  {
+    id: 'ch1-l07',
+    design: 'catch-redirect/descent/L: 高い左棚から降りて深い谷を渡り、谷の岩を頭上に越える（無線は谷へ落ち岩に当たる）— v5 #7 (R06 逸らし→ deep-pit + descent 化)',
+    inkFeel: 'standard',
+    gimmickTags: [],
+    terrain: [
+      pl(p(-9, 1.1), p(-5.4, 1.1), p(-3.7, 0.4), p(-2.7, 0.4), p(-2.9, -5.2), p(2.9, -5.2), p(2.7, 0.4), p(7.4, 0.4)),
+      pillar(0, 0.1, -5.2, 0.5, 0.9),
+      pl(p(1.5, -5.2), p(1.6, -2.4), p(2.6, -2.4), p(2.7, -5.2)),
+    ],
+    vehicleSpawn: p(-6.8, 1.45),
+    goalFlag: flag(5.0, 0.4, 1, 2),
+    killY: -11,
+    coins: coinCount(6),
+    rocks: [{ x: 2.2, y: -1.95, radius: 0.5, density: 5 }],
+    strokes: [
+      {
+        kind: 'any',
+        role: 'pit-sag-descent',
+        points: spline([p(-2.7, 0.4), p(-1.35, 0.14), p(0, 0.08), p(1.35, 0.14), p(2.7, 0.4)]),
+      },
+    ],
+  },
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // L11 (v5 slate #11, NEW id) — shield-static / tier / L · ceiling spike. atlas card
+  // 13 (天井覆いの橋). Ceiling stalactites cannot be ATTRIBUTED to a naive baseline
+  // (the shipped L9 hit the same wall → spike floor). Realized as a WIDE deep spike
+  // GORGE crossed by a firm covering DECK on a central pillar: the idle car drops off
+  // the rim into the spikes (hazardContact zone); the ghost's flat seal covers the
+  // gorge in two ≤3 m spans. Distinct from L10's narrow taut sag (mid-pillar seal,
+  // wider gorge). NO rock — the composite's spike half.
+  {
+    id: 'ch1-l11',
+    design: 'shield-static/tier/L: 広く深い棘の谷を、中州柱に載せた覆い床でまとめて跨ぐ（無線は棘へ落ちる）— v5 #11 (R07 天井覆い→ wide spike-gorge seal 化)',
+    inkFeel: 'standard',
+    gimmickTags: [],
+    terrain: [
+      pl(p(-9, 0.6), p(-2.6, 0.6), p(-2.8, -5.4), p(2.8, -5.4), p(2.6, 0.6), p(8.1, 0.6)),
+      pillar(0, 0.42, -5.4, 0.7, 1.2),
+    ],
+    vehicleSpawn: p(-6.3, 0.95),
+    goalFlag: flag(5.6, 0.6, 1, 2),
+    killY: -12,
+    coins: coinCount(5),
+    dangerZones: [{ x: -2.6, y: -4.9, width: 5.2, height: 0.9, style: 'spike' }],
+    strokes: [
+      {
+        kind: 'any',
+        role: 'spike-gorge-seal',
+        points: spline([p(-2.6, 0.6), p(-1.3, 0.48), p(0, 0.44), p(1.3, 0.48), p(2.6, 0.6)]),
+      },
+    ],
+  },
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // L13 (v5 slate #13) — ramp-jump / climb / L · composite (spike+rock). atlas card
+  // 16 (連続ジャンプ台). The ballistic double-jump is infeasible (wave-3.5 finding);
+  // realized as its non-ballistic alternative — the deep-pit rock cross, then a
+  // TWO-STEP terrain climb to a high goal (+1.8 m). The idle car drops onto the
+  // boulder; the ghost crosses and climbs the two tiers. Distinct stepped-ascent.
+  {
+    id: 'ch1-l13',
+    design: 'ramp-jump/climb/L: 岩の谷を渡り、二段の棚を登って高台へ（無線は谷へ落ち岩に当たる／跳躍不可の非弾道化）— v5 #13 (R10 連続ジャンプ→ deep-pit + two-step 化)',
+    inkFeel: 'standard',
+    gimmickTags: [],
+    terrain: [
+      pl(
+        p(-9, 0.4), p(-2.7, 0.4), p(-2.9, -5.6), p(2.9, -5.6), p(2.7, 0.4),
+        p(3.8, 0.4), p(4.7, 0.9), p(5.5, 0.9), p(6.4, 1.4), p(9.5, 1.4),
+      ),
+      pillar(0, 0.1, -5.6, 0.5, 0.9),
+      pl(p(1.5, -5.6), p(1.6, -2.4), p(2.6, -2.4), p(2.7, -5.6)),
+    ],
+    vehicleSpawn: p(-6.8, 0.75),
+    goalFlag: flag(7.0, 1.4, 1, 2),
+    killY: -11,
+    coins: coinCount(6),
+    rocks: [{ x: 2.2, y: -1.95, radius: 0.5, density: 5 }],
+    strokes: [
+      {
+        kind: 'any',
+        role: 'pit-sag-two-step',
+        points: spline([p(-2.7, 0.4), p(-1.35, 0.14), p(0, 0.08), p(1.35, 0.14), p(2.7, 0.4)]),
+      },
+    ],
+  },
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // L14 (v5 slate #14) — shield-dynamic timed / tier / L · rolling rock. atlas card
+  // 17 (時限：来るぞ). The deep-pit rock cross near spawn, then a LONG upper-tier run
+  // to a RAISED far goal (+0.6 m, x6.6). The idle car drops onto the boulder; the
+  // ghost crosses and runs the tier to the distant goal. Far-goal tier silhouette.
+  {
+    id: 'ch1-l14',
+    design: 'shield-dynamic/tier/L: 手前の深い谷の岩を越え、上段を長く走って遠い高ゴールへ（無線は谷へ落ち岩に当たる）— v5 #14 (R11 時限盾→ deep-pit + far-goal tier 化)',
+    inkFeel: 'standard',
+    gimmickTags: [],
+    terrain: [
+      pl(p(-9, 0.4), p(-2.7, 0.4), p(-2.9, -5.8), p(2.9, -5.8), p(2.7, 0.4), p(3.6, 0.4), p(4.2, 0.9), p(9, 0.9)),
+      pillar(0, 0.1, -5.8, 0.5, 0.9),
+      pl(p(1.5, -5.8), p(1.6, -2.4), p(2.6, -2.4), p(2.7, -5.8)),
+    ],
+    vehicleSpawn: p(-6.6, 0.75),
+    goalFlag: flag(6.6, 0.9, 1, 2),
+    killY: -12,
+    coins: coinCount(6),
+    rocks: [{ x: 2.2, y: -1.95, radius: 0.5, density: 5 }],
+    strokes: [
+      {
+        kind: 'any',
+        role: 'pit-sag-far-tier',
+        points: spline([p(-2.7, 0.4), p(-1.35, 0.14), p(0, 0.08), p(1.35, 0.14), p(2.7, 0.4)]),
+      },
+    ],
+  },
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // L15 (v5 slate #15) — catch+seal composite / U / L · composite. atlas card 18
+  // (受けて塞ぐ谷). TWIN deep pits split by a central island; the boulder rests on a
+  // ledge in the LEFT pit. The idle car crosses the first pillar and drops onto the
+  // boulder; the ghost's continuous M-seal spans BOTH pits (resting on the two
+  // pillars + island → firm) over the boulder. Distinct twin-pit M silhouette.
+  {
+    id: 'ch1-l15',
+    design: 'catch+seal/U/L: 二つの深い谷をM字の連続床で渡り、左谷の岩を頭上に越える（無線は左谷へ落ち岩に当たる）— v5 #15 (R12+R08 受けて塞ぐ→ twin deep-pit M-seal 化)',
+    inkFeel: 'tight',
+    gimmickTags: [],
+    terrain: [
+      pl(
+        p(-9, 0.4), p(-3.6, 0.4), p(-3.8, -5.2), p(-0.4, -5.2), p(-0.2, 0.4), p(0.2, 0.4),
+        p(0.4, -5.2), p(3.8, -5.2), p(3.6, 0.4), p(7, 0.4),
+      ),
+      pillar(-2.0, 0.1, -5.2, 0.45, 0.8),
+      pillar(2.0, 0.1, -5.2, 0.45, 0.8),
+      pl(p(-1.3, -5.2), p(-1.2, -2.4), p(-0.5, -2.4), p(-0.4, -5.2)),
+    ],
+    vehicleSpawn: p(-6.8, 0.75),
+    goalFlag: flag(4.6, 0.4, 1, 2),
+    killY: -11,
+    coins: coinCount(6),
+    rocks: [{ x: -0.8, y: -1.95, radius: 0.48, density: 5 }],
+    strokes: [
+      {
+        kind: 'any',
+        role: 'twin-pit-m-seal',
+        points: spline([
+          p(-3.6, 0.4), p(-2.7, 0.14), p(-2.0, 0.08), p(-1.0, 0.24), p(0, 0.3), p(1.0, 0.24), p(2.0, 0.08), p(2.7, 0.14), p(3.6, 0.4),
+        ]),
+      },
+    ],
+  },
 ];
 
 // Keep the Gap type reachable for downstream tooling / Ch2 sources.
