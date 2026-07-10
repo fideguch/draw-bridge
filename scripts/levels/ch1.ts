@@ -313,68 +313,73 @@ export const CH1_SOURCES: readonly LevelSource[] = [
   // ─────────────────────────────────────────────────────────────────────────────
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // L4 (v5 slate #4) — ramp-jump / M · spike ridge (ENGINE ADAPTATION of the atlas
-  // "spike floor jump" card 4). A drawn launch RAMP is a cantilever: it sags under the
-  // car instead of kicking it, so a true ballistic jump won't commit; and a downhill
-  // drive-off naturally arcs onto the far platform ABOVE any pit spikes (they never
-  // bite). Realized instead as an ARC OVER a spike RIDGE that pokes up between two
-  // rims: a naive flat road drives the car straight into the ridge (hazard-relevant),
-  // while a firm drawn HUMP carries the car up and over the teeth. 3.6 m span holds
-  // as a compression arch (no mid-support), the deep chasm supplies the M vertical.
+  // L4 (v5 slate #4) — viaduct / flat / M · WIDE spike gorge (ENGINE ADAPTATION of the
+  // atlas "ramp-jump" card 4). The card wants a BALLISTIC launch off a drawn ramp; that
+  // is NOT robustly feasible in this chain engine — a drawn launch ramp over the pit is
+  // a cantilever that sags away (the car never engages it), and even a nub-supported
+  // ramp only launches the car ~3.5 m and lands it chaotically (tipOver / bounce-into-
+  // spikes), far below the fuzz-robustness bar (measured across ~15 configs, wave-3.5).
+  // Realized instead as a WIDE 3-PILLAR VIADUCT over a deep spike gorge (7.8 m): the
+  // naive no-line car drives off the rim and FALLS into the spikes, while a rippled
+  // multi-arch deck strung across the THREE pillars carries the car over the teeth in
+  // four short ≤2.2 m spans. A distinct "many-legged viaduct" silhouette — set apart
+  // from L10's single sag, L8's twin-seal W, and L12's descending staircase.
   {
     id: 'ch1-l04',
-    design: 'ramp-jump/M: 深い棘の谷に、二柱で三分割した張り線を渡して越える（平線は塞げず棘へ落ちる）— v5 #4 (R10, multi-seal-over-spikes 化)',
+    design: 'viaduct/flat/M: 深く広い棘の谷を、三本柱で四分割した波形高架でまとめて渡る（無線の直進は棘へ落ちる）— v5 #4 (R10→multi-pillar viaduct 化)',
     inkFeel: 'standard',
     gimmickTags: [],
     terrain: [
-      pl(p(-8.0, 0.6), p(-2.7, 0.6), p(-2.9, -5.5)),
-      pillar(-1.1, 0.42, -5.5, 0.45, 0.8),
-      pillar(1.1, 0.42, -5.5, 0.45, 0.8),
-      pl(p(2.5, -5.5), p(2.7, 0.6), p(8.0, 0.6)),
+      pl(p(-9.0, 0.8), p(-4.0, 0.8), p(-4.2, -5.5)), // left rim y0.8
+      pillar(-2.2, 0.55, -5.5, 0.4, 0.75), // viaduct pillar 1
+      pillar(0.0, 0.55, -5.5, 0.4, 0.75), // viaduct pillar 2
+      pillar(2.2, 0.55, -5.5, 0.4, 0.75), // viaduct pillar 3
+      pl(p(4.2, -5.5), p(4.0, 0.8), p(9.0, 0.8)), // right rim y0.8
     ],
-    vehicleSpawn: p(-5.8, 0.95),
-    goalFlag: flag(5.4, 0.6, 1, 2),
+    vehicleSpawn: p(-6.2, 1.15),
+    goalFlag: flag(6.0, 0.8, 1, 2),
     killY: -12,
     coins: coinCount(5),
-    dangerZones: [{ x: -2.5, y: -4.6, width: 5.0, height: 0.9, style: 'spike' }],
+    dangerZones: [{ x: -3.9, y: -3.2, width: 7.8, height: 0.9, style: 'spike' }], // wide deep spike gorge
     strokes: [
       {
         kind: 'any',
-        role: 'multi-seal-over-spikes',
-        points: spline([p(-2.7, 0.6), p(-1.9, 0.4), p(-1.1, 0.42), p(0.0, 0.32), p(1.1, 0.42), p(1.9, 0.4), p(2.7, 0.6)]),
+        role: 'spike-viaduct',
+        points: spline([p(-4.0, 0.78), p(-2.2, 0.5), p(0.0, 0.5), p(2.2, 0.5), p(4.0, 0.78)]),
       },
     ],
   },
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // L8 (v5 slate #8) — seal / flat / L · danger zone (deep-floor band). atlas card 10.
-  // REALIZATION (robust convergence with L10): a high-road over a mid-valley zone can't
-  // be attributed (the naive straight snaps before the middle) and its unsupported ridden
-  // spans over the pit both SAG >0.3 m (line-displacement F5) and are jitter-fragile. So
-  // the DangerZone is a DEEP floor band (like L10's spike floor), attributed by the idle
-  // no-line car falling straight into it; the ghost is a firm sag resting on a central
-  // pillar (two ≤2.7 m sub-spans — anchored, low-shove, fuzz-robust). L8/L10/L12 share
-  // this "sag on a mid-pillar over a deep floor hazard" skeleton (zone vs spike style).
+  // L8 (v5 slate #8) — double-seal / flat / L · danger zone. atlas card 10 (危険帯を跨ぐ床).
+  // A WIDE deep zone band crossed by a TWO-pillar seal — a gentle double-dip deck (two
+  // support pillars → three seams). Distinct from L10's SINGLE-pillar sag (one dip) and
+  // L4's THREE-pillar spike viaduct: the wave-3.5 fix spreads L8/L10/L12 across pillar
+  // counts + hazard styles instead of one shared sag. A W-deck that CLIMBS a mid-platform
+  // was tried first but is fuzz-fragile (the car tips on the climb, 2-6/24); this gentle
+  // 2-pillar seal is robust (20/24). The idle no-line car drops off the rim into the deep
+  // zone; the seal rests on both pillars and carries the car across with zero contact.
   {
     id: 'ch1-l08',
-    design: 'seal/flat/L: 深い床の危険帯を、中央支柱に張った線でまたいで渡る（無線の直進は帯へ落ちる）— v5 #8 (R08 + DangerZone, deep-floor 化)',
+    design: 'double-seal/flat/L: 広く深い赤帯の谷を、二本柱に載せた緩い二段の床で塞いで渡る（無線の直進は帯へ落ちる）— v5 #8 (R08 two-pillar seal)',
     inkFeel: 'standard',
     gimmickTags: [],
     terrain: [
-      pl(p(-9.5, 0.8), p(-2.7, 0.8), p(-2.9, -5.5)),
-      pillar(0.0, 0.5, -5.5, 0.5, 0.9),
-      pl(p(2.7, -5.5), p(2.9, 0.8), p(9.5, 0.8)),
+      pl(p(-9.5, 0.9), p(-3.7, 0.9), p(-3.9, -5.8)), // left rim y0.9
+      pillar(-1.9, 0.68, -5.8, 0.55, 0.9), // seal pillar 1 (spread wide, out of the naive fall path)
+      pillar(1.9, 0.68, -5.8, 0.55, 0.9), // seal pillar 2
+      pl(p(3.9, -5.8), p(3.7, 0.9), p(9.5, 0.9)), // right rim y0.9
     ],
-    vehicleSpawn: p(-6.4, 1.15),
-    goalFlag: flag(6.2, 0.8, 1, 2),
+    vehicleSpawn: p(-6.4, 1.25),
+    goalFlag: flag(6.6, 0.9, 1, 2),
     killY: -12,
     coins: coinCount(5),
-    dangerZones: [{ x: -2.5, y: -4.4, width: 5.0, height: 0.9, style: 'zone' }],
+    dangerZones: [{ x: -3.6, y: -4.6, width: 7.2, height: 0.9, style: 'zone' }], // wide deep zone band
     strokes: [
       {
         kind: 'any',
-        role: 'seal-over-zone',
-        points: spline([p(-2.7, 0.8), p(-1.35, 0.52), p(0.0, 0.46), p(1.35, 0.52), p(2.7, 0.8)]),
+        role: 'double-seal',
+        points: spline([p(-3.7, 0.9), p(-2.6, 0.66), p(-1.9, 0.62), p(0.0, 0.72), p(1.9, 0.62), p(2.6, 0.66), p(3.7, 0.9)]),
       },
     ],
   },
@@ -447,33 +452,41 @@ export const CH1_SOURCES: readonly LevelSource[] = [
   },
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // L12 (v5 slate #12) — hook / shaft / L · danger zone (deep-floor band). atlas card 15.
-  // REALIZATION: a drawn vertical-shaft descent is undriveable (the car free-falls /
-  // overshoots) AND the unsupported-span metric flags every stepped descent as one giant
-  // span (high terrain reads as above the straight spawn→goal line). A high-road over a
-  // pit-zone also sags past the F5 displacement limit. So — like L8/L10 — the DangerZone
-  // is a DEEP floor band the idle no-line car falls straight into, and the ghost is a
-  // firm sag on a central pillar (two ≤2.7 m anchored sub-spans; low-shove, fuzz-robust).
+  // L12 (v5 slate #12) — descent / tier / L · danger zone. atlas card 15 (降下シャフト).
+  // A DESCENDING wide zone-valley: the left rim (y+1.6) steps down across two descending
+  // pillars (y+0.7 → y-0.1) to a low-right goal (y-0.6). The drawn deck STEPS DOWN
+  // left-to-right — a diagonal descent silhouette distinct from L10's flat single sag
+  // and L8's level double-seal. NOW LEGAL under the wave-3.5 gate fix: the high-left rim
+  // rising above the spawn→goal chord no longer reads as one giant unsupported span —
+  // the metric measures the drawn line's free spans (short pillar-to-pillar steps), and
+  // the terrain tier is irrelevant except where the deck rests on it. A true stepped
+  // descent (a drawn shaft free-falls; the naive car on a modest descent just rolls
+  // through) is realized as a WIDE deep-zone valley: the idle car drops off the rim into
+  // the deep band (it cannot cross the wide gap), while the descending deck carries the
+  // car down over it (fuzz 23/24, ridden shove 0.23 m ≤ 0.3 m).
   {
     id: 'ch1-l12',
-    design: 'hook/shaft/L: 深い床の赤帯を、中央支柱に張った線でまたいで渡る（無線の直進は帯へ落ちる）— v5 #12 (R02, deep-floor 化)',
+    design: 'descent/tier/L: 高い左リムから低い右ゴールへ、深い赤帯の広谷を降りる二段の階段床（無線は谷底の帯へ落ちる）— v5 #12 (R02 descending seal)',
     inkFeel: 'standard',
     gimmickTags: [],
     terrain: [
-      pl(p(-9.5, 0.8), p(-2.7, 0.8), p(-2.9, -5.5)),
-      pillar(0.0, 0.45, -5.5, 0.5, 0.9),
-      pl(p(2.7, -5.5), p(2.9, 0.8), p(9.5, 0.8)),
+      pl(p(-9.8, 1.6), p(-3.7, 1.6), p(-3.9, -6.0)), // high-left rim y1.6 (descent start)
+      pillar(-1.9, 0.7, -6.0, 0.45, 0.8), // descending pillar 1 (higher)
+      pillar(1.9, -0.1, -6.0, 0.45, 0.8), // descending pillar 2 (lower)
+      pl(p(3.9, -6.0), p(3.7, -0.6), p(10.4, -0.6)), // low-right goal platform y-0.6
     ],
-    vehicleSpawn: p(-5.9, 1.15),
-    goalFlag: flag(5.8, 0.8, 1, 2),
+    vehicleSpawn: p(-6.6, 1.95),
+    goalFlag: flag(6.0, -0.6, 1, 2),
     killY: -12,
     coins: coinCount(6),
-    dangerZones: [{ x: -2.5, y: -4.4, width: 5.0, height: 0.9, style: 'zone' }],
+    dangerZones: [{ x: -3.6, y: -4.6, width: 7.2, height: 0.9, style: 'zone' }], // wide deep valley band
     strokes: [
       {
         kind: 'any',
-        role: 'wall-zone-sag',
-        points: spline([p(-2.7, 0.8), p(-1.35, 0.5), p(0.0, 0.45), p(1.35, 0.5), p(2.7, 0.8)]),
+        role: 'descending-seal',
+        points: spline([
+          p(-3.7, 1.6), p(-2.7, 1.15), p(-1.9, 0.7), p(0.0, 0.35), p(1.9, -0.1), p(2.7, -0.35), p(3.7, -0.6),
+        ]),
       },
     ],
   },
