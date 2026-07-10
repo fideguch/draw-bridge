@@ -12,11 +12,11 @@
 
 export const CURRENT_LEVEL_SCHEMA_VERSION = 1;
 
-/** `ch1-l01`..`ch1-l15` / `ch1-b1`..`ch1-b3` (conventions §3). */
-export const LEVEL_ID_PATTERN = /^ch1-(l(0[1-9]|1[0-5])|b[1-3])$/;
+/** `ch1-l01`..`ch1-l23` / `ch1-b1`..`ch1-b5` (conventions §3, round-7 28-slate). */
+export const LEVEL_ID_PATTERN = /^ch1-(l(0[1-9]|1[0-9]|2[0-3])|b[1-5])$/;
 
 /** Bonus levels require `bonusMultiplier`; normal levels forbid it. */
-export const BONUS_LEVEL_ID_PATTERN = /^ch1-b[1-3]$/;
+export const BONUS_LEVEL_ID_PATTERN = /^ch1-b[1-5]$/;
 
 /** maxTicks floor: 1 s at the fixed 60 Hz step — below this a level cannot be played. */
 export const MIN_MAX_TICKS = 60;
@@ -492,7 +492,7 @@ function validateIdentity(
   }
   const id = json['id'];
   if (typeof id !== 'string' || !LEVEL_ID_PATTERN.test(id)) {
-    errors.push('id: expected pattern ch1-l01..ch1-l15 / ch1-b1..ch1-b3');
+    errors.push('id: expected pattern ch1-l01..ch1-l23 / ch1-b1..ch1-b5');
     return undefined;
   }
   if (options?.filenameStem !== undefined && options.filenameStem !== id) {

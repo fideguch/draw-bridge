@@ -124,13 +124,28 @@ describe('validateLevel — schemaVersion / id', () => {
     expectErrors(validateLevel(json));
   });
 
-  it.each(['ch1-l00', 'ch1-l16', 'ch1-l1', 'ch2-l01', 'ch1-b4', 'ch1-b01'])(
+  it.each(['ch1-l00', 'ch1-l24', 'ch1-l1', 'ch2-l01', 'ch1-b6', 'ch1-b0', 'ch1-b01'])(
     'rejects malformed id %s',
     (id) => {
       const json = cloneFixture();
       json['id'] = id;
       const errors = expectErrors(validateLevel(json));
       expect(errors.join('\n')).toContain('id');
+    },
+  );
+
+  // round-7 28-slate widened the id pattern to l01..l23 / b1..b5 (LevelSchema).
+  it.each(['ch1-l16', 'ch1-l19', 'ch1-l23', 'ch1-b4', 'ch1-b5'])(
+    'accepts widened 28-slate id %s',
+    (id) => {
+      const json = cloneFixture();
+      json['id'] = id;
+      // b* ids need a bonusMultiplier to be a valid bonus level; l* stay normal.
+      if (/^ch1-b/.test(id)) {
+        json['bonusMultiplier'] = 6;
+      }
+      const level = expectOk(validateLevel(json, { filenameStem: id }));
+      expect(level.id).toBe(id);
     },
   );
 

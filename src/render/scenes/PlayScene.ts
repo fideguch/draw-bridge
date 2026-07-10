@@ -61,6 +61,7 @@ import { camera as cameraTuning, car, draw, economy, launch, physics, speedLines
 import { setBridgeMidDeviation, setDevPlayState, setDevResultNextReady, setDevStrokePointCount, setWorldToGame } from '@render/devhook';
 import type { DevHookPlayState } from '@render/devhook';
 import { framingFor, type FramingViewport } from './play/levelFraming';
+import { shouldOfferInkUpsell as shouldOfferInkUpsellDecision } from './play/inkUpsell';
 import { PauseOverlay } from './play/PauseOverlay';
 import { ResultOverlay } from './play/ResultOverlay';
 import { GoalSequence } from './play/GoalSequence';
@@ -171,6 +172,13 @@ export class PlayScene extends Phaser.Scene {
 
   private playState: PlayStateTag = null;
   private outcomeHandled = false;
+  /**
+   * Consecutive out-of-world FAILSAFE resets (cause 'fall'/'divergence') in THIS
+   * level, un-broken by a clear or a user-facing fail (round-7 ink-upsell migration,
+   * game_plan_v5 §4). Reset to 0 on any surfaced outcome; the field re-inits to 0
+   * on scene restart, so it is per-level. ≥2 signals a repeated "bridge didn't reach".
+   */
+  private consecutiveFailsafeResets = 0;
   /** Set in teardown() so deferred async work (dev-tool import) can no-op. */
   private isTornDown = false;
   private accumulatorSec = 0;
@@ -807,15 +815,27 @@ export class PlayScene extends Phaser.Scene {
     this.strokeInput?.disable();
     this.speedLines.update(0);
     if (outcome.outcome === 'fail' && isFailsafeReset(outcome)) {
+      this.consecutiveFailsafeResets += 1;
+      // ≥2 consecutive out-of-world failsafe resets in one level = an invisible
+      // "bridge didn't reach" loop; when ink is ~spent and still upgradable, break
+      // the loop and surface the ink upsell instead of resetting silently again
+      // (round-7 upsell migration, game_plan_v5 §4).
+      if (this.shouldOfferInkUpsell(outcome.cause)) {
+        this.consecutiveFailsafeResets = 0;
+        this.setPlayState('result');
+        this.showFailWithCause(outcome, true);
+        return;
+      }
       this.restartAttempt(); // solver failsafe — silent instant reset (≤1 s)
       return;
     }
+    this.consecutiveFailsafeResets = 0;
     if (outcome.outcome === 'clear') {
       // GoalSequence owns the goal trauma + zoom + 'result' state at panel reveal.
       this.startGoalCelebration(outcome);
     } else {
       this.setPlayState('result');
-      this.showFailWithCause(outcome);
+      this.showFailWithCause(outcome, this.shouldOfferInkUpsell(outcome.cause));
     }
   }
 
@@ -851,11 +871,13 @@ export class PlayScene extends Phaser.Scene {
    * (§4.2 2-8 "折れ口ハイライト" / FR-008 cause highlight), then the Retry
    * overlay. Kept light + fast (no hit-stop / slow-mo) per §4.4 X-3.
    */
-  private showFailWithCause(outcome: Extract<AttemptOutcome, { outcome: 'fail' }>): void {
+  private showFailWithCause(
+    outcome: Extract<AttemptOutcome, { outcome: 'fail' }>,
+    hasInkUpsell: boolean,
+  ): void {
     const causePx = this.transform.point(outcome.causeLocation);
     this.director.follow(() => causePx); // lerp-pan toward the cause point
     this.spawnFailMarker(causePx);
-    const hasInkUpsell = this.shouldOfferInkUpsell(outcome.cause);
     this.time.delayedCall(FAIL_MARK_MS, () => {
       if (this.playState === 'result') {
         this.overlay?.showFail({
@@ -882,29 +904,33 @@ export class PlayScene extends Phaser.Scene {
   }
 
   /**
-   * DESIGN.md §8.4 ink-shortage upsell gate (AND of all three):
-   *   1. the fail cause is `fall` (bridge didn't reach — not tip/timeout/hazard)
-   *   2. consumed ≥ 90% of the effective ink budget (ink was ~fully spent)
-   *   3. the ink-capacity axis still has upgrade headroom
+   * DESIGN.md §8.4 ink-shortage upsell gate (round-7 migration, game_plan_v5 §4).
+   * Offers the 強化 ink upsell when the ink was ~fully spent and still upgradable,
+   * on either signal that "the bridge couldn't reach on this ink":
+   *   A. a USER-FACING fail — hazardContact / tipOver / timeout (the causes that now
+   *      surface a fail overlay; `fall`/`divergence` silent-reset instead), OR
+   *   B. ≥2 consecutive out-of-world FAILSAFE resets in one level (a repeated
+   *      invisible "bridge didn't reach" — this.consecutiveFailsafeResets),
+   * AND (both branches):
+   *   - consumed ≥ 90% of the effective ink budget, AND
+   *   - the ink-capacity axis still has upgrade headroom.
    *
-   * ROUND-7 NOTE: `fall` is now the out-of-world killY failsafe (isFailsafeReset)
-   * routed to a silent reset BEFORE showFailWithCause, so this predicate no longer
-   * fires in practice. A designed "bridge didn't reach" loss now surfaces as
-   * tipOver / hazardContact (a pit-bottom DangerZone), so the ink upsell trigger
-   * should MIGRATE off `fall` — flagged for the PM/I2 economy pass (game_plan_v5 §4).
+   * Migrated off the old cause==='fall' key: `fall` is now the demoted out-of-world
+   * killY failsafe (round-7 F3), so keying on it alone never fired.
    */
   private shouldOfferInkUpsell(cause: FailCause): boolean {
-    if (cause !== 'fall') {
-      return false;
-    }
     const sim = this.sim;
     if (sim === null) {
       return false;
     }
-    const eff = sim.inkState.effectiveBudget;
-    const isNearlyDepleted = eff > 0 && sim.inkState.consumed >= eff * 0.9;
-    const hasHeadroom = this.services.getUpgradeLevel('inkCapacity') < economy.maxUpgradeLevel;
-    return isNearlyDepleted && hasHeadroom;
+    return shouldOfferInkUpsellDecision({
+      cause,
+      consecutiveFailsafeResets: this.consecutiveFailsafeResets,
+      consumed: sim.inkState.consumed,
+      effectiveBudget: sim.inkState.effectiveBudget,
+      inkCapacityLevel: this.services.getUpgradeLevel('inkCapacity'),
+      maxUpgradeLevel: economy.maxUpgradeLevel,
+    });
   }
 
   /** A pulsing highlight ring at the fail cause (fades over FAIL_MARK_MS). */
