@@ -24,17 +24,17 @@
 | `dome-dual` | 守る屋根 かつ 走る道 | L10, B3 |
 | `sag-rope` | たわむ綱で棘の谷を張り渡す | L11, B2 |
 
-`composite`（L14）と `boss`（L15）は上記の複合。全 18 面（通常 15＋ボーナス 3）。
+`composite` と `boss`（L23）は上記の複合。全 28 面（通常 23＋ボーナス 5、round-7 で拡張）。
 
 ## 開発エビデンス（スクリーンショット参照）
 
 実機・レンダリングの検証画像は `.fable/` 配下に蓄積している（`.gitignore` 済み＝
 git 管理外・再生成可能なので、バイナリはリポジトリに含めない）。主な参照先:
 
-- `.fable/evidence-levels/ch1-l*.png` — 18 面のレンダリング確認
+- `.fable/evidence-levels/ch1-l*.png` — レベルのレンダリング確認
 - `.fable/design-atlas-spot.png`, `.fable/atlas-r5-spot.png` — アトラス整合スポットチェック
 - `.fable/evidence-celebration/t*.png` — ゴール演出のフレーム連番
-- `.fable/atlas/index.html` — `npm run atlas` が生成する 18 面の設計アトラス（自己完結 HTML）
+- `.fable/atlas/index.html` — `npm run atlas` が生成する全 28 面のルートアトラス（自己完結 HTML）。設計正本は `designs/atlas-design-v5.html`
 
 ## クイックスタート
 
@@ -43,7 +43,7 @@ npm install
 npm run dev      # ブラウザでプレイ（Vite HMR）
 npm test         # vitest エンジン単体（src/engine/ で ≥80% カバレッジ）
 npm run gates    # レベル検証パイプライン Gate 0-3（headless Node）
-npm run e2e      # Playwright（実タップ L1 クリア / 全 18 面キャンペーン / テンポ契約）
+npm run e2e      # Playwright（実タップ L1 クリア / 全 28 面キャンペーン / テンポ契約）
 npm run atlas    # 設計アトラス .fable/atlas/index.html を再生成
 ```
 
