@@ -51,6 +51,7 @@ import { COIN_ROOF_OFFSET_M, placeCoinsAlongTrajectory } from './coinPlacement';
 import { buildAtlas } from '../atlas/atlas';
 import { CH1_SOURCES } from './ch1';
 import type { LevelSource, StrokeSource } from './ch1';
+import { isManifestLevel, manifestOrderIndex } from './manifest';
 
 /** Ghost sampling cadence (ticks). Matches the fixture + FR-026 playback. */
 const SAMPLE_EVERY_TICKS = 10;
@@ -71,6 +72,22 @@ const FEEL_FACTOR: Record<LevelSource['inkFeel'], number> = {
 
 function round2(value: number): number {
   return Math.round(value * 100) / 100;
+}
+
+/**
+ * killY OUT-OF-WORLD failsafe drop (m) below the lowest terrain vertex (round-7
+ * F3, game_plan_v5 §4). killY is no longer a hand-authored danger line — authoring
+ * DERIVES it this far under the terrain so a designed pit loss resolves as
+ * tipOver / hazardContact FIRST, and `fall` only ever catches a car that escapes
+ * the world. Kept well below the visible frame (levelFraming caps the pit view at
+ * ~3 m under the lowest rim, so 6 m is comfortably out of view).
+ */
+const KILLY_OUT_OF_WORLD_DROP_M = 6;
+
+/** Derive the killY failsafe plane: the lowest terrain vertex y minus the drop. */
+function derivedKillY(terrain: Level['terrain']): number {
+  const minTerrainY = Math.min(...terrain.flatMap((line) => line.map(([, y]) => y)));
+  return minTerrainY - KILLY_OUT_OF_WORLD_DROP_M;
 }
 
 function rawLength(points: readonly Point[]): number {
@@ -120,7 +137,9 @@ function finalizeLevel(
     terrain: src.terrain,
     vehicleSpawn: src.vehicleSpawn,
     goalFlag: src.goalFlag,
-    killY: src.killY,
+    // killY is DERIVED (minTerrainY - 6), not taken from src (round-7 F3): the
+    // authored `src.killY` is ignored so no level can hand-set the failsafe plane.
+    killY: derivedKillY(src.terrain),
     inkBudget,
     starThresholds,
     coins,
@@ -132,7 +151,7 @@ function finalizeLevel(
     // MEASURE + RECORD passes so every ghost is proven to clear WITH the rock live
     // and its samples are recorded on the rock-active run (round-5 role redesign).
     ...(src.rocks !== undefined ? { rocks: src.rocks } : {}),
-    // DangerZones are Judge inputs (car overlap => fail 'hazard'): present in the
+    // DangerZones are Judge inputs (car overlap => fail 'hazardContact'): present in the
     // MEASURE + RECORD passes so every ghost is proven to clear WITHOUT the car
     // touching a zone (round-6 atlas-first design). Static — no determinism cost.
     ...(src.dangerZones !== undefined ? { dangerZones: src.dangerZones } : {}),
@@ -403,6 +422,15 @@ function main(): void {
     fail(`no level source matched ${only !== undefined ? `--only ${only}` : '(all)'}`);
   }
 
+  // Drift guard: every authored source MUST be a declared slot in the ONE chapter
+  // slate (scripts/levels/manifest.ts). A source id absent from the slate means
+  // the manifest and the level content have diverged — fail loud so the two are
+  // kept in lockstep (the manifest is what the Hub/campaign/atlas iterate).
+  const orphan = CH1_SOURCES.find((src) => !isManifestLevel(src.id));
+  if (orphan !== undefined) {
+    fail(`${orphan.id} is not a slot in scripts/levels/manifest.ts — add it to the slate first`);
+  }
+
   if (only !== undefined) {
     process.stderr.write(
       `NOTE: --only records at sequence position 0; Gate 2 replays at the real ` +
@@ -428,7 +456,10 @@ function main(): void {
   const recordWorld = new World();
   try {
     const reports = sorted.map((p) => emitLevel(p, recordWorld, outDir));
-    printReport(reports);
+    // Emit/record stays id-sorted (Gate-2 determinism, above); the human report is
+    // presented in campaign order (the manifest slate) so it reads as the chapter.
+    const byManifestOrder = [...reports].sort((a, b) => manifestOrderIndex(a.id) - manifestOrderIndex(b.id));
+    printReport(byManifestOrder);
   } finally {
     recordWorld.destroy();
   }

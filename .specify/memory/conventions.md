@@ -19,7 +19,7 @@
 
 - Classes/types/interfaces: PascalCase (no `I` prefix). Files: match main export (`BridgeChain.ts`).
 - Variables/functions: camelCase. Booleans: `is/has/should` prefix. Constants: UPPER_SNAKE only for true compile-time constants.
-- Domain vocabulary is fixed by UL (designs/ubiquitous_language.md): `Stroke` (pre-solidify), `BridgeChain` (post-solidify), `Segment`, `stress` (0-1), `break`, `Anticipation`, `launch`, `GoalFlag`, `starRating`, `inkCapacityLv`, `engineSpeedLv`, `Chapter`, `BonusLevel`, `GhostSolution`, `killY`, `VehicleReferencePoint` (chassis AABB center), `強化` (upgrade-entry label — never 「ショップ」, coin-only economy, UL-026), `Rock` / `RockHazard` (rolling/falling circle hazard, level JSON `rocks[]`; a `RockHazard` reaching the car undeflected induces the EXISTING tipOver/fall/timeout — NO new fail rule; the drawn `BridgeChain` is its shield/deflector). `DangerZone` (axis-aligned hazard band, level JSON `dangerZones[]`; the CAR — chassis or a wheel — overlapping a zone fails with the NEW `FailCause` `'hazard'`, clear-beats-fail per BR-009; the drawn `BridgeChain` and rocks pass through zones UNAFFECTED — a zone only kills the car).
+- Domain vocabulary is fixed by UL (designs/ubiquitous_language.md): `Stroke` (pre-solidify), `BridgeChain` (post-solidify), `Segment`, `stress` (0-1), `break`, `Anticipation`, `launch`, `GoalFlag`, `starRating`, `inkCapacityLv`, `engineSpeedLv`, `Chapter`, `BonusLevel`, `GhostSolution`, `killY`, `VehicleReferencePoint` (chassis AABB center), `強化` (upgrade-entry label — never 「ショップ」, coin-only economy, UL-026), `Rock` / `RockHazard` (rolling/falling circle hazard, level JSON `rocks[]`; **round-7 F1**: the CAR — chassis or a wheel — touching a live rock fails with `FailCause` `'hazardContact'` — contact IS the loss, `hazard-wins` on a same-tick goal tie per BR-009; the drawn `BridgeChain` is its shield/deflector and is UNAFFECTED by rock contact). `DangerZone` (axis-aligned hazard band, level JSON `dangerZones[]`; the CAR overlapping a zone fails with the SAME `FailCause` `'hazardContact'`; the drawn `BridgeChain` and rocks pass through zones UNAFFECTED — a zone only kills the car). `hazardContact` (round-7 unified rock+zone+spike contact-death `FailCause`, highest judge priority). `killY` (**round-7 F3**: OUT-OF-WORLD engine failsafe at `minTerrainY-6`, authoring-DERIVED — NOT hand-set — and NEVER user-facing; `fall` below it is a silent failsafe reset like `divergence`, not a shown cause).
 - Forbidden identifiers: `DrawBridge` (competitor name), `stage` (use `level`), mixing `stroke`/`bridge` semantics.
 
 ## 3. Levels & Events (offline game — no DB/API)
@@ -38,7 +38,7 @@
 - BR-006: hit-stop max 1-2 per level (goal + biggest crash only) (Source: FR-012, NFR-008)
 - BR-007: Every celebration/animation is tap-skippable; failure effects are lightest-weight (Source: FR-012, FR-013, NFR-008)
 - BR-008: v1.0 makes zero external network calls; ad/analytics code paths terminate in Noop implementations (Source: FR-022, NFR-012)
-- BR-009: Clear and fail in the same tick resolves as clear (Source: FR-007)
+- BR-009: Clear and fail in the same tick resolves as clear — EXCEPT `hazardContact` (rock/zone/spike contact), which WINS over clear on a same-tick tie (round-7 F1, game_plan_v5 §2.1 hazard-wins; authoring never places a hazard on the goal line, so the tie is a deterministic edge only) (Source: FR-007)
 - BR-010: Progress persists on every level end / purchase / settings change, atomically, with schemaVersion migration (Source: FR-021)
 
 ## 5. Design Tokens

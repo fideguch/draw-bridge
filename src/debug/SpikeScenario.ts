@@ -277,7 +277,7 @@ export function simulationInternals(simulation: GameSimulation): SimulationInter
 
 // -- instrumented run --------------------------------------------------------------------
 
-export type SpikeOutcome = 'clear' | 'break' | 'fall' | 'tipOver' | 'timeout' | 'divergence' | 'hazard';
+export type SpikeOutcome = 'clear' | 'break' | 'fall' | 'tipOver' | 'timeout' | 'divergence' | 'hazardContact';
 
 export interface SpikeRunOptions {
   readonly method: PhysicsMethod;

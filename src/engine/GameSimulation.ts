@@ -605,7 +605,11 @@ export class GameSimulation {
       this.events.emit('coinCollected', { index, position: this.level.coins[index] as Point });
     }
 
-    const judged = this.judge.evaluate(tick, this.vehicle, this.chain);
+    // Rock contact = game over (round-7 F1): feed the LIVE rock discs to the Judge
+    // so a car↔rock touch fails the run this tick with cause 'hazardContact'
+    // (game_plan_v5 §2.1). Pure read of the deterministic rock poses — it never
+    // perturbs physics, so a rock-free level's stateHash is untouched.
+    const judged = this.judge.evaluate(tick, this.vehicle, this.chain, this.liveRockDiscs());
     if (judged === null) {
       this.nextTick++;
       return null;
@@ -685,6 +689,26 @@ export class GameSimulation {
         }
       }
     }
+  }
+
+  /**
+   * The LIVE (physical, non-armed) rock discs this tick — the Judge's
+   * hazardContact test surface (round-7 F1). Returns undefined for a rock-free
+   * level so the Judge skips the rock branch entirely (and a level whose rocks
+   * are all still armed reports no discs). Pure read of the deterministic rock
+   * poses — never mutates state.
+   */
+  private liveRockDiscs(): readonly { x: number; y: number; radius: number }[] | undefined {
+    if (this.rockHazard.count === 0) {
+      return undefined;
+    }
+    const discs: { x: number; y: number; radius: number }[] = [];
+    for (const rock of this.rockHazard.renderState()) {
+      if (!rock.armed) {
+        discs.push({ x: rock.x, y: rock.y, radius: rock.radius });
+      }
+    }
+    return discs;
   }
 
   private enrichOutcome(judged: NonNullable<ReturnType<Judge['evaluate']>>): AttemptOutcome {

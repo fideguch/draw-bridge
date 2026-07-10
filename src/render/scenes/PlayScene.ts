@@ -13,7 +13,9 @@
  *                 renders every body at the leftover interpolation alpha.
  *   Result:       clear → interim ResultOverlay (stars/coins/Replay/Next) + economy
  *                 credit; fail → dim + cause hint + Retry, EXCEPT the divergence
- *                 failsafe which silently resets (isFailsafeReset, ≤1 s).
+ *                 AND the round-7 out-of-world `fall` failsafe, which both silently
+ *                 reset (isFailsafeReset, ≤1 s — killY is now minY-6, so a designed
+ *                 pit loss surfaces as tipOver / hazardContact, never `fall`).
  *
  * Restart (T049): the HUD ↺ button and the overlay Replay/Retry all run one
  * `restartAttempt()` — sim.reset() + rebuilt world renderers + Drawing, with NO
@@ -881,9 +883,15 @@ export class PlayScene extends Phaser.Scene {
 
   /**
    * DESIGN.md §8.4 ink-shortage upsell gate (AND of all three):
-   *   1. the fall cause is `fall` (bridge didn't reach — not tip/timeout/divergence)
+   *   1. the fail cause is `fall` (bridge didn't reach — not tip/timeout/hazard)
    *   2. consumed ≥ 90% of the effective ink budget (ink was ~fully spent)
    *   3. the ink-capacity axis still has upgrade headroom
+   *
+   * ROUND-7 NOTE: `fall` is now the out-of-world killY failsafe (isFailsafeReset)
+   * routed to a silent reset BEFORE showFailWithCause, so this predicate no longer
+   * fires in practice. A designed "bridge didn't reach" loss now surfaces as
+   * tipOver / hazardContact (a pit-bottom DangerZone), so the ink upsell trigger
+   * should MIGRATE off `fall` — flagged for the PM/I2 economy pass (game_plan_v5 §4).
    */
   private shouldOfferInkUpsell(cause: FailCause): boolean {
     if (cause !== 'fall') {

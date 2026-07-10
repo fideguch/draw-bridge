@@ -151,9 +151,9 @@ export class Vehicle {
 
   /**
    * World-space AABBs the car physically occupies: chassis + both wheels — the
-   * DangerZone overlap test surface (Judge FailCause 'hazard'). "Car (chassis or
-   * wheels) overlapping a zone" is exactly any of these three boxes touching the
-   * zone rect. Read-only (b2Body_ComputeAABB), so Render/gates may sample it.
+   * hazardContact test surface (Judge FailCause 'hazardContact', round-7 F1). A
+   * ROCK disc or DangerZone rect touching any of these three boxes ends the run.
+   * Read-only (b2Body_ComputeAABB), so Render/gates may sample it.
    */
   occupiedAABBs(): readonly Aabb[] {
     return [this.chassisId, this.wheelIds[0], this.wheelIds[1]].map((bodyId) => {

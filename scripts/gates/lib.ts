@@ -35,6 +35,38 @@ export interface CliOptions {
   isQuiet: boolean;
 }
 
+/**
+ * ROLLOUT FLAG (round-7, game_plan_v5 §3.6 rollout note). The three NEW size/span/
+ * displacement gates are STRICT by default (a violation fails the build). CI passes
+ * `--warn-new-gates` TEMPORARILY while the current 18 levels (authored before these
+ * standards) are replaced by the 28-slate: in warn mode a new-gate violation is
+ * demoted to a `warnings` entry and the level still passes. REMOVE the flag from CI
+ * once the 28-slate lands so the gates enforce strictly again.
+ */
+export const WARN_NEW_GATES_FLAG = '--warn-new-gates';
+
+/** True when the rollout flag is present (new size/span/displacement gates → warn). */
+export function hasWarnNewGatesFlag(argv: readonly string[]): boolean {
+  return argv.includes(WARN_NEW_GATES_FLAG);
+}
+
+/**
+ * Demote a check result's errors to warnings when the rollout flag is set (see
+ * WARN_NEW_GATES_FLAG). In warn mode the level passes (errors emptied) and each
+ * violation is surfaced as a `WARN(deferred): ...` warning; in strict mode the
+ * result passes through unchanged. Used only by the three round-7 gates.
+ */
+export function applyWarnMode(
+  result: { errors: string[]; warnings?: string[] },
+  warn: boolean,
+): { errors: string[]; warnings?: string[] } {
+  if (!warn || result.errors.length === 0) {
+    return result;
+  }
+  const warnings = [...(result.warnings ?? []), ...result.errors.map((e) => `WARN(deferred): ${e}`)];
+  return { errors: [], warnings };
+}
+
 export function parseCliOptions(argv: string[]): CliOptions {
   let levelsGlob = 'levels/*.json';
   let isQuiet = false;

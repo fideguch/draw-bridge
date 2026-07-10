@@ -68,7 +68,6 @@ const COLORS = {
   ground: '#d8c6a0',
   groundEdge: '#6f5a35',
   rockLip: '#7a6444',
-  killY: '#e03131',
   carBody: '#1c6fb4',
   wheel: '#1a1a1a',
   goalZone: 'rgba(47,158,68,0.16)',
@@ -139,10 +138,12 @@ function boundsOf(data: CardData): Bounds {
     add(z.x, z.y);
     add(z.x + z.width, z.y + z.height);
   }
-  // killY is a required element; keep the drop visible but bounded so the deep
-  // chasm never squashes the playfield (cap the shown depth 2.5 m below terrain).
+  // Show a bounded slice of the pit below the lowest terrain so the chasm reads
+  // without squashing the playfield. killY is NO LONGER drawn (round-7 F3: it is an
+  // out-of-world engine failsafe at minTerrainY-6, not a visual danger line) — the
+  // shown depth is a fixed 2.5 m below terrain, independent of the failsafe plane.
   const lowestTerrain = Math.min(...level.terrain.flatMap((l) => l.map(([, y]) => y)));
-  add(0, Math.max(level.killY, lowestTerrain - 2.5));
+  add(0, lowestTerrain - 2.5);
   const pad = 0.6;
   return {
     minX: Math.min(...xs) - pad,
@@ -198,16 +199,6 @@ function renderTerrain(data: CardData, b: Bounds, proj: (x: number, y: number) =
   return parts.join('\n');
 }
 
-function renderKillY(data: CardData, b: Bounds, proj: (x: number, y: number) => [number, number]): string {
-  const [x1, y] = proj(b.minX, data.level.killY);
-  const [x2] = proj(b.maxX, data.level.killY);
-  if (data.level.killY < b.minY) return ''; // capped out of view
-  return (
-    `<line x1="${x1}" y1="${y}" x2="${x2}" y2="${y}" stroke="${COLORS.killY}" stroke-width="0.07" ` +
-    `stroke-dasharray="0.4 0.3" opacity="0.85"/>` +
-    `<text x="${fmt(b.minX + 0.15)}" y="${fmt(y - 0.15)}" font-size="0.42" fill="${COLORS.killY}">killY</text>`
-  );
-}
 
 function renderCar(data: CardData, proj: (x: number, y: number) => [number, number]): string {
   const s = data.level.vehicleSpawn;
@@ -488,7 +479,6 @@ export function renderLevelSvg(data: CardData): string {
   const body = [
     renderTerrain(data, b, proj),
     renderDangerZones(data, b, proj),
-    renderKillY(data, b, proj),
     renderGoal(data, proj),
     renderRoutes(data, proj),
     renderRocks(data, proj),

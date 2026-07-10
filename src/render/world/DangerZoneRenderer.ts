@@ -2,7 +2,7 @@
  * DangerZoneRenderer — draws the level's DangerZone hazard bands (user round-6:
  * "危険帯であることがUIで全くわからなかった。最悪" / round-7 Discord: "障害物の視認性が
  * 終わってる"). Each zone is an axis-aligned rect the CAR must not touch (Judge
- * FailCause 'hazard'). This renderer speaks the RESERVED hazard signal language
+ * FailCause 'hazardContact'). This renderer speaks the RESERVED hazard signal language
  * (DESIGN.md §4.9 — a red/orange family on near-black, used for nothing else):
  *
  *   - a SATURATED red fill wash (hazardRed, high alpha — not the old pale 0.16),

@@ -64,12 +64,20 @@ export interface FailOverlayData {
   readonly onUpgradeInk?: () => void;
 }
 
+/**
+ * Fail-cause hints. `hazardContact` (round-7 F1) is the unified rock / spike /
+ * DangerZone contact death — worded generically ("危険物に当たった") because a
+ * single cause covers all three hazard kinds (a rock-specific "岩に…" would be
+ * wrong on the ~7 pure spike/zone levels). `fall` and `divergence` are failsafes
+ * (isFailsafeReset) routed to a silent reset, so their entries are never shown —
+ * kept only to satisfy the exhaustive Record<FailCause, string>.
+ */
 const FAIL_HINT: Record<FailCause, string> = {
-  fall: '橋が落ちてしまった',
+  fall: 'もう一度ためそう',
   tipOver: '車がひっくり返ってしまった',
   timeout: '時間切れ',
   divergence: 'もう一度ためそう',
-  hazard: '危険地帯に触れた',
+  hazardContact: '危険物に当たってしまった',
 };
 
 export class ResultOverlay {

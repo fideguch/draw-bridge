@@ -13,9 +13,10 @@ import { arcStroke, buildSpikeLevel, simulationInternals } from '../../src/debug
 /**
  * DangerZone — the axis-aligned hazard band (user round-6: "危険帯であることがUIで
  * 全くわからなかった"). The CAR (chassis or a wheel AABB) overlapping a zone fails
- * with FailCause 'hazard' (clear-beats-fail per BR-009). The drawn BridgeChain and
- * rocks pass through zones UNAFFECTED — a zone only kills the car. Zones are
- * static and only feed the Judge (no bodies), so they never perturb determinism.
+ * with FailCause 'hazardContact' (round-7 F1 — contact IS the loss; it BEATS clear
+ * on a same-tick tie per game_plan_v5 §2.1). The drawn BridgeChain and rocks pass
+ * through zones UNAFFECTED — a zone only kills the car. Zones are static and only
+ * feed the Judge (no bodies), so they never perturb determinism.
  */
 
 const FLAT_GROUND = {
@@ -69,8 +70,8 @@ function runFreshToOutcome(
   }
 }
 
-describe('Judge — DangerZone hazard (car overlap => cause "hazard")', () => {
-  it('fails with cause "hazard" when the car overlaps a zone', () => {
+describe('Judge — DangerZone hazard (car overlap => cause "hazardContact")', () => {
+  it('fails with cause "hazardContact" when the car overlaps a zone', () => {
     const world = new World();
     const vehicle = settledVehicle(world);
     // A zone straddling the settled car at spawn.
@@ -82,7 +83,7 @@ describe('Judge — DangerZone hazard (car overlap => cause "hazard")', () => {
     const outcome = judge.evaluate(0, vehicle);
     expect(outcome?.outcome).toBe('fail');
     if (outcome?.outcome === 'fail') {
-      expect(outcome.cause).toBe('hazard');
+      expect(outcome.cause).toBe('hazardContact');
       expect(Number.isFinite(outcome.causeLocation.x)).toBe(true);
       // causeLocation is the centre of the car∩zone overlap (near the car).
       expect(outcome.causeLocation.x).toBeGreaterThan(-2);
@@ -129,16 +130,22 @@ describe('Judge — DangerZone hazard (car overlap => cause "hazard")', () => {
     world.destroy();
   });
 
-  it('clear beats hazard on the same tick (BR-009)', () => {
+  it('hazardContact BEATS clear on the same tick (round-7 F1, game_plan_v5 §2.1)', () => {
     const world = new World();
     const vehicle = settledVehicle(world);
-    // The goal flag AND a danger zone both cover the settled car → clear wins.
+    // The goal flag AND a danger zone both cover the settled car. Round-7 inverts
+    // the old BR-009 clear-wins tie: hazard contact is the loss and WINS. (Authoring
+    // never places a hazard on the goal line, so this is a deterministic edge only.)
     const judge = new Judge({
       goalFlag: { x: -2, y: 0, width: 4, height: 2 },
       killY: FLAT_GROUND.killY,
       dangerZones: [{ x: -2, y: 0, width: 4, height: 2 }],
     });
-    expect(judge.evaluate(0, vehicle)?.outcome).toBe('clear');
+    const outcome = judge.evaluate(0, vehicle);
+    expect(outcome?.outcome).toBe('fail');
+    if (outcome?.outcome === 'fail') {
+      expect(outcome.cause).toBe('hazardContact');
+    }
     world.destroy();
   });
 });
@@ -153,7 +160,7 @@ describe('GameSimulation — DangerZone integration', () => {
     const zoned = spikeLevelWithZones(4, [{ x: 3, y: -0.5, width: 2, height: 3 }]);
     const hazardRun = runFreshToOutcome(zoned, arcStroke(4));
     expect(hazardRun.outcome).toBe('fail');
-    expect(hazardRun.cause).toBe('hazard');
+    expect(hazardRun.cause).toBe('hazardContact');
   });
 });
 

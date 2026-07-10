@@ -15,6 +15,11 @@ const GATE_SCRIPTS = [
   'gate1-static.ts',
   'gate2-ghost.ts',
   'gate3-antidominant.ts',
+  // round-7 (game_plan_v5 §3.6/§8.2/§9.2). STRICT by default; pass --warn-new-gates
+  // (forwarded below) to demote their violations to warnings while the 28-slate lands.
+  'sizeStandards.ts',
+  'unsupportedSpan.ts',
+  'lineDisplacement.ts',
 ];
 
 const gatesDir = join(process.cwd(), 'scripts', 'gates');

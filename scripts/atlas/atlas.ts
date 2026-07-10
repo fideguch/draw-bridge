@@ -15,7 +15,7 @@
  * World header) — reset per level, destroyed at the end.
  */
 
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Level, Point } from '../../src/engine/level/LevelSchema';
 import { validateLevel } from '../../src/engine/level/LevelSchema';
@@ -23,6 +23,8 @@ import { collectCoinsAlongTrajectory, recordGhostTrajectory } from '../../src/en
 import { GameSimulation } from '../../src/engine/GameSimulation';
 import { World } from '../../src/engine/physics/World';
 import { CH1_SOURCES } from '../levels/ch1';
+import { CHAPTER1_MANIFEST } from '../levels/manifest';
+import type { LevelSource } from '../levels/ch1';
 import { renderLevelCard, type CardData, type RockPath } from './levelCard';
 
 function polylineLength(pts: readonly Point[]): number {
@@ -181,8 +183,9 @@ function cardDataFor(level: Level, design: string, world: World): CardData {
   };
 }
 
-const LEGEND = `<section class="legend">
-  <h1>InkBridge — 全18ステージ ルート&コイン アトラス</h1>
+function legend(levelCount: number): string {
+  return `<section class="legend">
+  <h1>InkBridge — 全${levelCount}ステージ ルート&コイン アトラス</h1>
   <p>各ステージの「安定後の橋（描いた線が物理で落ち着いた本当の形）」「実走トラジェクトリ」「コインの配置と獲得順」を確認できます。実線は<b>描いた生ストロークではなく、エンジンで発進時に安定させた橋チェーンの形</b>です（安定後の橋は物理的に地面へ潜れないため、地面貫通の嘘が出ません）。薄い線は走行中に車へ押されてズレた同じ橋です。</p>
   <ul class="keys">
     <li><span class="sw car"></span>スタート車両</li>
@@ -193,11 +196,11 @@ const LEGEND = `<section class="legend">
     <li><span class="sw hazard"></span>危険地帯（触れると失敗・赤ハッチ）</li>
     <li><span class="sw coin"></span>コイン（番号=獲得順、全て金=100%回収）</li>
     <li><span class="sw miss"></span>未回収コイン（×印・本来ゼロ）</li>
-    <li><span class="sw kill"></span>killY（落下ライン）</li>
     <li><span class="sw rockpath"></span>岩の軌道（○=開始位置 / 灰円=最終位置・矢印=進行方向）</li>
     <li><span class="tag ad">直線封じ</span>= anti-dominant（直線ではクリア不能）</li>
   </ul>
 </section>`;
+}
 
 const STYLE = `
   :root { color-scheme: light; }
@@ -219,7 +222,6 @@ const STYLE = `
   .sw.hazard { background: repeating-linear-gradient(45deg, #ff3b30 0 3px, #c42a24 3px 6px); opacity: 0.7; border: 1px solid #e0352b; }
   .sw.coin { background: #f5b301; border: 1px solid #a9760a; border-radius: 50%; width: 14px; height: 14px; }
   .sw.miss { background: #e03131; clip-path: polygon(20% 0,50% 30%,80% 0,100% 20%,70% 50%,100% 80%,80% 100%,50% 70%,20% 100%,0 80%,30% 50%,0 20%); }
-  .sw.kill { background: repeating-linear-gradient(90deg, #e03131 0 5px, transparent 5px 8px); height: 4px; }
   .sw.rockpath { background: repeating-linear-gradient(90deg, #6f6a78 0 2px, transparent 2px 6px); height: 5px; }
   .tag { font-size: 11px; padding: 1px 7px; border-radius: 999px; font-weight: 700; }
   .tag.ad { background: #ffe3e3; color: #c92a2a; }
@@ -240,10 +242,19 @@ const STYLE = `
 /** Build the atlas HTML and write it to .fable/atlas/index.html. Returns the path. */
 export function buildAtlas(projectRoot: string = process.cwd()): string {
   const levelsDir = join(projectRoot, 'levels');
+  // Render in CAMPAIGN ORDER (scripts/levels/manifest.ts) — the ONE chapter slate
+  // — restricted to slots that have BOTH an authoring source and a shipped JSON.
+  // Today that is the shipped 18 in slate order; it auto-scales to 28 as content
+  // lands, with no edit here.
+  const sourceById = new Map<string, LevelSource>(CH1_SOURCES.map((src) => [src.id, src]));
+  const orderedSources: LevelSource[] = CHAPTER1_MANIFEST.map((entry) => sourceById.get(entry.id)).filter(
+    (src): src is LevelSource => src !== undefined && existsSync(join(levelsDir, `${src.id}.json`)),
+  );
+
   const world = new World();
   let cards: string[];
   try {
-    cards = CH1_SOURCES.map((src) => {
+    cards = orderedSources.map((src) => {
       const level = loadLevel(src.id, levelsDir);
       return renderLevelCard(cardDataFor(level, src.design, world));
     });
@@ -260,7 +271,7 @@ export function buildAtlas(projectRoot: string = process.cwd()): string {
 <style>${STYLE}</style>
 </head>
 <body>
-${LEGEND}
+${legend(cards.length)}
 <div class="grid">
 ${cards.join('\n')}
 </div>

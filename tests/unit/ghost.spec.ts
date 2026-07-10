@@ -451,11 +451,16 @@ describe('replayGhost — settle band gated on OBSERVED rock interaction (review
     expect(replayGhost(level, ghost, world).pass).toBe(false);
   });
 
-  it('a rock resting on the bridge earns the WIDE settle band — the same 0.2 m drift PASSES', () => {
-    const level: Level = { ...buildSpikeLevel(4, { runUpM: 6, flagOffsetM: 5 }), rocks: [{ x: 0, y: 1.2, radius: 0.3 }] };
+  it('a rock that interacts with the bridge earns the WIDE settle band — the same 0.2 m drift PASSES', () => {
+    // Round-7 F1: a rock in the car's driving LANE is an INSTANT loss, so a rock can
+    // no longer sit on the dome in front of the car. This rock spawns against the
+    // bridge at the right rim — it GRAZES the bridge (rockContactObserved=true) then
+    // drops into the pit long before the car arrives, so the ghost still clears and
+    // earns the wide dynamic-hazard settle band (the code path the gate relies on).
+    const level: Level = { ...buildSpikeLevel(4, { runUpM: 6, flagOffsetM: 5 }), rocks: [{ x: 1.9, y: 0.2, radius: 0.3 }] };
     const stroke = arcStroke(4);
     const probe = runScriptedAttempt(level, stroke, { upgrades: LV0, world });
-    expect(probe.committed && probe.rockContactObserved).toBe(true); // rock rests on the dome
+    expect(probe.committed && probe.rockContactObserved).toBe(true); // rock grazes the bridge, then falls away
     const ghost = ghostWithOffsetFinalPos(level, stroke, 0.2); // within the 0.5 m settle band
     expect(replayGhost(level, ghost, world).pass).toBe(true);
   });

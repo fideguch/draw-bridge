@@ -93,8 +93,9 @@ export const DANGER_STYLES: readonly DangerStyle[] = ['zone', 'spike', 'spikeDow
  * A DangerZone hazard band (optional `dangerZones[]`): an axis-aligned,
  * bottom-left anchored rectangle (`Rect` geometry) plus an optional render-only
  * `style` tag. The CAR (chassis or a wheel) overlapping a zone fails the attempt
- * with FailCause 'hazard' (Judge; clear-beats-fail per BR-009). Bridge segments
- * and rocks passing through a zone are UNAFFECTED — a zone only kills the car.
+ * with FailCause 'hazardContact' (Judge; round-7 F1 — contact IS the loss, and
+ * it BEATS clear on a same-tick tie per game_plan_v5 §2.1). Bridge segments and
+ * rocks passing through a zone are UNAFFECTED — a zone only kills the car.
  * Additive schemaVersion 1 (absent == none), fully backward compatible like `rocks`.
  */
 export interface DangerZone extends Rect {
@@ -157,7 +158,7 @@ export interface Level {
   readonly bonusMultiplier?: number;
   /** Rolling/falling rock hazards (optional; absent == none). */
   readonly rocks?: readonly Rock[];
-  /** DangerZone hazard bands — car overlap => FailCause 'hazard' (optional; absent == none). */
+  /** DangerZone hazard bands — car overlap => FailCause 'hazardContact' (optional; absent == none). */
   readonly dangerZones?: readonly DangerZone[];
 }
 

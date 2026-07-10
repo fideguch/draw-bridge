@@ -238,15 +238,18 @@ describe('Judge — same-tick precedence (BR-009)', () => {
   });
 });
 
-describe('isFailsafeReset — divergence routing helper (L5)', () => {
-  it('is true only for a divergence fail (routes to the silent <= 1 s reset)', () => {
+describe('isFailsafeReset — failsafe routing helper (L5 + round-7 F3)', () => {
+  it('is true for divergence AND the round-7 out-of-world fall failsafe', () => {
     expect(isFailsafeReset({ outcome: 'fail', cause: 'divergence' })).toBe(true);
+    // round-7 F3: killY is now minY-6 (out-of-world), so `fall` is a failsafe that
+    // silently resets — never a user-facing cause (game_plan_v5 §4).
+    expect(isFailsafeReset({ outcome: 'fail', cause: 'fall' })).toBe(true);
   });
 
-  it('is false for real fails (fall / tipOver / timeout) and for clears', () => {
-    expect(isFailsafeReset({ outcome: 'fail', cause: 'fall' })).toBe(false);
+  it('is false for real user-facing fails (tipOver / timeout / hazardContact) and for clears', () => {
     expect(isFailsafeReset({ outcome: 'fail', cause: 'tipOver' })).toBe(false);
     expect(isFailsafeReset({ outcome: 'fail', cause: 'timeout' })).toBe(false);
+    expect(isFailsafeReset({ outcome: 'fail', cause: 'hazardContact' })).toBe(false);
     expect(isFailsafeReset({ outcome: 'clear' })).toBe(false);
   });
 
