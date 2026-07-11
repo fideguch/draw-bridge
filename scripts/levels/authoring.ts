@@ -155,6 +155,13 @@ function finalizeLevel(
     // MEASURE + RECORD passes so every ghost is proven to clear WITHOUT the car
     // touching a zone (round-6 atlas-first design). Static — no determinism cost.
     ...(src.dangerZones !== undefined ? { dangerZones: src.dangerZones } : {}),
+    // Declared solutions (round-8) pass through VERBATIM — authoring does not
+    // record or verify them; Gate 8 (multi-solution) is the verifier that plays
+    // each one live through the player commit path. Inert to physics (only the
+    // gate reads them), so ghosts / determinism hashes are untouched.
+    ...(src.solutions !== undefined
+      ? { solutions: src.solutions.map((s) => ({ shapeTag: s.shapeTag, stroke: s.points.map((q): readonly [number, number] => [q.x, q.y]) })) }
+      : {}),
   };
 }
 

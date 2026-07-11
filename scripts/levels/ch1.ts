@@ -52,7 +52,7 @@
  * Coordinates: world meters, y-up. Terrain authored left→right (top solid).
  */
 
-import type { DangerZone, GimmickTag, Point, Polyline, Rect, Rock } from '../../src/engine/level/LevelSchema';
+import type { DangerZone, GimmickTag, Point, Polyline, Rect, Rock, ShapeTag } from '../../src/engine/level/LevelSchema';
 import {
   arch,
   ceiling,
@@ -76,6 +76,19 @@ export interface StrokeSource {
   /** Human label for the authoring report + failure messages. */
   readonly role: string;
   /** Raw stroke (world m). RDP-simplified at commit; the simplified form persists. */
+  readonly points: readonly Point[];
+}
+
+/**
+ * A DECLARED alternative solution (round-8, level JSON `solutions[]`). Unlike
+ * StrokeSource it is NOT recorded by authoring — the raw points pass through to
+ * the JSON verbatim and Gate 8 (multi-solution) PLAYS them live through the
+ * player commit path, requiring a Lv0 clear + >= 2 distinct shapeTags per level.
+ */
+export interface SolutionSource {
+  /** Shape family (LevelSchema SHAPE_TAGS vocabulary). */
+  readonly shapeTag: ShapeTag;
+  /** Raw solution stroke (world m). */
   readonly points: readonly Point[];
 }
 
@@ -105,6 +118,12 @@ export interface LevelSource {
    * WAVE 2's hazard-free levels use these — kept on the interface for later waves.
    */
   readonly dangerZones?: readonly DangerZone[];
+  /**
+   * Declared alternative solutions (round-8, level JSON `solutions[]`; absent ==
+   * none). Passed through VERBATIM by authoring; Gate 8 verifies each clears and
+   * that >= 2 distinct shapeTags exist (tutorial allowlist relaxed to 1).
+   */
+  readonly solutions?: readonly SolutionSource[];
 }
 
 /** N placeholder coins (authoring re-places them ON the driven route; only the COUNT persists). */
@@ -133,6 +152,14 @@ export const CH1_SOURCES: readonly LevelSource[] = [
     coins: coinCount(5),
     gimmickTags: [],
     strokes: [{ kind: 'any', role: 'road-bridge', points: arch(-2.9, 0.06, 2.9, 0.06, 0.12) }],
+    // Round-8 multi-solution DEMO (Gate 8 end-to-end proof on the tutorial): two
+    // declared solutions of DIFFERENT shape families, both probed to CLEAR at Lv0
+    // (probe 2026-07-11: line t=168 ink=5.80 / arch t=168 ink=5.93, both 3★).
+    // Terrain / economy / strokes above are UNTOUCHED — solutions are additive.
+    solutions: [
+      { shapeTag: 'line', points: [p(-2.9, 0.05), p(0, 0.05), p(2.9, 0.05)] },
+      { shapeTag: 'arch', points: arch(-2.9, 0.06, 2.9, 0.06, 0.55) },
+    ],
   },
 
   // ─────────────────────────────────────────────────────────────────────────────
