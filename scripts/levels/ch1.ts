@@ -188,23 +188,35 @@ export const CH1_SOURCES: readonly LevelSource[] = [
         points: spline([p(-3.7, 0.06), p(-1.5, 0.78), p(0.0, 1.22), p(2.6, 1.22), p(4.1, 1.98), p(6.2, 2.42)]),
       },
     ],
+    // Round-8 (W1): declare the card's SECOND solution — the folded ANGLE climb
+    // (same mesa route, straight-segment folds instead of the smooth ramp spline).
+    // Both probed to CLEAR at Lv0 (2026-07-11: ramp t=198, angle t=198, both 3★).
+    // Terrain / ghost / economy UNCHANGED — solutions are additive.
+    solutions: [
+      { shapeTag: 'ramp', points: spline([p(-3.7, 0.06), p(-1.5, 0.78), p(0.0, 1.22), p(2.6, 1.22), p(4.1, 1.98), p(6.2, 2.42)]) },
+      { shapeTag: 'angle', points: [p(-3.7, 0.06), p(-1.5, 0.78), p(0.0, 1.22), p(2.6, 1.22), p(4.1, 1.98), p(6.2, 2.42)] },
+    ],
   },
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // L3 (v5 slate #3) — multi-seal / U / M. atlas-design-v5 card 3 (みっつの切れ目).
-  // 2 pillars split a 6.8 m crossing into 3 seams; one continuous line seals all
-  // three (efficiency = 3★). NOT anti-dominant (a straight sagged onto the pillars
-  // also clears — the pillars are the STAR path, not a Gate-3 straight-kill). UP-BOW:
-  // the line rests on the rims (0) + pillar tops (-0.2); each seam ≤~1.9 m unsupported.
+  // L3 (round-8 REDESIGN, fun_cards_v6 ch1-l03 みっつの切れ目) — 3-support drape.
+  // A 6.4 m valley with 2 low pillars (top -0.1) flanking a CENTRAL WALL (top +0.65
+  // = rim+0.65 = the geometric interceptor). "3 supports" is the theme; the WALL is
+  // the straight-killer: every flat lazy chord (drawn near rim y0) is CLIPPED by the
+  // wall (rim+0.65) and drops into a seam. The intended M-sag DRAPES over pillar tops
+  // (-0.1) and the wall crown (+0.65); the arch bows over all three. spike-round8 S0:
+  // a bare flat line self-supports 7.5 m, so the wall — not span/sag — does the kill.
+  // Probed 2026-07-11: sag t=193 3★, arch t=182 3★; Gate7 all 6 defeated (wall clip).
   {
     id: 'ch1-l03',
-    design: 'multi-seal/U/M: 2柱・三連の切れ目を一本の連続床で塞ぐ — v5 #3 (R08 Draw Line Bridge)',
+    design: 'multi-seal/U/M: 谷6.4m・2柱＋中央壁塔（幾何インターセプタ）に載せ掛ける三支点の橋 — fun_cards_v6 ch1-l03 (round-8)',
     inkFeel: 'standard',
     gimmickTags: [],
     terrain: [
-      ...twoPlatforms({ leftFar: -9, leftRim: -3.4, leftY: 0, rightRim: 3.4, rightY: 0, rightFar: 9, chasmY: -5.5 }),
-      pillar(-1.3, -0.12, -5.5, 0.6, 1.0),
-      pillar(1.3, -0.12, -5.5, 0.6, 1.0),
+      ...twoPlatforms({ leftFar: -9, leftRim: -3.2, leftY: 0, rightRim: 3.2, rightY: 0, rightFar: 9, chasmY: -5.5 }),
+      pillar(-1.9, -0.1, -5.5, 0.5, 0.9), // left support pillar (top -0.1)
+      pillar(1.9, -0.1, -5.5, 0.5, 0.9), // right support pillar (top -0.1)
+      pillar(0, 0.65, -5.5, 0.25, 0.45), // central WALL crown (rim+0.65) — clips flat chords
     ],
     vehicleSpawn: p(-6.5, 0.35),
     goalFlag: flag(5.5, 0, 1, 2),
@@ -212,10 +224,14 @@ export const CH1_SOURCES: readonly LevelSource[] = [
     coins: coinCount(6),
     strokes: [
       {
-        kind: '3star',
-        role: 'multi-seal-U',
-        points: spline([p(-4.0, 0.04), p(-2.5, -0.05), p(-1.3, -0.12), p(0, -0.05), p(1.3, -0.12), p(2.5, -0.05), p(4.0, 0.04)]),
+        kind: 'any',
+        role: 'multi-seal-drape',
+        points: spline([p(-3.2, 0.02), p(-1.9, -0.08), p(-0.9, 0.3), p(0, 0.72), p(0.9, 0.3), p(1.9, -0.08), p(3.2, 0.02)]),
       },
+    ],
+    solutions: [
+      { shapeTag: 'sag', points: spline([p(-3.2, 0.02), p(-1.9, -0.08), p(-0.9, 0.3), p(0, 0.72), p(0.9, 0.3), p(1.9, -0.08), p(3.2, 0.02)]) },
+      { shapeTag: 'arch', points: arch(-3.2, 0.04, 3.2, 0.04, 1.0) },
     ],
   },
 
@@ -340,40 +356,41 @@ export const CH1_SOURCES: readonly LevelSource[] = [
   // ─────────────────────────────────────────────────────────────────────────────
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // L4 (v5 slate #4) — viaduct / flat / M · WIDE spike gorge (ENGINE ADAPTATION of the
-  // atlas "ramp-jump" card 4). The card wants a BALLISTIC launch off a drawn ramp; that
-  // is NOT robustly feasible in this chain engine — a drawn launch ramp over the pit is
-  // a cantilever that sags away (the car never engages it), and even a nub-supported
-  // ramp only launches the car ~3.5 m and lands it chaotically (tipOver / bounce-into-
-  // spikes), far below the fuzz-robustness bar (measured across ~15 configs, wave-3.5).
-  // Realized instead as a WIDE 3-PILLAR VIADUCT over a deep spike gorge (7.8 m): the
-  // naive no-line car drives off the rim and FALLS into the spikes, while a rippled
-  // multi-arch deck strung across the THREE pillars carries the car over the teeth in
-  // four short ≤2.2 m spans. A distinct "many-legged viaduct" silhouette — set apart
-  // from L10's single sag, L8's twin-seal W, and L12's descending staircase.
+  // L4 (round-8 REDESIGN, fun_cards_v6 ch1-l04 棘の塔を上で越える) — arch over a
+  // spike gorge. A 5.4 m spike-floor pit split by a CENTRAL WALL crown (top +1.45 =
+  // rim+0.67 = the interceptor). The intended ARCH (bow 0.8, apex ~1.58) rests firmly
+  // on the wall crown (mid-support keeps the ridden shove ≤0.3 m, Gate6) and clears it;
+  // the trapezoid deck is the second solution. Every flat lazy chord (drawn near rim
+  // y0.78 < 1.45) is CLIPPED by the wall and drops onto the SPIKE FLOOR (dangerZone,
+  // hazardContact = loss + the naive-fall attribution Gate2.6 needs). spike-round8:
+  // the card's zone-tower + self-supporting 6.0 m arch is disp-infeasible (0.38 m > 0.3
+  // unsupported, measured); a wall-supported arch is the robust realization. Probed
+  // 2026-07-11: arch t=194 3★, trap t=193 3★; Gate7 all 6 defeated; disp 0.25 m.
   {
     id: 'ch1-l04',
-    design: 'viaduct/flat/M: 深く広い棘の谷を、三本柱で四分割した波形高架でまとめて渡る（無線の直進は棘へ落ちる）— v5 #4 (R10→multi-pillar viaduct 化)',
+    design: 'spike-arch/flat/M: 棘の谷に立つ中央壁塔を、壁に載せたアーチ/台形高架で越える（無線の平線は壁で切れ棘床へ落ちる）— fun_cards_v6 ch1-l04 (round-8)',
     inkFeel: 'standard',
     gimmickTags: [],
     terrain: [
-      pl(p(-9.0, 0.8), p(-4.0, 0.8), p(-4.2, -5.5)), // left rim y0.8
-      pillar(-2.2, 0.55, -5.5, 0.4, 0.75), // viaduct pillar 1
-      pillar(0.0, 0.55, -5.5, 0.4, 0.75), // viaduct pillar 2
-      pillar(2.2, 0.55, -5.5, 0.4, 0.75), // viaduct pillar 3
-      pl(p(4.2, -5.5), p(4.0, 0.8), p(9.0, 0.8)), // right rim y0.8
+      pl(p(-9, 0.78), p(-2.7, 0.78), p(-2.9, -5.5)), // left rim y0.78
+      pl(p(2.9, -5.5), p(2.7, 0.78), p(9, 0.78)), // right rim y0.78
+      pillar(0, 1.45, -5.5, 0.38, 0.65), // central WALL crown (rim+0.67) — arch rests, flat chords clip
     ],
-    vehicleSpawn: p(-6.2, 1.15),
-    goalFlag: flag(6.0, 0.8, 1, 2),
+    vehicleSpawn: p(-6.3, 1.13),
+    goalFlag: flag(5.5, 0.78, 1, 2),
     killY: -12,
     coins: coinCount(5),
-    dangerZones: [{ x: -3.9, y: -3.2, width: 7.8, height: 0.9, style: 'spike' }], // wide deep spike gorge
+    dangerZones: [{ x: -2.6, y: -3.6, width: 5.2, height: 0.9, style: 'spike' }], // spike floor (loss + naive fall)
     strokes: [
       {
         kind: 'any',
-        role: 'spike-viaduct',
-        points: spline([p(-4.0, 0.78), p(-2.2, 0.5), p(0.0, 0.5), p(2.2, 0.5), p(4.0, 0.78)]),
+        role: 'spike-arch',
+        points: [p(-3.5, 0.78), ...arch(-2.7, 0.78, 2.7, 0.78, 0.8), p(3.5, 0.78)],
       },
+    ],
+    solutions: [
+      { shapeTag: 'arch', points: [p(-3.5, 0.78), ...arch(-2.7, 0.78, 2.7, 0.78, 0.8), p(3.5, 0.78)] },
+      { shapeTag: 'trapezoid', points: [p(-3.5, 0.78), ...spline([p(-2.7, 0.8), p(-1.1, 1.6), p(1.1, 1.6), p(2.7, 0.8)]), p(3.5, 0.78)] },
     ],
   },
 
@@ -569,31 +586,44 @@ export const CH1_SOURCES: readonly LevelSource[] = [
   // descent / two-step tier / far-goal tier / twin-pit M, plus L11's spike-gorge seal.
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // L5 (v5 slate #5) — shield-static / flat / M · falling rock. atlas card 6
-  // (落石よけの屋根). Flat deep pit, mid-pillar sag; the idle car crosses and drops off
-  // the far rim onto the boulder on the ledge. The ghost's firm sag carries the car
-  // over. Flat silhouette.
+  // L5 (round-8 REDESIGN, fun_cards_v6 ch1-l05 深く噛ませる) — flat-top/tent over a
+  // wall. A 5.2 m spike-floor pit split by a TALL CENTRAL WALL crown (top +1.1 =
+  // rim+0.7 = the interceptor). The intended TRAPEZOID deck (flat top 1.4) rests on
+  // the wall crown and clears it; the folded ANGLE tent (apex 1.5) is the second
+  // solution. Flat lazy chords (near rim y0.4 < 1.1) are CLIPPED by the wall and drop
+  // onto the SPIKE FLOOR (dangerZone; loss + Gate2.6 naive-fall attribution).
+  // spike-round8 DEVIATION NOTE: the card's "duck under 垂れ棘 (spikeDown overhead)"
+  // is physically infeasible — measured, the deep-V solution's steep descent TILTS the
+  // car so its AABB-top rises INTO any central overhead band while the deep-sagging
+  // lazy rim-exact rides LOWER (no clean separation, 4+ configs). Per spike-round8's
+  // explicit "l05 needs a central interceptor" verdict, realized as a wall-clip level
+  // (keeps the deep pit + spike theme + the card's "the flat line dies, you go over"
+  // discovery). Probed 2026-07-11: trap t=193 3★, angle t=189 3★; Gate7 all 6 defeated.
   {
     id: 'ch1-l05',
-    design: 'shield-static/flat/M: 深い谷を中州柱の張り床で渡り、谷の岩を頭上に越える（無線は谷へ落ち岩に当たる）— v5 #5 (R04 落石よけ→ deep-pit rock-ledge 化)',
+    design: 'spike-trap/flat/M: 棘の谷の中央壁塔を、壁に載せた台形/テントの床で越える（無線の平線は壁で切れ棘床へ落ちる）— fun_cards_v6 ch1-l05 (round-8, spike-mandated central-interceptor)',
     inkFeel: 'standard',
     gimmickTags: [],
     terrain: [
-      pl(p(-9, 0.4), p(-2.7, 0.4), p(-2.9, -5.2), p(2.9, -5.2), p(2.7, 0.4), p(6.8, 0.4)),
-      pillar(0, 0.1, -5.2, 0.5, 0.9),
-      pl(p(1.5, -5.2), p(1.6, -2.4), p(2.6, -2.4), p(2.7, -5.2)),
+      pl(p(-9, 0.4), p(-2.6, 0.4), p(-2.8, -5.2)), // left rim y0.4
+      pl(p(2.8, -5.2), p(2.6, 0.4), p(7, 0.4)), // right rim y0.4
+      pillar(0, 1.1, -5.2, 0.3, 0.55), // central WALL crown (rim+0.7) — deck rests, flat chords clip
     ],
-    vehicleSpawn: p(-6.8, 0.75),
-    goalFlag: flag(4.2, 0.4, 1, 2),
+    vehicleSpawn: p(-6.3, 0.75),
+    goalFlag: flag(5.0, 0.4, 1, 2),
     killY: -11,
     coins: coinCount(5),
-    rocks: [{ x: 2.2, y: -1.95, radius: 0.5, density: 5 }],
+    dangerZones: [{ x: -2.5, y: -3.6, width: 5.0, height: 0.9, style: 'spike' }], // spike floor (loss + naive fall)
     strokes: [
       {
         kind: 'any',
-        role: 'pit-sag-flat',
-        points: spline([p(-2.7, 0.4), p(-1.35, 0.14), p(0, 0.08), p(1.35, 0.14), p(2.7, 0.4)]),
+        role: 'spike-trap-over-wall',
+        points: [p(-3.3, 0.4), ...spline([p(-2.6, 0.4), p(-1.0, 1.4), p(1.0, 1.4), p(2.6, 0.4)]), p(3.3, 0.4)],
       },
+    ],
+    solutions: [
+      { shapeTag: 'trapezoid', points: [p(-3.3, 0.4), ...spline([p(-2.6, 0.4), p(-1.0, 1.4), p(1.0, 1.4), p(2.6, 0.4)]), p(3.3, 0.4)] },
+      { shapeTag: 'angle', points: [p(-3.3, 0.4), p(-2.6, 0.4), p(0, 1.5), p(2.6, 0.4), p(3.3, 0.4)] },
     ],
   },
 
