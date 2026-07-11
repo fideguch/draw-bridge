@@ -74,7 +74,7 @@ export const CONTACT_BELOW_M = 0.5;
  * span MUST be a clear compression arch) and l10 (spike-spire, 5.6 m arch over the spire)
  * join l16/l21. All four clear non-breaking at Lv0 (W2 probe / spike round8 S1).
  */
-export const ARCH_EXEMPT_IDS: ReadonlySet<string> = new Set(['ch1-l08', 'ch1-l10', 'ch1-l16', 'ch1-l21']);
+export const ARCH_EXEMPT_IDS: ReadonlySet<string> = new Set(['ch1-l08', 'ch1-l10', 'ch1-l16', 'ch1-l17', 'ch1-l21']);
 
 let spanWorld: World | undefined;
 function getSpanWorld(): World {

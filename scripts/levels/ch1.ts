@@ -60,6 +60,7 @@ import {
   flag,
   p,
   pillar,
+  spike,
   spline,
   twoPlatforms,
   type Gap,
@@ -552,33 +553,40 @@ export const CH1_SOURCES: readonly LevelSource[] = [
   },
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // L17 (v5 slate #17, NEW id) — sag cantilever / S-curve / XL · spike floor.
-  // atlas card 21 (棘上の張り出し). A wide, deep spike canyon split by a central
-  // mid-PEG. REALIZATION: naive fall/over-sag hits the spike floor; the ghost
-  // strings a gentle S from the high-left shelf, over the mid-peg (which supports
-  // it within the tension limit — two ≤5.5 m spans), up to the right shelf. Deep
-  // canyon (floor −6) supplies the XL vertical the size gate wants.
+  // L17 (v5 slate #17, NEW id) — spire-over canyon / S / XL · spike floor. atlas card 21.
+  // W4 DEVIATION (measured): the card's 鍾乳幕 (spikeDown membrane) is the l05 failure mode —
+  // the tall car dipping to a peg (1.3) still reaches car-top ~2.9 at the membrane's entrance,
+  // IDENTICAL to the flat naive there, so no membrane bottom separates them (they diverge only
+  // AFTER the dip; measured ~0.15-0.20 m car-top gap < the card's 0.25 target). No spike (clips
+  // both) or ceiling (blocks the tall car) can separate a line that dips BELOW the flat.
+  // Per the card's own fallback, realized as a spire-OVER: a central rock SPIRE (tip 2.7, above
+  // even the sloped spawn-goal ~2.1) clips every flat chord into the spike floor; the arch/
+  // trapezoid (solutions[]) pass over. ARCH_EXEMPT (~6.4 m). Deep canyon supplies the XL vertical.
   {
     id: 'ch1-l17',
-    design: 'sag-cantilever/S/XL: 棘のS字峡谷に中州ペグから張り出して二段で対岸へ渡す — v5 #17 (R03 + R09)',
+    design: 'spire-canyon/S/XL: 棘の深い峡谷の中央にそびえる岩尖塔(頂2.7)を、高い左棚から低い右棚へ弓/台形で頭上に越えて渡る。素直な平線は尖塔で切れ棘床へ落ちる — fun_cards_v6 ch1-l17 (round-8, W4 — 鍾乳幕はl05型で車頂分離不成立, 尖塔越えへ)',
     inkFeel: 'tight',
     gimmickTags: [],
     terrain: [
       pl(p(-9.2, 2.4), p(-2.6, 2.4), p(-2.8, -7.5)),
-      pillar(0.4, 1.55, -3.5, 0.8, 1.2),
+      spike(0.4, 2.7, -7.5, 1.7), // central rock SPIRE (tip above every flat chord incl. the sloped spawn-goal ~2.1) — arch/deck pass over
       pl(p(3.4, -7.5), p(3.6, 1.8), p(10.4, 1.8)),
     ],
     vehicleSpawn: p(-6.9, 2.75),
     goalFlag: flag(7.5, 1.8, 1, 2),
     killY: -14,
     coins: coinCount(6),
-    dangerZones: [{ x: -2.2, y: -3.6, width: 6.4, height: 0.8, style: 'spike' }],
+    dangerZones: [{ x: -2.2, y: -3.6, width: 6.4, height: 0.8, style: 'spike' }], // spike floor (idle + every clip-fall)
     strokes: [
       {
         kind: 'any',
-        role: 'sag-cantilever-S',
-        points: spline([p(-2.6, 2.4), p(-1.2, 1.72), p(0.4, 1.55), p(2.0, 1.7), p(3.6, 1.8)]),
+        role: 'spire-arch',
+        points: [p(-3.0, 2.4), ...arch(-2.6, 2.42, 3.6, 1.82, 1.5), p(4.0, 1.8)],
       },
+    ],
+    solutions: [
+      { shapeTag: 'arch', points: [p(-3.0, 2.4), ...arch(-2.6, 2.42, 3.6, 1.82, 1.5), p(4.0, 1.8)] },
+      { shapeTag: 'trapezoid', points: [p(-3.0, 2.4), ...spline([p(-2.6, 2.42), p(-1.3, 3.05), p(-0.5, 3.1), p(1.3, 3.1), p(2.2, 2.7), p(3.6, 1.82)]), p(4.0, 1.8)] },
     ],
   },
 
@@ -916,63 +924,79 @@ export const CH1_SOURCES: readonly LevelSource[] = [
   //
   // The XL non-dome levels (l18/l19/l20/l22) are long MULTI-FEATURE JOURNEYS built from
   // already-shipped role skeletons (sag / catch / shield), NOT the deep-pit-sag: l19 is
-  // a genuine SHAFT (縦>横, L_path ≥18 m via a deep switchback well), l20 a two-shelf S
-  // over a valley island, l18/l22 descents/tiers with spike+rock compounds. Distinct
-  // silhouettes: dome (∩ over valley), shaft (│ deep well), two-shelf S, tiered descent.
+  // a genuine SHAFT (縦>横, L_path ≥18 m via a deep switchback well), l20 a crown-rest
+  // TABLE over a deep valley, l18/l22 descents/tiers with spike+rock compounds. Distinct
+  // silhouettes: dome (∩ over valley), shaft (│ deep well), tabletop crown, tiered descent.
   // ─────────────────────────────────────────────────────────────────────────────
 
   // ─────────────────────────────────────────────────────────────────────────────
   // L16 (v5 slate #16, NEW id) — dome-dual / U / L · falling rock. atlas card 20
-  // (守る屋根＝走る道). The dome-dual INTRODUCTION (★3, right after B4 — the sawtooth
-  // valley). A firm wide UP-BOW ARCH is BOTH the road AND the roof: the car rides over
-  // the deep valley while the boulder resting on the valley floor is cleared overhead.
-  // ARCH_EXEMPT (compression span ~5.9 m > 5.5 m tension limit) — the ghost clear +
-  // <0.3 m car-path displacement prove the arch holds, not the tension-span gate. The
-  // naive idle car drives off the near rim, drops into the valley, and lands on the
-  // boulder (hazardContact). Silhouette: a single tall ∩ over a U — unlike any sag.
+  // (守る屋根＝走る道). The dome-dual INTRODUCTION (★3, right after B4). A central rock
+  // SPIRE (terrain spike, tip rim+0.5) now CLIPS every low flat chord (round-8 W4: the flat
+  // line self-supports the gap, so a geometric interceptor — not span — kills the lazy line);
+  // the firm wide UP-BOW ARCH (or the trapezoid table, solutions[]) passes OVER the point and
+  // is BOTH road AND roof. ARCH_EXEMPT (compression span ~6 m). The naive idle car is split
+  // by the spire into the LEFT pit and lands on the boulder (hazardContact). Silhouette: a
+  // tall ∩ crowning a central spire over a U.
   {
     id: 'ch1-l16',
-    design: 'dome-dual/U/L: 深い谷に張った高いアーチが「屋根＝道」— 車は上を渡り谷底の岩を頭上に越える（無線は谷へ落ち岩に当たる）— v5 #16 (R14 dome)',
+    design: 'dome-dual/U/L: 深い谷の中央にそびえる岩尖塔（頂1.5）を、屋根＝道の高いアーチ/台形で頭上に越えて渡る（無線の平線は尖塔で切れ谷底の岩へ落ちる）— fun_cards_v6 ch1-l16 (round-8, W4)',
     inkFeel: 'standard',
     gimmickTags: [],
-    terrain: [pl(p(-9.2, 1.0), p(-3.0, 1.0), p(-3.2, -5.6), p(3.2, -5.6), p(3.0, 1.0), p(9.2, 1.0))],
+    terrain: [
+      pl(p(-9.2, 1.0), p(-3.0, 1.0), p(-3.2, -5.6), p(3.2, -5.6), p(3.0, 1.0), p(9.2, 1.0)),
+      spike(0, 1.5, -5.6, 1.2), // central rock SPIRE (tip rim+0.5) — clips every low chord; arch/trapezoid pass OVER the point
+    ],
     vehicleSpawn: p(-6.2, 1.4),
     goalFlag: flag(5.6, 1.0, 1, 2),
     killY: -5,
     coins: coinCount(6),
-    rocks: [{ x: 1.0, y: -5.15, radius: 0.5, density: 5 }],
+    rocks: [{ x: -2.0, y: -5.15, radius: 0.5, density: 5 }], // left-pit floor where the idle car (split by the spire) lands
     strokes: [{ kind: 'any', role: 'roof-road-dome', points: arch(-3.7, 1.02, 3.7, 1.02, 1.35) }],
+    solutions: [
+      { shapeTag: 'arch', points: arch(-3.7, 1.02, 3.7, 1.02, 1.35) },
+      { shapeTag: 'trapezoid', points: [p(-3.9, 1.0), ...spline([p(-3.4, 1.02), p(-2.1, 1.72), p(-1.5, 1.72), p(1.5, 1.72), p(2.1, 1.72), p(3.4, 1.02)]), p(3.9, 1.0)] },
+    ],
   },
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // L18 (v5 slate #18, NEW id) — shield-static / descent / XL · composite (spike+rock).
-  // atlas card 22 (くだり覆い). A DESCENDING journey: from a high-left shelf the car ramps
-  // down to a deep spike GORGE holding a boulder, crosses it on a firm covering seal, and
-  // drops to a low-right goal. Compound hazard (spike-floor zone + rock). Distinct
-  // descending silhouette (high→low, unlike the level domes / flat gorges).
+  // L18 (v5 slate #18, NEW id) — ink-kill descent / XL · boulder. atlas card 22 (くだり覆い).
+  // round-8 W4: the COURSE is extended (spawn x-10.2, goal x7.6) so the lazy spawn→goal raw
+  // (~18.5 m) exceeds budget×1.5 (16.6 m) — every lazy line is rejected insufficientInk at ALL
+  // ink levels (spike-round8 S4 ink-kill, l07 sibling). Only the 5.4 m pit needs a line; the
+  // terrain carries the rest. A high-left shelf ramps down to a deep pit (floor −10.5, deepened
+  // for the XL H/W ratio), crossed by a firm covering seal (sag / stepped trapezoid, solutions[])
+  // seated on a mid pillar, to a low-right goal. Idle car (deflected right by the pillar) lands
+  // on the boulder in the pit.
   {
     id: 'ch1-l18',
-    design: 'shield-static/descent/XL: 高い左棚から降り、岩の深い谷を覆い床で渡って低いゴールへ（無線は谷底の岩へ落ちる）— v5 #18 (R07+R04)',
+    design: 'shield-static/descent/XL: 長い街道を走り、岩の深い谷をたった5.4mの覆い床で渡って低いゴールへ — 全長をなぞる保険の線はインクが尽きる（無線は谷底の岩へ落ちる）— fun_cards_v6 ch1-l18 (round-8, W4 course延長ink-kill)',
     inkFeel: 'tight',
     gimmickTags: [],
     terrain: [
       pl(
-        p(-9.8, 2.8), p(-5.2, 2.8), p(-4.0, 1.4), p(-2.7, 1.4), p(-2.9, -8.0),
-        p(2.9, -8.0), p(2.7, 0.2), p(8.6, 0.2),
+        p(-13.4, 2.8), p(-5.2, 2.8), p(-4.0, 1.4), p(-2.7, 1.4), p(-2.9, -10.5),
+        p(2.9, -10.5), p(2.7, 0.2), p(10.4, 0.2),
       ),
-      pillar(0.0, 0.66, -8.0, 0.5, 0.9), // mid support splits the descending cover
+      pillar(0.0, 0.66, -10.5, 0.5, 0.9), // mid support splits the descending cover (deep pit raises the XL H/W ratio)
     ],
-    vehicleSpawn: p(-7.3, 3.15),
-    goalFlag: flag(6.6, 0.2, 1, 2),
+    vehicleSpawn: p(-10.2, 3.15),
+    goalFlag: flag(7.6, 0.2, 1, 2),
     killY: -6,
     coins: coinCount(6),
-    rocks: [{ x: -1.7, y: -7.55, radius: 0.45, density: 5 }],
+    rocks: [{ x: 1.9, y: -10.0, radius: 0.45, density: 5 }], // deep pit floor where the idle car (deflected right by the mid pillar) lands
     strokes: [
       {
         kind: 'any',
         role: 'descent-cover',
         points: spline([p(-2.7, 1.42), p(-1.35, 0.94), p(0, 0.68), p(1.35, 0.46), p(2.7, 0.22)]),
       },
+    ],
+    // Only the 5.4 m pit needs a line; the terrain carries the rest. Two distinct covers
+    // seated on the mid pillar (spike-round8 S4: spawn-goal raw > budget×1.5 → ink-kill).
+    solutions: [
+      { shapeTag: 'sag', points: spline([p(-2.7, 1.42), p(-1.35, 0.94), p(0, 0.68), p(1.35, 0.46), p(2.7, 0.22)]) },
+      { shapeTag: 'trapezoid', points: spline([p(-2.7, 1.42), p(-0.8, 0.68), p(0.8, 0.66), p(2.7, 0.22)]) },
     ],
   },
 
@@ -1009,47 +1033,64 @@ export const CH1_SOURCES: readonly LevelSource[] = [
         points: spline([p(-2.7, 0.2), p(-1.35, -0.3), p(0, -0.35), p(1.35, -0.3), p(2.7, 0.2)]),
       },
     ],
+    // Two distinct well-bottom crossings on the central island (S1/spike-round8 §l19 note:
+    // 16 m rim-to-rim is un-inkable, so the shaft's puzzle is the SHAPE of the bottom deck).
+    solutions: [
+      { shapeTag: 'sag', points: spline([p(-2.7, 0.2), p(-1.35, -0.3), p(0, -0.35), p(1.35, -0.3), p(2.7, 0.2)]) },
+      { shapeTag: 'trapezoid', points: spline([p(-2.7, 0.2), p(-1.6, -0.12), p(-0.85, -0.33), p(0.85, -0.33), p(1.6, -0.12), p(2.7, 0.2)]) },
+    ],
   },
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // L20 (v5 slate #20, NEW id) — catch-redirect / S / XL · rolling rock. atlas card 24
-  // (併走の抜け道). A two-shelf S: the car dips down into a valley on a scoop, crosses
-  // the bottom past a boulder (deep enough to time it out of the rolling rock's lane),
-  // and re-ascends the far shelf — an S-glide. Distinct sweeping-S silhouette.
+  // L20 (v5 slate #20, NEW id) — tabletop crown-rest / XL · boulder. atlas card 24.
+  // W4 DEVIATION (measured, spike-round8 S2b + own 2-D sweep): the card's overhead
+  // drop+trigger is a KNIFE-EDGE on this terrain — over the island the rock RESTS in the
+  // dip solution's path (kills it), over the open pit it falls THROUGH (kills no one), and
+  // the U-dish shares the naive's spatiotemporal lane (no robust "naive dies / dip lives"
+  // window at any x/trigger). The "duck-to-island" fallbacks (over-span 9 m self-supports;
+  // a 0.4 m car-top overhang gap) are equally knife-edge. Per wave-notes #1 realized as the
+  // ROBUST crown-rest (l13-l15 family): a central rock TABLE (top rim+0.9) every flat chord
+  // clips, crossed by a deck resting on it OR a high arch bowing over. Drop + dip themes lost.
   {
     id: 'ch1-l20',
-    design: 'catch-redirect/U/XL: 深い谷を受け皿U弧で渡り、谷底の岩をやり過ごして対岸へ（無線は谷底の岩へ落ちる）— v5 #20 (R13 受け流し)',
+    design: 'catch-redirect/tabletop/XL: 深い谷の中央にそびえる岩卓(天3.1)へ台形の床を載せて渡るか、高い弓で越えるか。地表の平線は卓の壁で切れ谷底の岩へ落ちる — fun_cards_v6 ch1-l20 (round-8, W4 — drop/潜り皿はknife-edgeで喪失, 頑健なcrown-restへ)',
     inkFeel: 'tight',
     gimmickTags: [],
     terrain: [
       pl(
-        p(-10.0, 2.2), p(-3.4, 2.2), p(-3.6, -6.8), p(3.6, -6.8), p(3.4, 2.2), p(10.0, 2.2),
+        p(-10.0, 2.2), p(-3.5, 2.2), p(-3.7, -6.8), p(3.7, -6.8), p(3.5, 2.2), p(10.0, 2.2),
       ),
-      pillar(0.0, 1.05, -6.8, 0.6, 1.0), // high central island — a SHALLOW firm catch (l10-scaled)
+      pillar(0.0, 3.1, -6.8, 0.75, 1.3), // central rock TABLE crown (rim+0.9) — every flat chord clips its wall and drops; the deck rests on top
     ],
     vehicleSpawn: p(-7.2, 2.55),
     goalFlag: flag(6.4, 2.2, 1, 2),
     killY: -6,
     coins: coinCount(7),
-    rocks: [{ x: 1.7, y: -6.35, radius: 0.45, density: 5 }],
+    rocks: [{ x: -2.0, y: -6.35, radius: 0.45, density: 5 }], // left-pit floor where the clipped / idle car falls
     strokes: [
       {
         kind: 'any',
-        role: 'u-catch-island',
-        points: spline([p(-3.4, 2.2), p(-1.8, 1.35), p(0, 1.05), p(1.8, 1.35), p(3.4, 2.2)]),
+        role: 'tabletop-deck',
+        points: [p(-4.0, 2.2), ...spline([p(-3.5, 2.22), p(-1.7, 3.1), p(-0.7, 3.15), p(0.7, 3.15), p(1.7, 3.1), p(3.5, 2.22)]), p(4.0, 2.2)],
       },
+    ],
+    solutions: [
+      { shapeTag: 'trapezoid', points: [p(-4.0, 2.2), ...spline([p(-3.5, 2.22), p(-1.7, 3.1), p(-0.7, 3.15), p(0.7, 3.15), p(1.7, 3.1), p(3.5, 2.22)]), p(4.0, 2.2)] },
+      { shapeTag: 'arch', points: [p(-4.0, 2.2), ...arch(-3.5, 2.22, 3.5, 2.22, 1.35), p(4.0, 2.2)] },
     ],
   },
 
   // ─────────────────────────────────────────────────────────────────────────────
   // L21 (v5 slate #21, NEW id) — dome-dual / climb / XL · falling rock. atlas card 25
-  // (そびえるアーチ). A TOWERING asymmetric arch that BOTH shields the boulder AND
-  // climbs from the low-left shelf to a high-right goal (+1.8 m). ARCH_EXEMPT
-  // (compression span ~6.0 m). The car rides the rising arch; the naive car drops into
-  // the wide valley onto the boulder. Silhouette: an ascending ∩ (vs L16's level ∩).
+  // (そびえるアーチ). A TOWERING asymmetric arch/hook (solutions[]) over a central rock
+  // SPIRE (round-8 W4: tip rim+0.8, WIDE enough that even the SLOPED spawn-goal — riding
+  // high toward the +1.8 m goal — clips it, where a slim spike could not). The car rides the
+  // rising arch and climbs from the low-left shelf to a high-right goal. ARCH_EXEMPT
+  // (compression span ~6.4 m). The naive car is split into the left pit onto the boulder.
+  // Silhouette: an ascending ∩ over a spire (vs L16's level ∩).
   {
     id: 'ch1-l21',
-    design: 'dome-dual/climb/XL: 谷にそびえる高いアーチ＝屋根＝道を渡り、右の坂を登って高台ゴールへ、谷底の岩を頭上に越える（無線は谷へ落ち岩に当たる）— v5 #21 (R01 arch)',
+    design: 'dome-dual/climb/XL: 谷にそびえる岩尖塔（頂1.5）を非対称の登りアーチ/鉤で頭上に越え、右の坂を登って高台ゴールへ（無線の平線は尖塔で切れ谷底の岩へ落ちる）— fun_cards_v6 ch1-l21 (round-8, W4)',
     inkFeel: 'tight',
     gimmickTags: [],
     terrain: [
@@ -1057,13 +1098,18 @@ export const CH1_SOURCES: readonly LevelSource[] = [
         p(-9.4, 0.9), p(-3.1, 0.9), p(-3.3, -7.2), p(3.3, -7.2), p(3.1, 0.9),
         p(4.2, 0.9), p(5.2, 1.5), p(6.3, 1.5), p(7.3, 2.1), p(10.0, 2.1),
       ),
+      spike(0, 1.7, -7.2, 1.5), // central rock SPIRE (tip rim+0.8) — steep faces sever every chord incl. the sloped spawn-goal; arch/hook pass over the point
     ],
     vehicleSpawn: p(-6.5, 1.25),
     goalFlag: flag(7.7, 2.1, 1, 2),
     killY: -6,
     coins: coinCount(6),
-    rocks: [{ x: 0.9, y: -6.75, radius: 0.5, density: 5 }],
+    rocks: [{ x: -2.0, y: -6.75, radius: 0.5, density: 5 }], // left-pit floor where the split idle car lands
     strokes: [{ kind: 'any', role: 'tower-arch', points: arch(-3.7, 0.92, 3.7, 0.92, 1.3) }],
+    solutions: [
+      { shapeTag: 'arch', points: arch(-3.7, 0.92, 3.7, 0.92, 1.3) },
+      { shapeTag: 'hook', points: [p(-3.6, 0.9), ...spline([p(-3.1, 0.92), p(-1.4, 1.5), p(0.0, 1.85), p(1.6, 1.75), p(3.1, 1.0)]), p(3.6, 0.92)] },
+    ],
   },
 
   // ─────────────────────────────────────────────────────────────────────────────
