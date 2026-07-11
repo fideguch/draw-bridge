@@ -193,8 +193,11 @@ export const CH1_SOURCES: readonly LevelSource[] = [
     // (same mesa route, straight-segment folds instead of the smooth ramp spline).
     // Both probed to CLEAR at Lv0 (2026-07-11: ramp t=198, angle t=198, both 3★).
     // Terrain / ghost / economy UNCHANGED — solutions are additive.
+    // round-8 W5: the ramp lands FIRMLY on the goal rim (extra rim-anchor point) so it
+    // clears with margin regardless of recycled-world drift — the previous 6-point ramp
+    // was a knife-edge that flipped to fall once W5's bonus solutions ran before it.
     solutions: [
-      { shapeTag: 'ramp', points: spline([p(-3.7, 0.06), p(-1.5, 0.78), p(0.0, 1.22), p(2.6, 1.22), p(4.1, 1.98), p(6.2, 2.42)]) },
+      { shapeTag: 'ramp', points: spline([p(-3.7, 0.06), p(-1.5, 0.78), p(0.0, 1.22), p(2.6, 1.22), p(4.3, 2.02), p(5.7, 2.44), p(6.4, 2.44)]) },
       { shapeTag: 'angle', points: [p(-3.7, 0.06), p(-1.5, 0.78), p(0.0, 1.22), p(2.6, 1.22), p(4.1, 1.98), p(6.2, 2.42)] },
     ],
   },
@@ -263,6 +266,14 @@ export const CH1_SOURCES: readonly LevelSource[] = [
         points: spline([p(-2.8, 0.42), p(-1.3, 1.0), p(-0.5, 1.5), p(0.7, 1.5), p(1.6, 0.85), p(3.0, 0.22)]),
       },
     ],
+    // round-8 W5: DECLARE the two ridge-tracing shapes the card promises (Gate 8).
+    // The island top (1.5) already clips every lazy chord (Gate 7 passes); this
+    // proves plurality: an up-over-down ANGLE that rakes the ridge coins, or a big
+    // ARCH that leaps the whole island (bow 1.45 clears, low-speed breather).
+    solutions: [
+      { shapeTag: 'angle', points: spline([p(-2.8, 0.42), p(-1.3, 1.0), p(-0.5, 1.5), p(0.7, 1.5), p(1.6, 0.9), p(2.9, 0.22)]) },
+      { shapeTag: 'arch', points: arch(-2.8, 0.42, 2.8, 0.22, 1.3) },
+    ],
   },
 
   // ─────────────────────────────────────────────────────────────────────────────
@@ -276,7 +287,7 @@ export const CH1_SOURCES: readonly LevelSource[] = [
     bonusMultiplier: 7,
     terrain: [
       pl(p(-7, 0.6), p(-2.6, 0.6), p(-2.4, -4.4)),
-      pillar(0, 0.3, -4.4, 0.8, 1.2), // central island (car crosses it; mid-support splits the span)
+      pillar(0, 1.4, -4.4, 0.45, 0.9), // round-8 W5: PEG raised to head 1.4 (flat-top crown, not a 細針). With the 0.55 m surface-skin the peg must sit >0.55 m above the spawn-goal chord (y0.80) to CLIP it — 1.4 clears it by 0.60 m at commit. The hook rests on its head (within skin), the arch leaps it.
       pl(p(2.4, -4.4), p(2.6, 0.9), p(7.5, 0.9)),
     ],
     vehicleSpawn: p(-5.2, 0.95),
@@ -287,9 +298,14 @@ export const CH1_SOURCES: readonly LevelSource[] = [
     strokes: [
       {
         kind: 'any',
-        role: 'hook-scurve',
-        points: spline([p(-3.2, 0.62), p(-1.6, 0.36), p(-0.8, 0.32), p(0.8, 0.32), p(1.6, 0.6), p(3.2, 0.92)]),
+        role: 'hook-over-peg',
+        points: spline([p(-3.2, 0.62), p(-1.7, 1.0), p(-0.6, 1.48), p(0.4, 1.48), p(1.5, 1.05), p(3.2, 0.92)]),
       },
+    ],
+    // round-8 W5: hook (rest on the peg head) vs arch (leap the peg) — Gate 8.
+    solutions: [
+      { shapeTag: 'hook', points: spline([p(-3.2, 0.62), p(-1.7, 1.0), p(-0.6, 1.48), p(0.4, 1.48), p(1.5, 1.05), p(3.2, 0.92)]) },
+      { shapeTag: 'arch', points: arch(-3.2, 0.62, 3.2, 0.92, 1.2) },
     ],
   },
 
@@ -304,13 +320,21 @@ export const CH1_SOURCES: readonly LevelSource[] = [
     design: 'catch/U/S: 浅い受け皿をなぞる緩U字の橋・コイン集め — v5 #B3 (R12-lite Happy Glass funnel)',
     inkFeel: 'generous',
     bonusMultiplier: 8,
-    terrain: twoPlatforms({ leftFar: -7, leftRim: -2.6, leftY: 0.9, rightRim: 2.6, rightY: 0.9, rightFar: 7.5, chasmY: -4.4 }),
+    terrain: [
+      ...twoPlatforms({ leftFar: -7, leftRim: -2.6, leftY: 0.9, rightRim: 2.6, rightY: 0.9, rightFar: 7.5, chasmY: -4.4 }),
+      pillar(0, 1.55, -4.4, 0.5, 1.0), // round-8 W5: central REEF (flat-top crown, top 1.55) — clips ALL six lazy chords (max sgHigh 1.46) at COMMIT across a 1.0 m flat top; the dish-arch / trapezoid-deck pass OVER it
+    ],
     vehicleSpawn: p(-4.9, 1.25),
     goalFlag: flag(5.0, 0.9, 1, 2),
     killY: -5,
     coins: coinCount(7),
     gimmickTags: [],
-    strokes: [{ kind: 'any', role: 'catch-dish', points: arch(-3.3, 0.96, 3.3, 0.96, 0.14) }],
+    strokes: [{ kind: 'any', role: 'catch-dish', points: arch(-3.3, 0.9, 3.3, 0.9, 0.8) }],
+    // round-8 W5: receiving-dish arch (rake the coin bow) vs flat deck — Gate 8.
+    solutions: [
+      { shapeTag: 'arch', points: arch(-3.3, 0.9, 3.3, 0.9, 0.8) },
+      { shapeTag: 'trapezoid', points: [p(-3.3, 0.9), ...spline([p(-2.6, 0.98), p(-1.3, 1.68), p(-0.7, 1.72), p(0.7, 1.72), p(1.3, 1.68), p(2.6, 0.98)]), p(3.3, 0.9)] },
+    ],
   },
 
   // ─────────────────────────────────────────────────────────────────────────────
@@ -326,7 +350,8 @@ export const CH1_SOURCES: readonly LevelSource[] = [
     bonusMultiplier: 5,
     terrain: [
       pl(p(-7.5, 2.6), p(-2.4, 2.6), p(-2.2, -5)),
-      pl(p(1.5, -5), p(1.7, 0.6), p(3.1, 0.6), p(3.3, -5)), // mid-ledge mesa
+      pl(p(1.5, -5), p(1.7, 1.0), p(3.1, 1.0), p(3.3, -5)), // round-8 W5: mid-ledge raised to a HILL (top 1.0) — the naive spawn→goal descent CLIPS the hill at commit and the un-supported right half drops into the pit; the two-stage ramp/angle ride the hill top
+      pl(p(4.6, -5), p(4.8, -0.4), p(5.8, -0.4), p(6.0, -5)), // round-8 W5: second descent LEDGE — splits the long descent so the ridden shove stays <=0.3 m (Gate 6 F5); keeps the card's "二段の緩降下"
       pl(p(7.0, -5), p(7.2, -1.4), p(10, -1.4)),
     ],
     vehicleSpawn: p(-4.0, 2.95),
@@ -338,8 +363,13 @@ export const CH1_SOURCES: readonly LevelSource[] = [
       {
         kind: 'any',
         role: 'two-span-descent',
-        points: spline([p(-3.0, 2.62), p(-0.4, 1.6), p(1.7, 0.62), p(3.1, 0.62), p(5.2, -0.4), p(7.8, -1.38)]),
+        points: spline([p(-2.4, 2.6), p(-0.5, 1.7), p(1.7, 1.0), p(3.1, 1.0), p(4.8, -0.4), p(5.8, -0.4), p(7.8, -1.4)]),
       },
+    ],
+    // round-8 W5: gentle two-stage ramp vs angular two-stage — both rest on the hill + ledge (Gate 8).
+    solutions: [
+      { shapeTag: 'ramp', points: spline([p(-2.4, 2.6), p(-0.5, 1.7), p(1.7, 1.0), p(3.1, 1.0), p(4.8, -0.4), p(5.8, -0.4), p(7.8, -1.4)]) },
+      { shapeTag: 'angle', points: spline([p(-2.4, 2.6), p(0.4, 1.05), p(1.7, 1.0), p(3.1, 1.0), p(4.8, -0.4), p(5.8, -0.4), p(7.8, -1.4)]) },
     ],
   },
 
@@ -686,11 +716,11 @@ export const CH1_SOURCES: readonly LevelSource[] = [
       {
         kind: 'any',
         role: 'crown-trapezoid-climb',
-        points: [p(-2.4, 0.6), ...spline([p(-2.3, 0.62), p(-1.1, 1.15), p(-0.5, 1.35), p(0.5, 1.35), p(1.1, 1.18), p(2.3, 0.94)]), p(2.5, 0.9)],
+        points: [p(-2.4, 0.6), ...spline([p(-2.3, 0.62), p(-1.1, 1.18), p(-0.5, 1.3), p(0.5, 1.3), p(1.1, 1.2), p(2.3, 0.94)]), p(2.5, 0.9)],
       },
     ],
     solutions: [
-      { shapeTag: 'trapezoid', points: [p(-2.4, 0.6), ...spline([p(-2.3, 0.62), p(-1.1, 1.15), p(-0.5, 1.35), p(0.5, 1.35), p(1.1, 1.18), p(2.3, 0.94)]), p(2.5, 0.9)] },
+      { shapeTag: 'trapezoid', points: [p(-2.4, 0.6), ...spline([p(-2.3, 0.62), p(-1.1, 1.18), p(-0.5, 1.3), p(0.5, 1.3), p(1.1, 1.2), p(2.3, 0.94)]), p(2.5, 0.9)] },
       { shapeTag: 'arch', points: [p(-2.4, 0.6), ...arch(-2.3, 0.62, 2.3, 0.94, 0.55), p(2.5, 0.9)] },
     ],
   },
@@ -989,13 +1019,13 @@ export const CH1_SOURCES: readonly LevelSource[] = [
       {
         kind: 'any',
         role: 'descent-cover',
-        points: spline([p(-2.7, 1.42), p(-1.35, 0.94), p(0, 0.68), p(1.35, 0.46), p(2.7, 0.22)]),
+        points: spline([p(-2.7, 1.42), p(-1.35, 0.92), p(0, 0.64), p(1.35, 0.44), p(2.7, 0.22)]),
       },
     ],
     // Only the 5.4 m pit needs a line; the terrain carries the rest. Two distinct covers
     // seated on the mid pillar (spike-round8 S4: spawn-goal raw > budget×1.5 → ink-kill).
     solutions: [
-      { shapeTag: 'sag', points: spline([p(-2.7, 1.42), p(-1.35, 0.94), p(0, 0.68), p(1.35, 0.46), p(2.7, 0.22)]) },
+      { shapeTag: 'sag', points: spline([p(-2.7, 1.42), p(-1.35, 0.92), p(0, 0.64), p(1.35, 0.44), p(2.7, 0.22)]) },
       { shapeTag: 'trapezoid', points: spline([p(-2.7, 1.42), p(-0.8, 0.68), p(0.8, 0.66), p(2.7, 0.22)]) },
     ],
   },
@@ -1098,7 +1128,7 @@ export const CH1_SOURCES: readonly LevelSource[] = [
         p(-9.4, 0.9), p(-3.1, 0.9), p(-3.3, -7.2), p(3.3, -7.2), p(3.1, 0.9),
         p(4.2, 0.9), p(5.2, 1.5), p(6.3, 1.5), p(7.3, 2.1), p(10.0, 2.1),
       ),
-      spike(0, 1.7, -7.2, 1.5), // central rock SPIRE (tip rim+0.8) — steep faces sever every chord incl. the sloped spawn-goal; arch/hook pass over the point
+      pillar(0, 2.1, -7.2, 0.5, 1.5), // round-8 W5 FIX: central rock crown (flat top 2.1, was a bare spike). Two bugs: (1) a needle spike clips the sloped rim-exact chord in only a ~0.07 m window the resampler steps over (committed CLEAN -> knife-edge clear @inkLv3 in the full run); (2) the engine SURFACE_SKIN is 0.55 m, so even a 1.7 flat top could not clip the y1.48 chords. 2.1 clears the skin over rim-exact/rim-overlap/spawn-goal (1.48-1.49 -> 0.61 m) and CLIPS them at commit; the arch/hook rest on its flat top.
     ],
     vehicleSpawn: p(-6.5, 1.25),
     goalFlag: flag(7.7, 2.1, 1, 2),
@@ -1108,7 +1138,7 @@ export const CH1_SOURCES: readonly LevelSource[] = [
     strokes: [{ kind: 'any', role: 'tower-arch', points: arch(-3.7, 0.92, 3.7, 0.92, 1.3) }],
     solutions: [
       { shapeTag: 'arch', points: arch(-3.7, 0.92, 3.7, 0.92, 1.3) },
-      { shapeTag: 'hook', points: [p(-3.6, 0.9), ...spline([p(-3.1, 0.92), p(-1.4, 1.5), p(0.0, 1.85), p(1.6, 1.75), p(3.1, 1.0)]), p(3.6, 0.92)] },
+      { shapeTag: 'hook', points: [p(-3.6, 0.9), ...spline([p(-3.1, 0.92), p(-1.3, 1.9), p(0.2, 2.3), p(1.7, 2.12), p(3.1, 1.0)]), p(3.6, 0.92)] },
     ],
   },
 
@@ -1120,8 +1150,9 @@ export const CH1_SOURCES: readonly LevelSource[] = [
   // ascent silhouette (arch-cross then stair-climb).
   {
     id: 'ch1-l22',
-    design: 'catch-redirect/tier/XL: 棘の深い谷を覆いアーチで受け流し、段々を登って高台ゴールへ（無線は谷の棘へ沈む）— v5 #22 (R12+R13)',
+    design: 'catch-redirect/tier/XL: 棘谷の岩塔を弓で頭上に越え、段々を登って高台ゴールへ — 全長をなぞる保険の線はインクが尽きる（無線の平線は谷底の棘へ落ちる）— fun_cards_v6 ch1-l22 (round-8, W5 ink-kill + spire)',
     inkFeel: 'tight',
+    inkBudget: 9.8, // round-8 W5: INK-KILL (drift-insensitive — the lazy lines are rejected at COMMIT, no physics). MEASURED: every lazy raw (spawn-goal 15.87 ... rim-exact 20.25) exceeds budget*1.5 (14.7) even at max ink -> all rejected insufficientInk (spike-round8 S4, l18 sibling). A crown-supported dome is the intended cover; a tall unsupported clip-dome flipped clear<->fall under recycled-world drift, so ink is the robust straight-killer here.
     gimmickTags: [],
     terrain: [
       pl(
@@ -1129,18 +1160,24 @@ export const CH1_SOURCES: readonly LevelSource[] = [
         p(2.9, -6.8), p(2.7, 0.8),
         p(3.7, 0.8), p(4.7, 1.5), p(5.9, 1.5), p(6.9, 2.2), p(10.4, 2.2),
       ),
+      pillar(0, 1.35, -6.8, 0.5, 0.85), // central rock spire (visual + MID-SUPPORT): the low dome sags onto it -> firm, low ridden shove (Gate 6). Narrow base leaves 1.85 m side-pits so the idle car still falls onto the spike floor.
     ],
     vehicleSpawn: p(-6.3, 1.15),
     goalFlag: flag(7.6, 2.2, 1, 2),
     killY: -6,
     coins: coinCount(6),
-    dangerZones: [{ x: -2.6, y: -6.3, width: 5.2, height: 0.9, style: 'spike' }],
+    dangerZones: [{ x: -2.6, y: -6.3, width: 5.2, height: 3.2, style: 'spike' }], // round-8 W5: TALL band (top -3.1) — the idle car, split off the spire into the deep pit, overlaps it EARLY in the fall so it registers hazardContact before it can tumble to tipOver (drift-robust). The intended cover rides y>=0.82, never entering it.
     strokes: [
       {
         kind: 'any',
-        role: 'gorge-cover-arch',
-        points: arch(-3.1, 0.82, 3.1, 0.82, 0.62),
+        role: 'spire-cover-arch',
+        points: arch(-3.1, 0.82, 3.1, 0.82, 0.78),
       },
+    ],
+    // round-8 W5: the covering dome (rests on the spire) vs a flat table-deck — Gate 8.
+    solutions: [
+      { shapeTag: 'arch', points: arch(-3.1, 0.82, 3.1, 0.82, 0.78) },
+      { shapeTag: 'trapezoid', points: [p(-3.3, 0.8), ...spline([p(-3.1, 0.82), p(-1.6, 1.2), p(-0.8, 1.5), p(0.8, 1.5), p(1.6, 1.2), p(3.1, 0.82)]), p(3.3, 0.8)] },
     ],
   },
 
@@ -1155,8 +1192,9 @@ export const CH1_SOURCES: readonly LevelSource[] = [
   // mechanic: cover + dome shed + spike + climb-out.
   {
     id: 'ch1-l23',
-    design: 'BOSS dome-dual/S/XL: 二つの岩を抱えた広い深谷を、そびえるアーチ＝屋根＝道で受け流して渡り、段々を登り切る — 試練の連なり（無線は谷底の二岩へ落ちる）— v5 #23 (R15=R07+R14+R05)',
+    design: 'BOSS shield/S/XL: 棘谷にそびえる章一番の高い岩塔を、一枚のドームで頭上に越えるか卓状の平天板で渡るか — 全長をなぞる保険の線はインクが尽きる（無線の平線は谷底の棘へ落ちる）— fun_cards_v6 ch1-l23 (round-8, W5 BOSS ink-kill + spire)',
     inkFeel: 'tight',
+    inkBudget: 9.8, // round-8 W5 BOSS: INK-KILL (drift-insensitive). MEASURED: every lazy raw (spawn-goal 15.87 ... rim-exact 20.25) exceeds budget*1.5 (14.7) at max ink -> all rejected insufficientInk. The tall clip-dome flipped under recycled-world drift; ink is the robust straight-killer.
     gimmickTags: [],
     terrain: [
       pl(
@@ -1164,21 +1202,24 @@ export const CH1_SOURCES: readonly LevelSource[] = [
         p(2.9, -6.8), p(2.7, 0.8),
         p(3.7, 0.8), p(4.7, 1.5), p(5.9, 1.5), p(6.9, 2.2), p(10.4, 2.2),
       ),
+      pillar(0, 1.5, -6.8, 0.55, 0.9), // the chapter's TALLEST spire (visual + MID-SUPPORT): the low dome sags onto it -> firm, low ridden shove (Gate 6). Narrow base leaves 1.8 m side-pits so the idle car still falls onto the spike floor.
     ],
     vehicleSpawn: p(-6.3, 1.15),
     goalFlag: flag(7.6, 2.2, 1, 2),
     killY: -6,
     coins: coinCount(7),
-    rocks: [
-      { x: 0.7, y: -6.42, radius: 0.35, density: 5 },
-      { x: 1.4, y: -6.42, radius: 0.35, density: 5 },
-    ],
+    dangerZones: [{ x: -2.6, y: -6.3, width: 5.2, height: 3.2, style: 'spike' }], // round-8 W5 BOSS: TALL valley spike-band (top -3.1; the "谷底二岩" as a floor band — discrete rocks can't co-locate with the spire for reliable dual attribution). The split car overlaps it EARLY in the fall -> hazardContact before tipOver (drift-robust).
     strokes: [
       {
         kind: 'any',
-        role: 'boss-tower-arch',
-        points: arch(-3.1, 0.82, 3.1, 0.82, 0.62),
+        role: 'boss-cover-arch',
+        points: arch(-3.1, 0.82, 3.1, 0.82, 0.9),
       },
+    ],
+    // round-8 W5 BOSS: the covering dome (rests on the tallest spire) vs a flat table-deck — Gate 8.
+    solutions: [
+      { shapeTag: 'arch', points: arch(-3.1, 0.82, 3.1, 0.82, 0.9) },
+      { shapeTag: 'trapezoid', points: [p(-3.3, 0.8), ...spline([p(-3.1, 0.82), p(-1.7, 1.35), p(-0.85, 1.65), p(0.85, 1.65), p(1.7, 1.35), p(3.1, 0.82)]), p(3.3, 0.8)] },
     ],
   },
 
@@ -1193,13 +1234,21 @@ export const CH1_SOURCES: readonly LevelSource[] = [
     inkFeel: 'generous',
     bonusMultiplier: 5,
     gimmickTags: [],
-    terrain: [pl(p(-9.0, 1.3), p(-2.3, 1.3), p(-2.5, -5.7), p(2.5, -5.7), p(2.3, 0.3), p(9.0, 0.3))],
+    terrain: [
+      pl(p(-9.0, 1.3), p(-2.3, 1.3), p(-2.5, -5.7), p(2.5, -5.7), p(2.3, 0.3), p(9.0, 0.3)),
+      pillar(0, 1.45, -5.7, 0.4, 1.1), // round-8 W5: PEDESTAL crown (top 1.45, flat) lifting the valley rock to head height. With the 0.55 m surface-skin it must sit >0.55 m above the low/spawn-goal descent chords (y0.30-0.86) to CLIP them — 1.45 clears spawn-goal (0.86) by 0.59 m at commit; the descent-dome passes over its head.
+    ],
     vehicleSpawn: p(-5.9, 1.65),
     goalFlag: flag(5.5, 0.3, 1, 2),
     killY: -5,
     coins: coinCount(7),
-    rocks: [{ x: 0.9, y: -5.25, radius: 0.45, density: 5 }],
+    dangerZones: [{ x: -2.3, y: -5.6, width: 4.6, height: 0.9, style: 'spike' }], // round-8 W5: valley floor hazard (the "台座岩" realized as a crown + floor band — a dynamic rock rolled off the pedestal and the split car did not reliably contact a floor rock; the spike-floor gives robust attribution). Any car split off the crown drops onto it.
     strokes: [{ kind: 'any', role: 'descent-dome', points: arch(-3.0, 1.32, 3.0, 0.32, 1.0) }],
+    // round-8 W5: descent dome (over the head) vs stepped deck down — Gate 8.
+    solutions: [
+      { shapeTag: 'arch', points: arch(-3.0, 1.32, 3.0, 0.32, 1.0) },
+      { shapeTag: 'trapezoid', points: [p(-3.0, 1.32), ...spline([p(-2.6, 1.4), p(-1.5, 1.62), p(-0.5, 1.62), p(0.7, 1.5), p(1.8, 1.0), p(2.6, 0.5)]), p(3.0, 0.32)] },
+    ],
   },
 ];
 
