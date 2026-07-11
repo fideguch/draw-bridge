@@ -395,103 +395,113 @@ export const CH1_SOURCES: readonly LevelSource[] = [
   },
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // L8 (v5 slate #8) — double-seal / flat / L · danger zone. atlas card 10 (危険帯を跨ぐ床).
-  // A WIDE deep zone band crossed by a TWO-pillar seal — a gentle double-dip deck (two
-  // support pillars → three seams). Distinct from L10's SINGLE-pillar sag (one dip) and
-  // L4's THREE-pillar spike viaduct: the wave-3.5 fix spreads L8/L10/L12 across pillar
-  // counts + hazard styles instead of one shared sag. A W-deck that CLIMBS a mid-platform
-  // was tried first but is fuzz-fragile (the car tips on the climb, 2-6/24); this gentle
-  // 2-pillar seal is robust (20/24). The idle no-line car drops off the rim into the deep
-  // zone; the seal rests on both pillars and carries the car across with zero contact.
+  // L8 (round-8 REDESIGN, fun_cards_v6 ch1-l08 縁までせり上がる危険帯) — rising band.
+  // A deep danger band that RISES to y1.0 = rim+0.1: a flat ground-level line is no longer
+  // safe. Every low lazy chord (rim y0.9) dips into the band top (1.0) and dies; the naive
+  // straight sags into it (hazardContact + attribution). The intended clears it OVERHEAD —
+  // NO support pillars (a pillar tall enough to lift the deck also blocks the naive line
+  // from reaching the band; W2-measured: pillars → naive divergence, band unattributed).
+  // Both solutions self-support the 7.4 m span above the band: the arch (bow 1.3, ARCH_EXEMPT,
+  // spike round8 S1) and a self-supporting flat-top trapezoid hump. Probed 2026-07-11:
+  // arch clr 0.65 m, trap clr 0.57 m; Gate7 all 6 defeated (band contact).
   {
     id: 'ch1-l08',
-    design: 'double-seal/flat/L: 広く深い赤帯の谷を、二本柱に載せた緩い二段の床で塞いで渡る（無線の直進は帯へ落ちる）— v5 #8 (R08 two-pillar seal)',
+    design: 'rising-band/flat/L: 谷底から縁上 y1.0 までせり上がる赤帯。地表すれすれの平線は帯に触れて即死。無支持のアーチ/台形床で帯を頭上に越す（無線の直進は帯へ沈む）— fun_cards_v6 ch1-l08 (round-8, W2)',
     inkFeel: 'standard',
     gimmickTags: [],
     terrain: [
       pl(p(-9.5, 0.9), p(-3.7, 0.9), p(-3.9, -5.8)), // left rim y0.9
-      pillar(-1.9, 0.68, -5.8, 0.55, 0.9), // seal pillar 1 (spread wide, out of the naive fall path)
-      pillar(1.9, 0.68, -5.8, 0.55, 0.9), // seal pillar 2
       pl(p(3.9, -5.8), p(3.7, 0.9), p(9.5, 0.9)), // right rim y0.9
     ],
     vehicleSpawn: p(-6.4, 1.25),
     goalFlag: flag(6.6, 0.9, 1, 2),
     killY: -12,
     coins: coinCount(5),
-    dangerZones: [{ x: -3.6, y: -4.6, width: 7.2, height: 0.9, style: 'zone' }], // wide deep zone band
+    dangerZones: [{ x: -1.8, y: -4.6, width: 3.6, height: 5.6, style: 'zone' }], // band risen to top y1.0 (rim+0.1)
     strokes: [
       {
         kind: 'any',
-        role: 'double-seal',
-        points: spline([p(-3.7, 0.9), p(-2.6, 0.66), p(-1.9, 0.62), p(0.0, 0.72), p(1.9, 0.62), p(2.6, 0.66), p(3.7, 0.9)]),
+        role: 'band-arch',
+        points: [p(-3.9, 0.92), ...arch(-3.7, 0.92, 3.7, 0.92, 1.3), p(3.9, 0.92)],
       },
+    ],
+    solutions: [
+      { shapeTag: 'arch', points: [p(-3.9, 0.92), ...arch(-3.7, 0.92, 3.7, 0.92, 1.3), p(3.9, 0.92)] },
+      { shapeTag: 'trapezoid', points: [p(-3.9, 0.92), ...spline([p(-3.7, 0.92), p(-1.9, 1.75), p(1.9, 1.75), p(3.7, 0.92)]), p(3.9, 0.92)] },
     ],
   },
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // L9 (v5 slate #9) — hook / tier / M · spike floor (ENGINE ADAPTATION of the atlas
-  // "ceiling spike" card 11). The design wants the car to DUCK under ceiling
-  // stalactites over a gap. That is physically infeasible with this engine's car:
-  // to duck low enough the car must drop into a gap-valley, and the drop bounces the
-  // 0.8 m-tall chassis straight back UP into the ceiling teeth; a gentle descent
-  // keeps the car high (its 0.9 m-lead front wheel reaches the teeth before it sinks)
-  // and the naive rim-to-rim straight always bridges at LOW gap-rim height, so no
-  // baseline can attribute a ceiling hazard (the idle car FALLS, away from the roof).
-  // Realized instead as a hook/tier over a SPIKE FLOOR: the naive no-line car drives
-  // off the low-left rim and FALLS into the spikes (hazard-relevant); the ghost hooks
-  // a firm rising bridge from the low-left shelf up to the high-right, held above the
-  // deep spike floor across a ≤5.5 m span.
+  // L9 (round-8 REDESIGN, fun_cards_v6 ch1-l09 谷の塔を踏み台に) — stone tower.
+  // A low-left shelf (0.9) → high-right shelf (1.4) with a central STONE TOWER (terrain,
+  // top 1.75 — higher than both rims) over a spike floor. Every straight line is CLIPPED
+  // by the tower and its free end droops, dropping the car onto the spike floor
+  // (hazardContact + attribution). 1.75 is REQUIRED (spike round8 note): at 1.6 the
+  // spawn-goal-high chord soft-lands on the tower crown (leak). The intended trapezoid
+  // climbs onto the tower crown (踏み台) and eases down; the arch bows over it. Both REST
+  // on the crown (no sag) so clearance is huge. Probed 2026-07-11: trap clr 5.6 m, arch
+  // clr 5.6 m; Gate7 all 6 clipped→fall.
   {
     id: 'ch1-l09',
-    design: 'hook/tier/M: 低い左棚から高い右棚へ、棘の谷を一本のフック橋で跨いで登る — v5 #9 (R16 hook, spike-floor 化)',
+    design: 'stone-tower/tier/M: 低い左棚から高い右棚へ、両棚より高い石塔（頂1.75）を踏み台に登り渡る（無線はどれも塔で切れ棘床へ落ちる）— fun_cards_v6 ch1-l09 (round-8, W2)',
     inkFeel: 'standard',
     gimmickTags: [],
     terrain: [
-      pl(p(-9.0, 0.9), p(-2.3, 0.9), p(-2.5, -5.0)),
-      pillar(0.0, 0.95, -5.0, 0.9, 1.3),
-      pl(p(2.3, -5.0), p(2.5, 1.4), p(9.0, 1.4)),
+      pl(p(-9.0, 0.9), p(-2.3, 0.9), p(-2.5, -5.0)), // low-left shelf y0.9
+      pillar(0.0, 1.75, -5.0, 0.5, 0.72), // central stone tower crown (rim+, clips every straight)
+      pl(p(2.3, -5.0), p(2.5, 1.4), p(9.0, 1.4)), // high-right shelf y1.4
     ],
     vehicleSpawn: p(-6.3, 1.25),
     goalFlag: flag(5.9, 1.4, 1, 2),
     killY: -11,
     coins: coinCount(5),
-    dangerZones: [{ x: -2.1, y: -4.5, width: 4.6, height: 0.9, style: 'spike' }],
+    dangerZones: [{ x: -2.1, y: -4.5, width: 4.6, height: 0.9, style: 'spike' }], // spike floor top -3.6
     strokes: [
       {
         kind: 'any',
-        role: 'hook-climb',
-        points: spline([p(-2.3, 0.9), p(-1.1, 0.92), p(0.0, 0.95), p(1.1, 1.12), p(2.3, 1.4)]),
+        role: 'tower-trapezoid',
+        points: [p(-2.4, 0.9), ...spline([p(-2.3, 0.92), p(-1.1, 1.65), p(-0.5, 1.8), p(0.5, 1.8), p(1.1, 1.68), p(2.3, 1.44)]), p(2.5, 1.4)],
       },
+    ],
+    solutions: [
+      { shapeTag: 'trapezoid', points: [p(-2.4, 0.9), ...spline([p(-2.3, 0.92), p(-1.1, 1.65), p(-0.5, 1.8), p(0.5, 1.8), p(1.1, 1.68), p(2.3, 1.44)]), p(2.5, 1.4)] },
+      { shapeTag: 'arch', points: [p(-2.4, 0.9), ...arch(-2.3, 0.95, 2.3, 1.45, 0.6), p(2.5, 1.4)] },
     ],
   },
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // L10 (v5 slate #10) — sag / U / L · spike floor. atlas card 12 (棘谷の綱渡り).
-  // A deep canyon with a spike FLOOR at the bottom. REALIZATION: the naive no-line
-  // car drives off the rim and FALLS into the spikes; an over-sagged low line dips
-  // toward them too. The ghost strings a firm up-bow TAUT across the 5.4 m gap
-  // (≤5.5) so the settled line holds high above the spikes and the car crosses.
+  // L10 (round-8 REDESIGN, fun_cards_v6 ch1-l10 尖塔を越える弓) — spike spire.
+  // A deep spike canyon (rim 0.8) with a central spike SPIRE rising ABOVE the rim
+  // (dangerZone, top 1.05 = rim+0.25). No mid-pillar (spike round8 S0: the 5.4 m span
+  // self-supports, so span/sag can't kill a flat line — a geometric interceptor must).
+  // Every rim-height line, taut or not, has its car run into the spire and die
+  // (hazardContact + attribution). The intended ARCH bows over the spire tip; the folded
+  // ANGLE tent peaks over it — the height-vs-ink trade the card wants. Probed 2026-07-11:
+  // arch clr 0.66 m, angle clr 0.40 m; Gate7 all 6 defeated (spire contact).
   {
     id: 'ch1-l10',
-    design: 'sag/U/L: 棘の底と中央尖塔をもつ深峡谷に、中州で二分割した張り線を渡す — v5 #10 (R03 sag-rope-over-hazard)',
+    design: 'spike-spire/U/L: 谷底一面の棘と、リムより高く突き出す中央の棘尖塔（頂1.05）。リム高の線はどれも尖塔に串刺し。弓/テントで尖塔の上を越える — fun_cards_v6 ch1-l10 (round-8, W2)',
     inkFeel: 'standard',
     gimmickTags: [],
     terrain: [
-      pl(p(-8, 0.8), p(-2.7, 0.8), p(-2.9, -5.2)),
-      pillar(0.0, 0.45, -5.2, 0.5, 0.9),
-      pl(p(2.5, -5.2), p(2.7, 0.8), p(8.5, 0.8)),
+      pl(p(-8, 0.8), p(-2.7, 0.8), p(-2.9, -5.2)), // left rim y0.8
+      pl(p(2.9, -5.2), p(2.7, 0.8), p(8.5, 0.8)), // right rim y0.8
     ],
     vehicleSpawn: p(-5.8, 1.15),
     goalFlag: flag(5.6, 0.8, 1, 2),
     killY: -11,
     coins: coinCount(5),
-    dangerZones: [{ x: -2.5, y: -4.4, width: 5.0, height: 0.9, style: 'spike' }],
+    dangerZones: [{ x: -0.35, y: -4.4, width: 0.7, height: 5.45, style: 'spike' }], // central spire top 1.05 (rim+0.25)
     strokes: [
       {
         kind: 'any',
-        role: 'sag-over-spikes',
-        points: spline([p(-2.7, 0.8), p(-1.35, 0.5), p(0.0, 0.45), p(1.35, 0.5), p(2.7, 0.8)]),
+        role: 'spire-arch',
+        points: [p(-3.4, 0.8), ...arch(-2.7, 0.8, 2.7, 0.8, 1.0), p(3.4, 0.8)],
       },
+    ],
+    solutions: [
+      { shapeTag: 'arch', points: [p(-3.4, 0.8), ...arch(-2.7, 0.8, 2.7, 0.8, 1.0), p(3.4, 0.8)] },
+      { shapeTag: 'angle', points: [p(-3.4, 0.8), p(-2.7, 0.8), p(0, 1.7), p(2.7, 0.8), p(3.4, 0.8)] },
     ],
   },
 
@@ -628,61 +638,84 @@ export const CH1_SOURCES: readonly LevelSource[] = [
   },
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // L6 (v5 slate #6) — shield-dynamic / climb / M · rolling rock. atlas card 7
-  // (転がり石の壁). Same deep-pit sag but the far platform RAMPS UP to a raised goal
-  // (+1.0 m): the idle car crosses, drops onto the boulder; the ghost crosses and
-  // climbs the terrain ramp to the high goal. Ascending silhouette (vs L5 flat).
+  // L6 (round-8 REDESIGN, fun_cards_v6 ch1-l06 頭上の岩、先に抜ける) — stone-crown climb
+  // over a spike gorge. W2-DEVIATION (measured): the card's overhead drop+trigger rock is
+  // KNIFE-EDGE — the "naive dies / intended lives" split depends on sub-mm recycled-world
+  // float drift (spike round8 l23 finding; W2 probe: the same stroke flips clear↔die
+  // between world states). A dynamic boulder placed AS the interceptor is equally unstable
+  // (it rolls under the bridge). Realized instead as a TERRAIN stone-crown (top 1.3 =
+  // rim+0.7, the geometric interceptor) over a deep spike floor: every low lazy chord
+  // (drawn near rim y0.6) CLIPS the crown and drops onto the SPIKE FLOOR (dangerZone,
+  // hazardContact = loss + naive-fall attribution). The intended ARCH rests firmly on the
+  // crown (no sag) and eases down to the +0.9 shelf; the trapezoid is the second solution.
+  // Probed 2026-07-11: arch clr 4.9 m, trap clr 4.9 m; Gate7 all 6 clipped→fall.
   {
     id: 'ch1-l06',
-    design: 'shield-dynamic/climb/M: 深い谷を渡り高い右棚へ登る、谷の岩を頭上に越える（無線は谷へ落ち岩に当たる）— v5 #6 (R05 転石の壁→ deep-pit + climb 化)',
+    design: 'stone-crown/climb/M: 棘の谷に立つ中央石塔（幾何インターセプタ）を、塔に載せたアーチ/台形で越え右棚へ登る（無線の低い平線は塔で切れ棘床へ落ちる）— fun_cards_v6 ch1-l06 (round-8, W2)',
     inkFeel: 'standard',
     gimmickTags: [],
     terrain: [
-      pl(p(-9, 0.4), p(-2.7, 0.4), p(-2.9, -5.2), p(2.9, -5.2), p(2.7, 0.4), p(4.4, 0.4), p(5.4, 1.0), p(9, 1.0)),
-      pillar(0, 0.1, -5.2, 0.5, 0.9),
-      pl(p(1.5, -5.2), p(1.6, -2.4), p(2.6, -2.4), p(2.7, -5.2)),
+      pl(p(-9, 0.6), p(-2.3, 0.6), p(-2.5, -5.2)), // low-left rim y0.6
+      pillar(0, 1.3, -5.2, 0.5, 0.72), // central stone crown (rim+0.7) — chords clip, intended rests on its flat top
+      pl(p(2.3, -5.2), p(2.5, 0.9), p(9, 0.9)), // right shelf y0.9
     ],
-    vehicleSpawn: p(-6.8, 0.75),
-    goalFlag: flag(6.2, 1.0, 1, 2),
+    vehicleSpawn: p(-6.3, 0.95),
+    goalFlag: flag(5.9, 0.9, 1, 2),
     killY: -11,
     coins: coinCount(5),
-    rocks: [{ x: 2.2, y: -1.95, radius: 0.5, density: 5 }],
+    dangerZones: [{ x: -2.1, y: -4.5, width: 4.6, height: 0.9, style: 'spike' }], // spike floor (loss + naive fall)
+    // Ghost = the trapezoid: it RESTS on the crown (deck 1.3 = crown top) so the ridden
+    // span is split into two short seams (Gate 5/6 pass). The arch bows OVER the crown
+    // (a valid alternative solution — Gate 8 verifies its clear; its higher unsupported
+    // span is not the recorded ghost, so it does not drive the displacement gate).
     strokes: [
       {
         kind: 'any',
-        role: 'pit-sag-climb',
-        points: spline([p(-2.7, 0.4), p(-1.35, 0.14), p(0, 0.08), p(1.35, 0.14), p(2.7, 0.4)]),
+        role: 'crown-trapezoid-climb',
+        points: [p(-2.4, 0.6), ...spline([p(-2.3, 0.62), p(-1.1, 1.15), p(-0.5, 1.35), p(0.5, 1.35), p(1.1, 1.18), p(2.3, 0.94)]), p(2.5, 0.9)],
       },
+    ],
+    solutions: [
+      { shapeTag: 'trapezoid', points: [p(-2.4, 0.6), ...spline([p(-2.3, 0.62), p(-1.1, 1.15), p(-0.5, 1.35), p(0.5, 1.35), p(1.1, 1.18), p(2.3, 0.94)]), p(2.5, 0.9)] },
+      { shapeTag: 'arch', points: [p(-2.4, 0.6), ...arch(-2.3, 0.62, 2.3, 0.94, 0.55), p(2.5, 0.9)] },
     ],
   },
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // L7 (v5 slate #7) — catch-redirect / descent / L · rolling rock. atlas card 8
-  // (そらしランプ). Spawn on a HIGH-left shelf (+1.4 m), a terrain down-ramp to the
-  // deep pit, the boulder on the ledge, then across to the low goal. The idle car
-  // rolls down and drops onto the boulder; the ghost's sag carries it over.
-  // Descending silhouette. L size (long course, tall drop).
+  // L7 (round-8 REDESIGN, fun_cards_v6 ch1-l07 くだり街道の近道) — spire descent.
+  // A tight-ink descent from a high-left rim (1.4) to a low-right shelf (0.2). W2-DEVIATION
+  // (measured): the card's PURE ink-ration kill can't stop the SHORT rim-gap chord (spike
+  // round8 S0: a flat/descending line self-supports the 4.2 m gap and clears; the intended
+  // IS a short descending line, so ink + height alone can't separate them). Realized with a
+  // central SPIRE (dangerZone, top 0.9): every low lazy chord (~0.8 at x0) rides through
+  // the spire's kill height and dies; the full spawn→goal straight is also ink-unaffordable.
+  // The answer stays HIGH+FLAT across the spire (car > 0.9) then eases down to the low shelf
+  // only AFTER the spire — the "draw the clever short crossing, not the long straight"
+  // discovery. Probed 2026-07-11: trap clr 0.8 m, arch clr 0.9 m; Gate7 all 6 defeated.
   {
     id: 'ch1-l07',
-    design: 'catch-redirect/descent/L: 高い左棚から降りて深い谷を渡り、谷の岩を頭上に越える（無線は谷へ落ち岩に当たる）— v5 #7 (R06 逸らし→ deep-pit + descent 化)',
-    inkFeel: 'standard',
+    design: 'spire-descent/L: 高い左から低い右へ降りる街道の中央に棘の尖塔（幾何インターセプタ）。低い直線は尖塔で即死、full straight はインク切れ。尖塔の上を高く越え短く渡す — fun_cards_v6 ch1-l07 (round-8, W2)',
+    inkFeel: 'tight',
     gimmickTags: [],
     terrain: [
-      pl(p(-9, 1.1), p(-5.4, 1.1), p(-3.7, 0.4), p(-2.7, 0.4), p(-2.9, -5.2), p(2.9, -5.2), p(2.7, 0.4), p(7.4, 0.4)),
-      pillar(0, 0.1, -5.2, 0.5, 0.9),
-      pl(p(1.5, -5.2), p(1.6, -2.4), p(2.6, -2.4), p(2.7, -5.2)),
+      pl(p(-8, 1.4), p(-2.1, 1.4), p(-2.3, -8.5)), // high-left rim y1.4 over a DEEP shaft
+      pl(p(2.3, -8.5), p(2.1, 0.2), p(8, 0.2)), // low-right shelf y0.2
     ],
-    vehicleSpawn: p(-6.8, 1.45),
-    goalFlag: flag(5.0, 0.4, 1, 2),
-    killY: -11,
+    vehicleSpawn: p(-6.4, 1.75),
+    goalFlag: flag(5.6, 0.2, 1, 2),
+    killY: -15,
     coins: coinCount(6),
-    rocks: [{ x: 2.2, y: -1.95, radius: 0.5, density: 5 }],
+    dangerZones: [{ x: -0.35, y: -8.5, width: 0.7, height: 9.4, style: 'spike' }], // central spire top 0.9, deep shaft below
     strokes: [
       {
         kind: 'any',
-        role: 'pit-sag-descent',
-        points: spline([p(-2.7, 0.4), p(-1.35, 0.14), p(0, 0.08), p(1.35, 0.14), p(2.7, 0.4)]),
+        role: 'spire-arch-descent',
+        points: [p(-2.4, 1.4), ...spline([p(-2.1, 1.4), p(-0.9, 1.72), p(0, 1.8), p(0.9, 1.72), p(1.7, 0.65), p(2.1, 0.2)]), p(2.5, 0.2)],
       },
+    ],
+    solutions: [
+      { shapeTag: 'arch', points: [p(-2.4, 1.4), ...spline([p(-2.1, 1.4), p(-0.9, 1.72), p(0, 1.8), p(0.9, 1.72), p(1.7, 0.65), p(2.1, 0.2)]), p(2.5, 0.2)] },
+      { shapeTag: 'trapezoid', points: [p(-2.4, 1.4), ...spline([p(-2.1, 1.4), p(-0.8, 1.7), p(0.8, 1.68), p(1.7, 0.65), p(2.1, 0.2)]), p(2.5, 0.2)] },
     ],
   },
 

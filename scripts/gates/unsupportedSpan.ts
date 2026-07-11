@@ -68,8 +68,13 @@ export const CONTACT_CLEARANCE_M = bridge.capsuleRadius + 0.23; // 0.35 m
  */
 export const CONTACT_BELOW_M = 0.5;
 
-/** Compression arches/domes exceed 5.5 m by design — verified by break test (§8.2). */
-export const ARCH_EXEMPT_IDS: ReadonlySet<string> = new Set(['ch1-l16', 'ch1-l21']);
+/**
+ * Compression arches/domes exceed 5.5 m by design — verified by break test (§8.2).
+ * round-8 W2: l08 (rising-band, 7.4 m arch — pillars would block the naive line, so the
+ * span MUST be a clear compression arch) and l10 (spike-spire, 5.6 m arch over the spire)
+ * join l16/l21. All four clear non-breaking at Lv0 (W2 probe / spike round8 S1).
+ */
+export const ARCH_EXEMPT_IDS: ReadonlySet<string> = new Set(['ch1-l08', 'ch1-l10', 'ch1-l16', 'ch1-l21']);
 
 let spanWorld: World | undefined;
 function getSpanWorld(): World {
