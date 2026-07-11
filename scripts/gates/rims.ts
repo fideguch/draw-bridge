@@ -58,6 +58,37 @@ export function lerpPoint(a: Point, b: Point, t: number): Point {
 }
 
 /**
+ * Highest TOP-SOLID terrain surface y at x, or null when no top-solid feature
+ * spans x. Only polylines authored left→right (net dx ≥ 0 ⇒ top solid, the
+ * TerrainSolids convention) can bear a car or a chain — a ceiling / overhang
+ * (net dx < 0) is underside-solid and is excluded. Shared by Gate 5
+ * (unsupported span: chain support contacts) and Gate 7 (lazy line: the ground
+ * surface a lazy player anchors their stroke on). Lives here (pure geometry,
+ * no CLI) so gates can share it without importing each other's self-exiting
+ * CLI modules.
+ */
+export function topSolidSurfaceAt(terrain: readonly Polyline[], x: number): number | null {
+  let best: number | null = null;
+  for (const polyline of terrain) {
+    if (polyline.length < 2) continue;
+    const first = polyline[0]!;
+    const last = polyline[polyline.length - 1]!;
+    if (last[0] - first[0] < 0) continue; // underside-solid (ceiling) — never a support
+    for (let i = 0; i + 1 < polyline.length; i++) {
+      const [ax, ay] = polyline[i]!;
+      const [bx, by] = polyline[i + 1]!;
+      const minX = Math.min(ax, bx);
+      const maxX = Math.max(ax, bx);
+      if (x < minX || x > maxX) continue;
+      const t = bx === ax ? 0 : (x - ax) / (bx - ax);
+      const segY = ay + t * (by - ay);
+      if (best === null || segY > best) best = segY;
+    }
+  }
+  return best;
+}
+
+/**
  * The dominant-strategy straight stroke: a rim-to-rim line extended `overlap` m
  * onto each platform and raised `offset` m, with two interior points so the
  * resampler keeps direction stable on long segments (Gate 3 §5 candidate).

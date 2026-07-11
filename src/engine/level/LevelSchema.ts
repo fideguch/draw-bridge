@@ -111,6 +111,50 @@ export type Polyline = readonly PolylinePoint[];
 
 export type GimmickTag = 'anti-dominant';
 
+/**
+ * Shape family of a declared solution stroke (round-8 multi-solution gate).
+ * Fixed vocabulary — Gate 8 requires >= 2 DISTINCT tags per level, so the tags
+ * must name genuinely different bridge shapes, not free-form labels.
+ */
+export type ShapeTag =
+  | 'line'
+  | 'arch'
+  | 'hook'
+  | 'trapezoid'
+  | 'angle'
+  | 'pillar'
+  | 'wall'
+  | 'sag'
+  | 'ramp';
+
+/** Allowed `shapeTag` values (validation vocabulary). */
+export const SHAPE_TAGS: readonly ShapeTag[] = [
+  'line',
+  'arch',
+  'hook',
+  'trapezoid',
+  'angle',
+  'pillar',
+  'wall',
+  'sag',
+  'ramp',
+];
+
+/**
+ * One author-DECLARED alternative solution (optional `solutions[]`, round-8).
+ * Unlike a GhostSolution it carries NO recorded result: the stroke is a RAW
+ * authored polyline that Gate 8 (multi-solution) PLAYS live through the exact
+ * player commit path (clip -> solidify -> settle -> run) and requires to CLEAR
+ * at Lv0. Additive schemaVersion 1 (absent == none), fully backward compatible
+ * like `rocks` / `dangerZones`.
+ */
+export interface DeclaredSolution {
+  /** Shape family of this solution's stroke (SHAPE_TAGS vocabulary). */
+  readonly shapeTag: ShapeTag;
+  /** Raw authored stroke (world m) — replayed by Gate 8, never hand-recorded. */
+  readonly stroke: Polyline;
+}
+
 export type GhostKind = 'any' | '3star';
 
 export interface GhostSample {
@@ -160,6 +204,8 @@ export interface Level {
   readonly rocks?: readonly Rock[];
   /** DangerZone hazard bands — car overlap => FailCause 'hazardContact' (optional; absent == none). */
   readonly dangerZones?: readonly DangerZone[];
+  /** Declared alternative solutions Gate 8 plays live (optional; absent == none, round-8). */
+  readonly solutions?: readonly DeclaredSolution[];
 }
 
 export type LevelValidation =
@@ -187,7 +233,10 @@ const LEVEL_KEYS = new Set([
   'bonusMultiplier',
   'rocks',
   'dangerZones',
+  'solutions',
 ]);
+
+const SOLUTION_KEYS = new Set(['shapeTag', 'stroke']);
 
 const ROCK_KEYS = new Set(['x', 'y', 'radius', 'density', 'initialVelocity', 'triggerCarX']);
 
@@ -326,6 +375,29 @@ function parseRock(value: unknown, path: string, errors: string[]): Rock | undef
     ...(initialVelocity !== undefined ? { initialVelocity } : {}),
     ...(triggerCarX !== undefined ? { triggerCarX: triggerCarX as number } : {}),
   };
+}
+
+/**
+ * A DeclaredSolution: `shapeTag` from the SHAPE_TAGS vocabulary + a raw stroke
+ * polyline (round-8). Reuses parsePolyline so a declared stroke obeys the same
+ * geometry rules (>= 2 points, no degenerate segments) as terrain/ghost strokes.
+ */
+function parseDeclaredSolution(value: unknown, path: string, errors: string[]): DeclaredSolution | undefined {
+  if (!isRecord(value)) {
+    errors.push(`${path}: expected an object {shapeTag, stroke}`);
+    return undefined;
+  }
+  checkUnknownKeys(value, SOLUTION_KEYS, path, errors);
+  const before = errors.length;
+  const shapeTag = value['shapeTag'];
+  if (!SHAPE_TAGS.includes(shapeTag as ShapeTag)) {
+    errors.push(`${path}.shapeTag: expected one of ${SHAPE_TAGS.join(' | ')}`);
+  }
+  const stroke = parsePolyline(value['stroke'], `${path}.stroke`, errors);
+  if (errors.length > before || stroke === undefined) {
+    return undefined;
+  }
+  return { shapeTag: shapeTag as ShapeTag, stroke };
 }
 
 function parsePolyline(value: unknown, path: string, errors: string[]): Polyline | undefined {
@@ -479,6 +551,7 @@ interface OptionalParts {
   readonly bonusMultiplier?: number;
   readonly rocks?: readonly Rock[];
   readonly dangerZones?: readonly DangerZone[];
+  readonly solutions?: readonly DeclaredSolution[];
 }
 
 /** schemaVersion const + id pattern + optional filename match. Returns the id. */
@@ -642,6 +715,7 @@ function validateOptionalFields(json: Record<string, unknown>, rawId: unknown, e
     bonusMultiplier?: number;
     rocks?: readonly Rock[];
     dangerZones?: readonly DangerZone[];
+    solutions?: readonly DeclaredSolution[];
   } = {};
 
   const maxTicks = json['maxTicks'];
@@ -695,6 +769,25 @@ function validateOptionalFields(json: Record<string, unknown>, rawId: unknown, e
         }
       }
       parts.dangerZones = zones;
+    }
+  }
+
+  // solutions[] — same additive/optional model as rocks/dangerZones (round-8).
+  // Each entry is a DeclaredSolution (parseDeclaredSolution); absent leaves
+  // parts.solutions unset (byte-identical to a pre-solutions level).
+  const rawSolutions = json['solutions'];
+  if (rawSolutions !== undefined) {
+    if (!Array.isArray(rawSolutions)) {
+      errors.push('solutions: expected an array of {shapeTag, stroke} objects (may be empty, or omit the key)');
+    } else {
+      const solutions: DeclaredSolution[] = [];
+      for (const [i, entry] of rawSolutions.entries()) {
+        const parsed = parseDeclaredSolution(entry, `solutions[${i}]`, errors);
+        if (parsed !== undefined) {
+          solutions.push(parsed);
+        }
+      }
+      parts.solutions = solutions;
     }
   }
 

@@ -36,16 +36,24 @@ export interface CliOptions {
 }
 
 /**
- * ROLLOUT FLAG (round-7, game_plan_v5 §3.6 rollout note). The three NEW size/span/
- * displacement gates are STRICT by default (a violation fails the build). CI passes
- * `--warn-new-gates` TEMPORARILY while the current 18 levels (authored before these
- * standards) are replaced by the 28-slate: in warn mode a new-gate violation is
- * demoted to a `warnings` entry and the level still passes. REMOVE the flag from CI
- * once the 28-slate lands so the gates enforce strictly again.
+ * ROLLOUT FLAG — one flag per gate GENERATION, temporary by design.
+ *
+ * ROUND-7 (size/span/displacement, gates 4-6): rollout COMPLETE. The 28-slate
+ * passes them strictly and their runners no longer read this flag — they can
+ * never be demoted again.
+ *
+ * ROUND-8 (lazy-line gate 7 / multi-solution gate 8): the CURRENT generation.
+ * Both are STRICT by default (a violation fails the build). CI passes
+ * `--warn-new-gates` TEMPORARILY while the round-8 level redesign lands boards
+ * that defeat the lazy line and declare solutions[]: in warn mode a gate-7
+ * violation (and gate 8's "no solutions[] declared" — but NOT a declared
+ * solution that fails verification, which stays strict) is demoted to a
+ * `warnings` entry and the level still passes. REMOVE the flag from CI once the
+ * redesigned slate lands so the gates enforce strictly again.
  */
 export const WARN_NEW_GATES_FLAG = '--warn-new-gates';
 
-/** True when the rollout flag is present (new size/span/displacement gates → warn). */
+/** True when the rollout flag is present (round-8 gates 7-8 → warn). */
 export function hasWarnNewGatesFlag(argv: readonly string[]): boolean {
   return argv.includes(WARN_NEW_GATES_FLAG);
 }
@@ -54,7 +62,9 @@ export function hasWarnNewGatesFlag(argv: readonly string[]): boolean {
  * Demote a check result's errors to warnings when the rollout flag is set (see
  * WARN_NEW_GATES_FLAG). In warn mode the level passes (errors emptied) and each
  * violation is surfaced as a `WARN(deferred): ...` warning; in strict mode the
- * result passes through unchanged. Used only by the three round-7 gates.
+ * result passes through unchanged. Used only by the CURRENT rollout generation
+ * (round-8 gates 7-8; the round-7 gates 4-6 completed rollout and no longer
+ * call this).
  */
 export function applyWarnMode(
   result: { errors: string[]; warnings?: string[] },

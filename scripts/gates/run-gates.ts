@@ -15,11 +15,16 @@ const GATE_SCRIPTS = [
   'gate1-static.ts',
   'gate2-ghost.ts',
   'gate3-antidominant.ts',
-  // round-7 (game_plan_v5 §3.6/§8.2/§9.2). STRICT by default; pass --warn-new-gates
-  // (forwarded below) to demote their violations to warnings while the 28-slate lands.
+  // round-7 (game_plan_v5 §3.6/§8.2/§9.2). Rollout COMPLETE — the 28-slate passes
+  // them strictly, and they no longer read --warn-new-gates (permanently strict).
   'sizeStandards.ts',
   'unsupportedSpan.ts',
   'lineDisplacement.ts',
+  // round-8 (fun gates: the user complaint itself, mechanised). STRICT by default;
+  // pass --warn-new-gates (forwarded below) to demote lazy-line violations and
+  // UNDECLARED solutions[] to warnings until the round-8 level redesign lands.
+  'lazyLine.ts',
+  'multiSolution.ts',
 ];
 
 const gatesDir = join(process.cwd(), 'scripts', 'gates');

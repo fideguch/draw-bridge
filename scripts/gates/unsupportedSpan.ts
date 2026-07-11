@@ -40,13 +40,8 @@ import { validateLevel, type Level, type Point, type Polyline } from '../../src/
 import { GameSimulation } from '../../src/engine/GameSimulation';
 import { World } from '../../src/engine/physics/World';
 import { bridge } from '@tuning/TuningConstants';
-import {
-  applyWarnMode,
-  hasWarnNewGatesFlag,
-  parseCliOptions,
-  resolveLevelFiles,
-  runGate,
-} from './lib';
+import { parseCliOptions, resolveLevelFiles, runGate } from './lib';
+import { topSolidSurfaceAt } from './rims';
 
 /** Max unsupported TENSION span (m) — physics limit (game_plan_v5 §8.2). */
 export const MAX_UNSUPPORTED_SPAN_M = 5.5;
@@ -82,32 +77,10 @@ function getSpanWorld(): World {
   return spanWorld;
 }
 
-/**
- * Highest TOP-SOLID terrain surface y at x, or null when no top-solid feature
- * spans x. Only polylines authored left→right (net dx ≥ 0 ⇒ top solid, the
- * TerrainSolids convention) can bear a chain — a ceiling / overhang (net dx < 0)
- * is underside-solid and never supports a line resting on it, so it is excluded.
- */
-export function topSolidSurfaceAt(terrain: readonly Polyline[], x: number): number | null {
-  let best: number | null = null;
-  for (const polyline of terrain) {
-    if (polyline.length < 2) continue;
-    const first = polyline[0]!;
-    const last = polyline[polyline.length - 1]!;
-    if (last[0] - first[0] < 0) continue; // underside-solid (ceiling) — never a support
-    for (let i = 0; i + 1 < polyline.length; i++) {
-      const [ax, ay] = polyline[i]!;
-      const [bx, by] = polyline[i + 1]!;
-      const minX = Math.min(ax, bx);
-      const maxX = Math.max(ax, bx);
-      if (x < minX || x > maxX) continue;
-      const t = bx === ax ? 0 : (x - ax) / (bx - ax);
-      const segY = ay + t * (by - ay);
-      if (best === null || segY > best) best = segY;
-    }
-  }
-  return best;
-}
+// topSolidSurfaceAt moved to rims.ts (round-8) so Gate 7 (lazy line) can share
+// the surface query without importing this module's self-exiting CLI. Re-exported
+// via the top import to keep this gate's public API (and its unit tests) stable.
+export { topSolidSurfaceAt };
 
 /** True when the settled chain node rests on a top-solid surface (rim/pillar/tier). */
 function isSupported(node: Point, terrain: readonly Polyline[]): boolean {
@@ -280,12 +253,12 @@ export function unsupportedSpanCheck(
   };
 }
 
+// Round-7 rollout COMPLETE: the 28-slate passes this gate strictly, so it no
+// longer reads --warn-new-gates (the flag now belongs to the round-8 gates 7-8;
+// demoting THIS gate again would let a span regression slip through CI as a warning).
 export function runUnsupportedSpanGate(argv: string[]): number {
   const { levelsGlob, isQuiet } = parseCliOptions(argv);
-  const isWarnMode = hasWarnNewGatesFlag(argv);
-  return runGate(5, resolveLevelFiles(levelsGlob), isQuiet, (loaded) =>
-    applyWarnMode(unsupportedSpanCheck(loaded), isWarnMode),
-  );
+  return runGate(5, resolveLevelFiles(levelsGlob), isQuiet, (loaded) => unsupportedSpanCheck(loaded));
 }
 
 // CLI execution — skipped under vitest so tests can import the check function.

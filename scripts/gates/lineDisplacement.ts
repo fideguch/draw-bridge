@@ -45,13 +45,7 @@ import { validateLevel, type Level, type Point } from '../../src/engine/level/Le
 import { GameSimulation } from '../../src/engine/GameSimulation';
 import type { Aabb } from '../../src/engine/physics/Vehicle';
 import { World } from '../../src/engine/physics/World';
-import {
-  applyWarnMode,
-  hasWarnNewGatesFlag,
-  parseCliOptions,
-  resolveLevelFiles,
-  runGate,
-} from './lib';
+import { parseCliOptions, resolveLevelFiles, runGate } from './lib';
 
 /** Max settled→driven chain node displacement (m) UNDER THE CAR before it reads as "pushed" (§9.2). */
 export const LINE_DISPLACEMENT_MAX_M = 0.3;
@@ -236,12 +230,13 @@ export function lineDisplacementCheck(
   };
 }
 
+// Round-7 rollout COMPLETE: the 28-slate passes this gate strictly, so it no
+// longer reads --warn-new-gates (the flag now belongs to the round-8 gates 7-8;
+// demoting THIS gate again would let a size/span/displacement regression slip
+// through CI as a warning).
 export function runLineDisplacementGate(argv: string[]): number {
   const { levelsGlob, isQuiet } = parseCliOptions(argv);
-  const isWarnMode = hasWarnNewGatesFlag(argv);
-  return runGate(6, resolveLevelFiles(levelsGlob), isQuiet, (loaded) =>
-    applyWarnMode(lineDisplacementCheck(loaded), isWarnMode),
-  );
+  return runGate(6, resolveLevelFiles(levelsGlob), isQuiet, (loaded) => lineDisplacementCheck(loaded));
 }
 
 // CLI execution — skipped under vitest so tests can import the check function.

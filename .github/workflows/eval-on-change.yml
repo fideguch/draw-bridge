@@ -42,8 +42,13 @@ jobs:
         run: npm ci
 
       # --- Deterministic SUT checks (the regression suite; no secrets, no network model calls) ---
-      - name: Level gates 0-3 (pinned Node determinism)
-        run: npm run gates
+      # ROUND-8 ROLLOUT (temporary): --warn-new-gates demotes ONLY the new fun
+      # gates (7 lazy-line / 8 multi-solution "undeclared") to warnings while the
+      # level redesign lands; gates 0-6 stay strict (their runners ignore the
+      # flag). REMOVE the flag once the redesigned slate defeats the lazy line
+      # and declares solutions[] (scripts/gates/lib.ts WARN_NEW_GATES_FLAG).
+      - name: Level gates 0-8 (pinned Node determinism; round-8 gates in warn mode)
+        run: npm run gates -- --warn-new-gates
 
       - name: Unit + contract tests (Vitest; incl. determinism + gate3 negative control)
         run: npx vitest run

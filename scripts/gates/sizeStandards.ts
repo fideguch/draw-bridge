@@ -22,13 +22,7 @@
  * fails; a padded one passes (sizeStandards.spec.ts).
  */
 import { validateLevel, type Level } from '../../src/engine/level/LevelSchema';
-import {
-  applyWarnMode,
-  hasWarnNewGatesFlag,
-  parseCliOptions,
-  resolveLevelFiles,
-  runGate,
-} from './lib';
+import { parseCliOptions, resolveLevelFiles, runGate } from './lib';
 
 export type SizeClass = 'S' | 'M' | 'L' | 'XL';
 
@@ -191,12 +185,12 @@ export function sizeStandardsCheck(loaded: { json: unknown }): { errors: string[
   return { errors, warnings };
 }
 
+// Round-7 rollout COMPLETE: the 28-slate passes this gate strictly, so it no
+// longer reads --warn-new-gates (the flag now belongs to the round-8 gates 7-8;
+// demoting THIS gate again would let a size regression slip through CI as a warning).
 export function runSizeStandardsGate(argv: string[]): number {
   const { levelsGlob, isQuiet } = parseCliOptions(argv);
-  const isWarnMode = hasWarnNewGatesFlag(argv);
-  return runGate(4, resolveLevelFiles(levelsGlob), isQuiet, (loaded) =>
-    applyWarnMode(sizeStandardsCheck(loaded), isWarnMode),
-  );
+  return runGate(4, resolveLevelFiles(levelsGlob), isQuiet, (loaded) => sizeStandardsCheck(loaded));
 }
 
 // CLI execution — skipped under vitest so tests can import the check function.
