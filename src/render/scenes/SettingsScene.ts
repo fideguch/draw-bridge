@@ -17,11 +17,12 @@ import { Button } from '@render/ui/Button';
 import { getServices } from '@render/ui/services';
 import type { GameServices } from '@render/ui/services';
 import {
-  RESET_CONFIRM_CHARS,
-  RESET_CONFIRM_WORD,
+  resetChars,
+  resetWord,
   appendConfirmChar,
   isConfirmComplete,
 } from '@render/ui/resetConfirm';
+import { t } from '@render/i18n';
 import { Toggle } from '@render/ui/Toggle';
 import { borderedRoundedRect, fillLine } from '@render/ui/fillShapes';
 import { appInfo, color, layout, LAYOUT_EVENT, makeTextStyle, margin, radius, scrim, space, stroke, type } from '@render/ui/theme';
@@ -68,15 +69,15 @@ export class SettingsScene extends Phaser.Scene {
       devId: 'settings-back',
       onClick: () => this.scene.start('Hub'),
     });
-    this.add.text(layout.safe.left + this.ui(margin + 66), topRowY, '設定', makeTextStyle(type.h1, color.textPrimary)).setOrigin(0, 0.5);
+    this.add.text(layout.safe.left + this.ui(margin + 66), topRowY, t('settings.title'), makeTextStyle(type.h1, color.textPrimary)).setOrigin(0, 0.5);
 
-    this.buildToggleRow('サウンド', this.absY(180), this.services.isSoundEnabled(), (enabled) => {
+    this.buildToggleRow(t('settings.sound'), this.absY(180), this.services.isSoundEnabled(), (enabled) => {
       void this.services.setSoundEnabled(enabled);
       if (enabled) {
         this.services.playTap(); // OFF→ON confirm sound (ux_protocol SC-008)
       }
     });
-    this.buildToggleRow('ハプティクス', this.absY(240), this.services.isHapticsEnabled(), (enabled) => {
+    this.buildToggleRow(t('settings.haptics'), this.absY(240), this.services.isHapticsEnabled(), (enabled) => {
       void this.services.setHapticsEnabled(enabled);
       if (enabled) {
         this.services.uiHaptic(); // OFF→ON confirm vibration
@@ -95,21 +96,21 @@ export class SettingsScene extends Phaser.Scene {
       color.uiDisabled,
     );
 
-    this.add.text(this.rowLabelX, this.absY(330), '進行をリセット', makeTextStyle(type.body, color.textPrimary)).setOrigin(0, 0.5);
+    this.add.text(this.rowLabelX, this.absY(330), t('settings.resetProgress'), makeTextStyle(type.body, color.textPrimary)).setOrigin(0, 0.5);
     new Button(this, {
       x: layout.width - layout.safe.right - this.ui(margin + 80),
       y: this.absY(330),
       size: 'S',
-      label: 'リセット',
+      label: t('settings.resetWord'),
       variant: 'danger',
       services: this.services,
       onClick: () => this.openConfirm1(),
     });
 
-    this.add.text(this.rowLabelX, this.absY(420), 'クレジット', makeTextStyle(type.body, color.textPrimary)).setOrigin(0, 0);
-    this.add.text(this.rowLabelX, this.absY(448), appInfo.credits, makeTextStyle(type.caption, color.textSecondary)).setOrigin(0, 0);
+    this.add.text(this.rowLabelX, this.absY(420), t('settings.credits'), makeTextStyle(type.body, color.textPrimary)).setOrigin(0, 0);
+    this.add.text(this.rowLabelX, this.absY(448), t('credits'), makeTextStyle(type.caption, color.textSecondary)).setOrigin(0, 0);
     this.add
-      .text(this.rowLabelX, this.absY(512), `バージョン ${appInfo.version}`, makeTextStyle(type.caption, color.textSecondary))
+      .text(this.rowLabelX, this.absY(512), t('settings.version', { version: appInfo.version }), makeTextStyle(type.caption, color.textSecondary))
       .setOrigin(0, 0);
 
     this.subscribeLayout();
@@ -143,7 +144,7 @@ export class SettingsScene extends Phaser.Scene {
     this.addCard(this.ui(356), this.absY(220), this.ui(176));
     this.trackModal(
       this.add
-        .text(layout.width / 2, this.absY(262), '本当にリセットしますか？', makeTextStyle(type.h2, color.textPrimary))
+        .text(layout.width / 2, this.absY(262), t('settings.resetConfirmQ'), makeTextStyle(type.h2, color.textPrimary))
         .setOrigin(0.5)
         .setDepth(MODAL_DEPTH + 1),
     );
@@ -152,7 +153,7 @@ export class SettingsScene extends Phaser.Scene {
         x: layout.width / 2 - this.ui(86),
         y: this.absY(336),
         size: 'S',
-        label: 'キャンセル',
+        label: t('common.cancel'),
         variant: 'secondary',
         services: this.services,
         onClick: () => this.closeModal(),
@@ -163,7 +164,7 @@ export class SettingsScene extends Phaser.Scene {
         x: layout.width / 2 + this.ui(86),
         y: this.absY(336),
         size: 'S',
-        label: '続ける',
+        label: t('settings.proceed'),
         variant: 'primary',
         services: this.services,
         onClick: () => this.openConfirm2(),
@@ -179,13 +180,13 @@ export class SettingsScene extends Phaser.Scene {
 
     this.trackModal(
       this.add
-        .text(layout.width / 2, this.absY(272), '全ての星とコインが消えます', makeTextStyle(type.body, color.uiDanger))
+        .text(layout.width / 2, this.absY(272), t('settings.resetWarning'), makeTextStyle(type.body, color.uiDanger))
         .setOrigin(0.5)
         .setDepth(MODAL_DEPTH + 1),
     );
     this.trackModal(
       this.add
-        .text(layout.width / 2, this.absY(308), '「リセット」を順にタップ', makeTextStyle(type.caption, color.textSecondary))
+        .text(layout.width / 2, this.absY(308), t('settings.resetTapHint', { word: resetWord() }), makeTextStyle(type.caption, color.textSecondary))
         .setOrigin(0.5)
         .setDepth(MODAL_DEPTH + 1),
     );
@@ -203,7 +204,7 @@ export class SettingsScene extends Phaser.Scene {
         x: layout.width / 2 - this.ui(86),
         y: this.absY(476),
         size: 'S',
-        label: 'キャンセル',
+        label: t('common.cancel'),
         variant: 'secondary',
         services: this.services,
         onClick: () => this.closeModal(),
@@ -213,7 +214,7 @@ export class SettingsScene extends Phaser.Scene {
       x: layout.width / 2 + this.ui(86),
       y: this.absY(476),
       size: 'S',
-      label: 'リセット実行',
+      label: t('settings.resetExecute'),
       variant: 'danger',
       fontSize: type.body.size,
       services: this.services,
@@ -224,7 +225,7 @@ export class SettingsScene extends Phaser.Scene {
   }
 
   private buildCharButtons(y: number): void {
-    const shuffled = Phaser.Utils.Array.Shuffle([...RESET_CONFIRM_CHARS]);
+    const shuffled = Phaser.Utils.Array.Shuffle([...resetChars()]);
     const gap = this.ui(12);
     const buttonSize = this.ui(56);
     const total = shuffled.length * buttonSize + (shuffled.length - 1) * gap;
@@ -246,20 +247,20 @@ export class SettingsScene extends Phaser.Scene {
   }
 
   private onCharTap(char: string): void {
-    this.typedSequence = appendConfirmChar(this.typedSequence, char, RESET_CONFIRM_WORD);
+    this.typedSequence = appendConfirmChar(this.typedSequence, char, resetWord());
     this.progressText?.setText(this.progressLabel());
-    this.executeButton?.setEnabled(isConfirmComplete(this.typedSequence, RESET_CONFIRM_WORD));
+    this.executeButton?.setEnabled(isConfirmComplete(this.typedSequence, resetWord()));
   }
 
   private progressLabel(): string {
-    const revealed = Array.from(RESET_CONFIRM_WORD)
+    const revealed = Array.from(resetWord())
       .map((glyph, index) => (index < this.typedSequence.length ? glyph : '＿'))
       .join(' ');
     return revealed;
   }
 
   private async doReset(): Promise<void> {
-    if (!isConfirmComplete(this.typedSequence, RESET_CONFIRM_WORD)) {
+    if (!isConfirmComplete(this.typedSequence, resetWord())) {
       return;
     }
     await this.services.resetProgress();

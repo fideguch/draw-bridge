@@ -22,6 +22,7 @@ import type { IconName } from '@render/ui/icons';
 import { CoinCounter } from '@render/ui/CoinCounter';
 import { borderedCircle } from '@render/ui/fillShapes';
 import type { GameServices } from '@render/ui/services';
+import { t, type MessageKey } from '@render/i18n';
 import { color, layout, makeTextStyle, margin, scrim, space, stroke, type } from '@render/ui/theme';
 import { coinCounterPunch } from '@render/juice/RewardCountUp';
 import { SunburstView } from '@render/juice/SunburstView';
@@ -70,15 +71,24 @@ export interface FailOverlayData {
  * single cause covers all three hazard kinds (a rock-specific "岩に…" would be
  * wrong on the ~7 pure spike/zone levels). `fall` and `divergence` are failsafes
  * (isFailsafeReset) routed to a silent reset, so their entries are never shown —
- * kept only to satisfy the exhaustive Record<FailCause, string>.
+ * kept only to satisfy the exhaustive Record<FailCause, MessageKey>.
+ *
+ * This maps to i18n KEYS (locale-free) at module load; the actual string is
+ * resolved via `failMessage()` at DRAW time so it follows the device locale
+ * (calling `t()` in a module const would freeze the locale at import).
  */
-const FAIL_HINT: Record<FailCause, string> = {
-  fall: 'もう一度ためそう',
-  tipOver: '車がひっくり返ってしまった',
-  timeout: '時間切れ',
-  divergence: 'もう一度ためそう',
-  hazardContact: '危険物に当たってしまった',
+const FAIL_HINT_KEY: Record<FailCause, MessageKey> = {
+  fall: 'result.failRetry',
+  tipOver: 'result.failTipOver',
+  timeout: 'result.failTimeout',
+  divergence: 'result.failRetry',
+  hazardContact: 'result.failHazard',
 };
+
+/** Localized fail-cause hint, resolved at call time (never at module load). */
+function failMessage(cause: FailCause): string {
+  return t(FAIL_HINT_KEY[cause]);
+}
 
 export class ResultOverlay {
   private readonly scene: Phaser.Scene;
@@ -119,7 +129,7 @@ export class ResultOverlay {
 
     // L7 title "クリア！" scale-bounce (Back.Out pop → Quad.Out settle).
     const title = this.scene.add
-      .text(cx, panelY - layout.ui(96), 'クリア！', makeTextStyle(type.display, color.textInverse))
+      .text(cx, panelY - layout.ui(96), t('result.clear'), makeTextStyle(type.display, color.textInverse))
       .setOrigin(0.5)
       .setScrollFactor(0)
       .setDepth(OVERLAY_DEPTH);
@@ -141,7 +151,7 @@ export class ResultOverlay {
       y: panelY + layout.ui(128),
       width: CHOICE_WIDTH_DESIGN,
       height: CHOICE_HEIGHT_DESIGN,
-      label: 'Replay',
+      label: t('result.replay'),
       variant: 'secondary',
       devId: 'result-replay',
       onClick: data.onReplay,
@@ -151,7 +161,7 @@ export class ResultOverlay {
       y: panelY + layout.ui(128),
       width: CHOICE_WIDTH_DESIGN,
       height: CHOICE_HEIGHT_DESIGN,
-      label: data.hasNext ? 'つぎへ' : '一覧へ',
+      label: data.hasNext ? t('result.next') : t('nav.toList'),
       variant: 'primary',
       devId: 'result-next',
       onClick: data.onNext,
@@ -168,7 +178,7 @@ export class ResultOverlay {
         x: cx,
         y: panelY + layout.ui(190),
         size: 'S',
-        label: '強化',
+        label: t('common.upgrade'),
         icon: 'coin',
         variant: 'ghost',
         textColor: color.textInverse,
@@ -190,14 +200,14 @@ export class ResultOverlay {
     // washed the text out — 2026-07-08 own-eyes review).
     this.track(
       this.scene.add
-        .text(cx, panelY - layout.ui(40), 'ざんねん', makeTextStyle(type.h1, color.textInverse))
+        .text(cx, panelY - layout.ui(40), t('result.fail'), makeTextStyle(type.h1, color.textInverse))
         .setOrigin(0.5)
         .setScrollFactor(0)
         .setDepth(OVERLAY_DEPTH),
     );
     this.track(
       this.scene.add
-        .text(cx, panelY + layout.ui(8), FAIL_HINT[data.cause], makeTextStyle(type.body, color.textInverse))
+        .text(cx, panelY + layout.ui(8), failMessage(data.cause), makeTextStyle(type.body, color.textInverse))
         .setOrigin(0.5)
         .setScrollFactor(0)
         .setDepth(OVERLAY_DEPTH),
@@ -207,7 +217,7 @@ export class ResultOverlay {
         x: cx,
         y: panelY + layout.ui(84),
         size: 'L',
-        label: 'Retry',
+        label: t('result.retry'),
         icon: 'restart',
         variant: 'primary',
         devId: 'result-retry',
@@ -224,7 +234,7 @@ export class ResultOverlay {
           x: cx,
           y: panelY + layout.ui(160),
           size: 'M',
-          label: 'インクを増やす',
+          label: t('result.addInk'),
           icon: 'ink',
           variant: 'premium',
           devId: 'result-ink',
@@ -237,7 +247,7 @@ export class ResultOverlay {
           x: cx,
           y: panelY + layout.ui(156),
           size: 'S',
-          label: '強化',
+          label: t('common.upgrade'),
           icon: 'coin',
           variant: 'ghost',
           textColor: color.textInverse, // ghost on the dark scrim (WCAG AA)
@@ -350,7 +360,7 @@ export class ResultOverlay {
         x: layout.safe.left + layout.ui(margin + 62),
         y: topRowY,
         size: 'S',
-        label: 'レベル選択',
+        label: t('nav.levelSelect'),
         variant: 'ghost',
         textColor: color.textInverse, // ghost on the dark scrim (WCAG AA, §3.1)
         devId: 'result-levels',

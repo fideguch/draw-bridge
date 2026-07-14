@@ -187,11 +187,13 @@ export const type = {
 export const fontFamily =
   '"Hiragino Maru Gothic ProN", "M PLUS Rounded 1c", "Hiragino Sans", "Yu Gothic UI", -apple-system, system-ui, sans-serif';
 
-/** App metadata shown on the settings screen (SC-008). */
+/**
+ * App metadata shown on the settings screen (SC-008). Only the version is a fixed
+ * literal here; the display title and credits are locale strings resolved through
+ * i18n (`t('title')` / `t('credits')`) — never baked into a module const.
+ */
 export const appInfo = {
   version: '1.0.0',
-  title: 'InkBridge（仮）',
-  credits: 'InkBridge（仮）\n企画・開発: InkBridge Team',
 } as const;
 
 /** 0xRRGGBB → '#rrggbb' for Phaser Text color strings. */

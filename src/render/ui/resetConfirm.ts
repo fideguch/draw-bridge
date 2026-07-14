@@ -13,11 +13,20 @@
  *   - The reducer below is a pure function → unit-testable without Phaser.
  */
 
-/** The exact string the player must reproduce to reset progress. */
-export const RESET_CONFIRM_WORD = 'リセット';
+import { t } from '@render/i18n';
+
+/**
+ * The exact string the player must reproduce to reset progress. Resolved at CALL
+ * time (never module-load) so it follows the device locale — see i18n/index.ts.
+ */
+export function resetWord(): string {
+  return t('settings.resetWord');
+}
 
 /** The individual tappable characters (shuffled for display in the scene). */
-export const RESET_CONFIRM_CHARS: readonly string[] = ['リ', 'セ', 'ッ', 'ト'];
+export function resetChars(): readonly string[] {
+  return Array.from(resetWord());
+}
 
 /**
  * Append a tapped character to the in-progress sequence. Returns the new

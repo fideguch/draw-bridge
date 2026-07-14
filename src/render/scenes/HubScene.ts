@@ -27,7 +27,8 @@ import { borderedRoundedRect } from '@render/ui/fillShapes';
 import { drawIcon } from '@render/ui/icons';
 import { getServices } from '@render/ui/services';
 import type { GameServices } from '@render/ui/services';
-import { appInfo, color, layout, LAYOUT_EVENT, makeTextStyle, margin, radius, space, stroke, type } from '@render/ui/theme';
+import { t } from '@render/i18n';
+import { color, layout, LAYOUT_EVENT, makeTextStyle, margin, radius, space, stroke, type } from '@render/ui/theme';
 import { SAVE_NOTICE_KEY } from './BootScene';
 import type { SaveNotice } from '@render/ui/services';
 
@@ -118,7 +119,7 @@ export class HubScene extends Phaser.Scene {
     }).setDepth(DEPTH.bar);
 
     this.add
-      .text(layout.width / 2, this.topRowY, appInfo.title, makeTextStyle(type.h1, color.textPrimary))
+      .text(layout.width / 2, this.topRowY, t('title'), makeTextStyle(type.h1, color.textPrimary))
       .setOrigin(0.5)
       .setDepth(DEPTH.bar);
 
@@ -140,7 +141,7 @@ export class HubScene extends Phaser.Scene {
       x: layout.width / 2,
       y: this.continueCy,
       size: 'L',
-      label: 'つづきから',
+      label: t('hub.continue'),
       icon: 'play',
       variant: 'primary',
       services: this.services,
@@ -152,7 +153,7 @@ export class HubScene extends Phaser.Scene {
       x: layout.safe.left + this.ui(margin + 80),
       y: this.upgradeCy,
       size: 'S',
-      label: '強化',
+      label: t('common.upgrade'),
       icon: 'coin',
       variant: 'secondary',
       services: this.services,
@@ -236,7 +237,7 @@ export class HubScene extends Phaser.Scene {
     const numberColor = isUnlocked ? color.textPrimary : color.textSecondary;
     container.add(this.add.text(0, -this.ui(22), tile.label, makeTextStyle(type.h2, numberColor)).setOrigin(0.5));
     if (tile.isBonus) {
-      container.add(this.add.text(0, -this.ui(2), 'ボーナス', makeTextStyle(type.labelSmall, color.textPrimary)).setOrigin(0.5));
+      container.add(this.add.text(0, -this.ui(2), t('hub.bonus'), makeTextStyle(type.labelSmall, color.textPrimary)).setOrigin(0.5));
     }
 
     if (!isUnlocked) {
@@ -312,7 +313,7 @@ export class HubScene extends Phaser.Scene {
       yoyo: true,
       repeat: 2,
     });
-    this.showHint('前のレベルをクリア');
+    this.showHint(t('hub.lockedHint'));
   }
 
   private showHint(message: string): void {
@@ -339,7 +340,7 @@ export class HubScene extends Phaser.Scene {
       return;
     }
     this.registry.remove(SAVE_NOTICE_KEY);
-    const message = notice.fullReset ? '進行データを復元できませんでした' : '一部の進行データを復元できませんでした';
+    const message = notice.fullReset ? t('hub.restoreFailedFull') : t('hub.restoreFailedPartial');
     this.add
       .text(layout.width / 2, this.topRowY + this.ui(space.space8), message, makeTextStyle(type.caption, color.uiDanger))
       .setOrigin(0.5)

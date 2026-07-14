@@ -24,6 +24,7 @@ import { getServices } from '@render/ui/services';
 import type { GameServices, UpgradeAxisId } from '@render/ui/services';
 import { borderedCircle, borderedRoundedRect } from '@render/ui/fillShapes';
 import { drawIcon, type IconName } from '@render/ui/icons';
+import { t } from '@render/i18n';
 import { color, layout, LAYOUT_EVENT, makeTextStyle, margin, radius, shadowDepthM, space, stroke, type } from '@render/ui/theme';
 
 interface AxisCard {
@@ -96,7 +97,7 @@ export class UpgradeScene extends Phaser.Scene {
       onClick: () => this.goBack(),
     });
     this.add
-      .text(layout.safe.left + this.ui(margin + 66), topRowY, '強化', makeTextStyle(type.h1, color.textPrimary))
+      .text(layout.safe.left + this.ui(margin + 66), topRowY, t('common.upgrade'), makeTextStyle(type.h1, color.textPrimary))
       .setOrigin(0, 0.5);
     this.coinCounter = new CoinCounter(this, layout.width - layout.safe.right - this.ui(margin), topRowY, this.services.getBalance());
 
@@ -124,8 +125,8 @@ export class UpgradeScene extends Phaser.Scene {
     const firstTop = layout.safe.top + this.ui(FIRST_CARD_TOP - 47);
     const stride = this.ui(CARD_HEIGHT + CARD_GAP);
     return [
-      { axis: 'inkCapacity', label: 'インク量', icon: 'ink', perLevelPct: economy.inkPerLevelPct, top: firstTop },
-      { axis: 'engineSpeed', label: '車速', icon: 'speed', perLevelPct: economy.speedPerLevelPct, top: firstTop + stride },
+      { axis: 'inkCapacity', label: t('upgrade.inkAmount'), icon: 'ink', perLevelPct: economy.inkPerLevelPct, top: firstTop },
+      { axis: 'engineSpeed', label: t('upgrade.carSpeed'), icon: 'speed', perLevelPct: economy.speedPerLevelPct, top: firstTop + stride },
     ];
   }
 
@@ -177,8 +178,8 @@ export class UpgradeScene extends Phaser.Scene {
 
     const current = level * card.perLevelPct;
     const effect = isMaxed
-      ? `効果: +${current}%（MAX）`
-      : `効果: +${current}% → 次Lv +${(level + 1) * card.perLevelPct}%`;
+      ? t('upgrade.effectMax', { pct: current })
+      : t('upgrade.effectNext', { pct: current, nextPct: (level + 1) * card.perLevelPct });
     this.track(
       this.add
         .text(cardLeft + this.ui(space.space4), card.top + this.ui(82), effect, makeTextStyle(type.label, color.textSecondary))
@@ -223,7 +224,7 @@ export class UpgradeScene extends Phaser.Scene {
     g.fillRoundedRect(bx, by, badgeW, badgeH, badgeH / 2);
     this.track(g);
     this.track(
-      this.add.text(bx + badgeW / 2, by + badgeH / 2, 'おすすめ', makeTextStyle(type.labelSmall, color.textPrimary)).setOrigin(0.5),
+      this.add.text(bx + badgeW / 2, by + badgeH / 2, t('common.recommended'), makeTextStyle(type.labelSmall, color.textPrimary)).setOrigin(0.5),
     );
   }
 
@@ -236,7 +237,7 @@ export class UpgradeScene extends Phaser.Scene {
           x: centerX,
           y: centerY,
           size: 'M',
-          label: '最大',
+          label: t('common.max'),
           variant: 'secondary',
           services: this.services,
           onClick: () => undefined,
@@ -266,7 +267,7 @@ export class UpgradeScene extends Phaser.Scene {
     if (!isAffordable) {
       this.track(
         this.add
-          .text(centerX, centerY + this.ui(34), `あと ${formatCoins(price - balance)}`, makeTextStyle(type.caption, color.uiDanger))
+          .text(centerX, centerY + this.ui(34), t('upgrade.shortBy', { amount: formatCoins(price - balance) }), makeTextStyle(type.caption, color.uiDanger))
           .setOrigin(0.5),
       );
     }

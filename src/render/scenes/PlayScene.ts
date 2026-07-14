@@ -56,6 +56,7 @@ import { fillRing } from '@render/ui/fillShapes';
 import { CHAPTER1_TILES } from '@render/ui/levelCatalog';
 import { getServices } from '@render/ui/services';
 import type { AttemptJuice, GameServices } from '@render/ui/services';
+import { t } from '@render/i18n';
 import { color, layout, LAYOUT_EVENT, makeTextStyle, margin, space, type } from '@render/ui/theme';
 import { camera as cameraTuning, car, draw, economy, launch, physics, speedLines as speedLinesTuning } from '@tuning/TuningConstants';
 import { setBridgeMidDeviation, setDevPlayState, setDevResultNextReady, setDevStrokePointCount, setWorldToGame } from '@render/devhook';
@@ -486,7 +487,7 @@ export class PlayScene extends Phaser.Scene {
   private showLoadError(levelId: string, errors: readonly string[]): void {
     console.error('PlayScene: level load failed', levelId, errors);
     this.add
-      .text(layout.width / 2, layout.height * 0.4, 'レベルを読み込めませんでした', makeTextStyle(type.h2, color.uiDanger))
+      .text(layout.width / 2, layout.height * 0.4, t('play.loadFailed'), makeTextStyle(type.h2, color.uiDanger))
       .setOrigin(0.5);
     this.add
       .text(layout.width / 2, layout.height * 0.4 + layout.ui(space.space8), levelId, makeTextStyle(type.body, color.textSecondary))
@@ -495,7 +496,7 @@ export class PlayScene extends Phaser.Scene {
       x: layout.width / 2,
       y: layout.height * 0.4 + layout.ui(space.space8 * 2),
       size: 'M',
-      label: '一覧へもどる',
+      label: t('nav.backToLevels'),
       variant: 'primary',
       services: this.services,
       onClick: () => this.scene.start('Hub'),

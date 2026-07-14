@@ -1,7 +1,9 @@
-import { describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
+import { setLocale } from '@render/i18n';
 import { formatCoins } from '@render/ui/format';
 import {
-  RESET_CONFIRM_WORD,
+  resetChars,
+  resetWord,
   appendConfirmChar,
   isConfirmComplete,
 } from '@render/ui/resetConfirm';
@@ -28,14 +30,18 @@ describe('formatCoins (P1 consistent coin display)', () => {
 });
 
 describe('reset type-to-confirm (FR-020, P5 friction)', () => {
-  const target = RESET_CONFIRM_WORD;
+  // Pin the device locale: the node test env exposes no navigator.languages, so
+  // t() (behind resetWord/resetChars) would otherwise fall back to English.
+  beforeAll(() => setLocale('ja'));
+  const target = 'リセット';
 
   it('builds the exact string in order', () => {
     let seq = '';
-    for (const char of ['リ', 'セ', 'ッ', 'ト']) {
+    for (const char of resetChars()) {
       seq = appendConfirmChar(seq, char, target);
     }
-    expect(seq).toBe('リセット');
+    expect(seq).toBe(target);
+    expect(resetWord()).toBe(target);
     expect(isConfirmComplete(seq, target)).toBe(true);
   });
 

@@ -10,6 +10,7 @@
  */
 
 import Phaser from 'phaser';
+import { t } from '@render/i18n';
 import { getServices, type SaveNotice } from '@render/ui/services';
 import { color, layout, makeTextStyle, type } from '@render/ui/theme';
 
@@ -27,7 +28,7 @@ export class BootScene extends Phaser.Scene {
   create(): void {
     this.cameras.main.setBackgroundColor(color.sky);
     this.add
-      .text(layout.width / 2, layout.height / 2, 'InkBridge（仮）', makeTextStyle(type.h1, color.textPrimary))
+      .text(layout.width / 2, layout.height / 2, t('title'), makeTextStyle(type.h1, color.textPrimary))
       .setOrigin(0.5);
     void this.boot();
   }

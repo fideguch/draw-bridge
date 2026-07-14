@@ -18,6 +18,7 @@ import { Button } from '@render/ui/Button';
 import type { ButtonVariant } from '@render/ui/Button';
 import type { IconName } from '@render/ui/icons';
 import type { GameServices } from '@render/ui/services';
+import { t } from '@render/i18n';
 import { color, layout, makeTextStyle, radius, scrim, shadowDepthL, stroke, type } from '@render/ui/theme';
 import { borderedRoundedRect } from '@render/ui/fillShapes';
 
@@ -70,10 +71,10 @@ export class PauseOverlay {
       .setInteractive({ useHandCursor: false });
 
     const rows: PauseRow[] = [
-      { label: 'つづける', devId: 'pause-resume', variant: 'primary', run: actions.onResume },
-      { label: 'やりなおす', devId: 'pause-retry', variant: 'secondary', run: actions.onRetry },
-      { label: '強化', devId: 'pause-upgrade', variant: 'secondary', icon: 'coin', run: actions.onUpgrade },
-      { label: 'レベル一覧', devId: 'pause-levels', variant: 'secondary', run: actions.onLevels },
+      { label: t('pause.resume'), devId: 'pause-resume', variant: 'primary', run: actions.onResume },
+      { label: t('pause.retry'), devId: 'pause-retry', variant: 'secondary', run: actions.onRetry },
+      { label: t('common.upgrade'), devId: 'pause-upgrade', variant: 'secondary', icon: 'coin', run: actions.onUpgrade },
+      { label: t('nav.levels'), devId: 'pause-levels', variant: 'secondary', run: actions.onLevels },
     ];
 
     const panelW = layout.ui(PANEL_WIDTH_DESIGN);
@@ -97,7 +98,7 @@ export class PauseOverlay {
     });
 
     const title = this.scene.add
-      .text(cx, cy - panelH / 2 + layout.ui(34), 'ポーズ', makeTextStyle(type.h2, color.textPrimary))
+      .text(cx, cy - panelH / 2 + layout.ui(34), t('pause.title'), makeTextStyle(type.h2, color.textPrimary))
       .setOrigin(0.5)
       .setScrollFactor(0)
       .setDepth(OVERLAY_DEPTH + 2);
