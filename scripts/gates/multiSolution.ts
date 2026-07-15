@@ -1,51 +1,36 @@
 /**
- * Gate 8 — MULTI-SOLUTION PROOF (round-8). The second half of the user's
- * complaint: 「複数解が存在しない」— a level whose ONLY working line is the
- * recorded ghost is a puzzle with one answer. This gate makes solution
- * plurality a MACHINE-VERIFIED level property: level JSON declares
- * `solutions[]` (DeclaredSolution: shapeTag + raw stroke, LevelSchema round-8)
- * and the gate PLAYS every declared stroke live, requiring
+ * Gate 8 — MULTI-SOLUTION PROOF.
  *
- *   (1) EVERY declared solution to CLEAR at Lv0 through the EXACT player
- *       commit path (runScriptedAttempt -> GameSimulation.commitStroke: clip,
- *       fallback guard, solidify, settle, run, Judge — learnings round-4:
- *       "ゲート候補も同じcommit経路を通す"), and
- *   (2) >= MULTI_SOLUTION_MIN_DISTINCT_SHAPES DISTINCT shapeTags among them —
- *       two strokes of the same family are one idea drawn twice, not two
- *       solutions. Tutorial allowlist levels relax this to 1 (L1-L2 teach the
- *       single "draw a road" lesson).
+ * ROUND-9 RECALIBRATION (BR-015, fun decision 2): solution PLURALITY is no longer
+ * a blocking requirement. Under "any physically valid one-stroke clear is a
+ * legitimate win", a level does NOT have to DECLARE alternate solutions, and it
+ * does NOT have to prove >= 2 distinct shape families — those become ADVISORY
+ * telemetry. What the gate still ENFORCES (blocking) is DATA HONESTY: IF a level
+ * declares `solutions[]`, every declared stroke must actually commit + CLEAR at
+ * Lv0 through the exact player commit path (no fallback). A declared solution
+ * that lies is a bug in the level data — the same integrity contract Gate 2 holds
+ * for recorded ghosts. The blocking guarantees that MATTER for playability — (a)
+ * >= 1 recorded ghost clears at Lv0, (b) coins are 100% collectible on a recorded
+ * route — are owned by Gate 2 / the coin gate (Gate 2.5) and are untouched here.
  *
- * WHY A NEW GATE 8, NOT A GATE 2 EXTENSION (round-8 decision):
- *   • Gate 2's two-world determinism protocol replays EXACTLY one attempt per
- *     recorded ghost in sorted-id order — the same sequence authoring's record
- *     pass drove — and its recorded-vs-replayed band depends on that sequence
- *     alignment (gate2-ghost.ts header; authoring.ts record()). Injecting
- *     solution attempts into those worlds would shift every subsequent replay's
- *     sequence position and desync the band. Solutions therefore need their own
- *     recycled world, i.e. their own gate.
- *   • Rollout semantics differ: Gate 2 is always-STRICT (recorded data must
- *     replay), while solutions[] is STAGED — an UNDECLARED level is deferred
- *     under --warn-new-gates, but a DECLARED solution that fails to clear is a
- *     lie in the level data and stays a hard error even in warn mode.
+ * ROUND-8 ORIGIN (retained for context): plurality answered the complaint
+ * 「複数解が存在しない」by machine-proving >= 2 distinct-shape solutions per level.
+ * The round-9 fun overhaul reframed free solutions as legitimate, so plurality is
+ * demoted to advisory while the honesty-of-declared-data check stays strict.
  *
- * INTEGRITY: a declared solution committing via the F1 fallback (UNCLIPPED
- * through terrain) is a line no player could draw — hard error (Gate 3/7
- * precedent).
+ * WHY A SEPARATE GATE (unchanged): Gate 2's two-world determinism protocol
+ * replays EXACTLY one attempt per recorded ghost in sorted-id order; injecting
+ * solution attempts would desync its band, so declared solutions run on their own
+ * recycled world here.
  *
- * NEGATIVE CONTROL (learnings T4, multi-solution.spec.ts): a fixture declaring
- * a solution that does NOT clear must FAIL this gate; a fixture declaring two
- * distinct-shape clearing solutions must PASS.
+ * NEGATIVE CONTROL (multi-solution.spec.ts): a fixture DECLARING a solution that
+ * does NOT clear still FAILS this gate (honesty); a fixture that declares nothing,
+ * or declares fewer than 2 shape families, PASSES with an advisory warning.
  */
 import { validateLevel, type Level, type Point } from '../../src/engine/level/LevelSchema';
 import { runScriptedAttempt } from '../../src/engine/replay/GhostPlayer';
 import { World } from '../../src/engine/physics/World';
-import {
-  applyWarnMode,
-  hasWarnNewGatesFlag,
-  parseCliOptions,
-  resolveLevelFiles,
-  runGate,
-} from './lib';
+import { parseCliOptions, resolveLevelFiles, runGate } from './lib';
 
 /** Gate number in the pipeline report (gates 0-7 are taken). */
 export const MULTI_SOLUTION_GATE_NUMBER = 8;
@@ -74,9 +59,9 @@ export interface MultiSolutionCheckResult {
   readonly errors: string[];
   readonly warnings?: string[];
   /**
-   * True when the level declares no solutions[] at all. The runner demotes
-   * ONLY this case under --warn-new-gates (staged rollout); verification
-   * failures on DECLARED solutions are strict regardless of the flag.
+   * True when the level declares no solutions[] at all. Round-9 (BR-015): this
+   * case PASSES with an advisory warning (free solutions are legitimate).
+   * Verification failures on DECLARED solutions remain strict (data honesty).
    */
   readonly isUndeclared?: boolean;
 }
@@ -122,16 +107,22 @@ export function multiSolutionCheck(loaded: { json: unknown }, world?: World): Mu
     return { errors: [`gate0-invalid level (run gate0 first): ${parsed.errors[0] ?? 'unknown'}`] };
   }
   const level = parsed.level;
+  // ROUND-9 (BR-015): declaring solutions[] is OPTIONAL. An undeclared level
+  // passes with an advisory note — free solutions are legitimate, and Gate 2
+  // already proves >= 1 ghost clears.
   if (level.solutions === undefined || level.solutions.length === 0) {
     return {
-      errors: [
-        `multi-solution: no solutions[] declared — every level must PROVE >= ${MULTI_SOLUTION_MIN_DISTINCT_SHAPES} ` +
-          `distinct-shape solutions (round-8 staged rollout: declare them in the level source)`,
+      errors: [],
+      warnings: [
+        `multi-solution ADVISORY: no solutions[] declared — legitimate under BR-015 (free solutions); ` +
+          `Gate 2 owns the ">= 1 ghost clears at Lv0" guarantee`,
       ],
       isUndeclared: true,
     };
   }
 
+  // HONESTY (blocking): every DECLARED solution must actually clear. Plurality
+  // (>= 2 distinct shape families) is ADVISORY under round-9.
   const errors: string[] = [];
   const warnings: string[] = [];
   const attemptWorld = world ?? getSolutionWorld();
@@ -140,26 +131,24 @@ export function multiSolutionCheck(loaded: { json: unknown }, world?: World): Mu
   }
 
   const distinctShapes = new Set(level.solutions.map((s) => s.shapeTag));
-  const requiredShapes = MULTI_SOLUTION_ALLOWLIST.has(level.id) ? 1 : MULTI_SOLUTION_MIN_DISTINCT_SHAPES;
-  if (distinctShapes.size < requiredShapes) {
-    errors.push(
-      `multi-solution: only ${distinctShapes.size} distinct shapeTag(s) [${[...distinctShapes].join(', ')}] ` +
-        `< required ${requiredShapes} — declare solutions of genuinely different shape families`,
+  if (distinctShapes.size < MULTI_SOLUTION_MIN_DISTINCT_SHAPES) {
+    warnings.push(
+      `multi-solution ADVISORY: only ${distinctShapes.size} distinct shapeTag(s) [${[...distinctShapes].join(', ')}] ` +
+        `(< ${MULTI_SOLUTION_MIN_DISTINCT_SHAPES}) — plurality is advisory under BR-015, not required`,
     );
   }
-  warnings.push(`shapes: ${[...distinctShapes].join(', ')} (${distinctShapes.size}/${requiredShapes} required)`);
+  warnings.push(`shapes: ${[...distinctShapes].join(', ')} (${distinctShapes.size} declared)`);
   return { errors, warnings };
 }
 
 export function runMultiSolutionGate(argv: string[]): number {
   const { levelsGlob, isQuiet } = parseCliOptions(argv);
-  const isWarnMode = hasWarnNewGatesFlag(argv);
-  return runGate(MULTI_SOLUTION_GATE_NUMBER, resolveLevelFiles(levelsGlob), isQuiet, (loaded) => {
-    const result = multiSolutionCheck(loaded);
-    // STAGED ROLLOUT: only the "nothing declared yet" case defers under the
-    // flag. A DECLARED solution failing verification is strict in both modes.
-    return result.isUndeclared === true ? applyWarnMode(result, isWarnMode) : result;
-  });
+  // ROUND-9 (BR-015): no rollout flag. Undeclared levels + shape-diversity are
+  // advisory (multiSolutionCheck returns them as warnings with empty errors); only
+  // a DECLARED solution that fails to clear blocks (data honesty).
+  return runGate(MULTI_SOLUTION_GATE_NUMBER, resolveLevelFiles(levelsGlob), isQuiet, (loaded) =>
+    multiSolutionCheck(loaded),
+  );
 }
 
 // CLI execution — skipped under vitest so tests can import the check function.

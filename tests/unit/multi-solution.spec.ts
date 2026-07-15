@@ -2,21 +2,20 @@ import { afterAll, describe, expect, it } from 'vitest';
 import type { DeclaredSolution, Level, Point, Polyline } from '@engine/level/LevelSchema';
 import { SHAPE_TAGS, validateLevel } from '@engine/level/LevelSchema';
 import { World } from '@engine/physics/World';
-import { applyWarnMode } from '../../scripts/gates/lib';
 import {
-  MULTI_SOLUTION_ALLOWLIST,
   MULTI_SOLUTION_MIN_DISTINCT_SHAPES,
   multiSolutionCheck,
 } from '../../scripts/gates/multiSolution';
 
 /**
- * Gate 8 — multi-solution proof (round-8) + the solutions[] schema (LevelSchema).
+ * Gate 8 — multi-solution proof + the solutions[] schema (LevelSchema).
  *
- * NEGATIVE CONTROL (learnings T4): a level DECLARING a solution that does not
- * clear must FAIL the gate — and must stay a failure even under the staged
- * --warn-new-gates demotion (only the "nothing declared" case defers). The
- * positive fixture declares two distinct-shape solutions that genuinely clear
- * through the player commit path. All attempts recycle ONE World (32-slot cap).
+ * ROUND-9 (BR-015): declaring solutions[] and proving >= 2 distinct shape
+ * families are ADVISORY. The gate still ENFORCES data honesty: a DECLARED
+ * solution that does not clear FAILS. The positive fixture declares two
+ * distinct-shape solutions that genuinely clear through the player commit path;
+ * the negative control declares a solution that lies. All attempts recycle ONE
+ * World (32-slot cap).
  */
 
 const world = new World();
@@ -157,33 +156,30 @@ describe('multiSolutionCheck (Gate 8)', () => {
     expect(result.errors.join(' ')).toContain('shapeTag="wall"');
   });
 
-  it('NEGATIVE CONTROL stays strict under the warn flag (only "undeclared" defers)', () => {
+  it('NEGATIVE CONTROL stays a hard failure regardless (a declared lie is never advisory)', () => {
     const result = multiSolutionCheck({ json: buildLevel('ch1-l05', [lineSolution, lyingSolution]) }, world);
-    // The runner's staged-rollout branch: demote ONLY when isUndeclared.
-    const runnerView = result.isUndeclared === true ? applyWarnMode(result, true) : result;
-    expect(runnerView.errors.length).toBeGreaterThan(0); // still a hard failure
+    expect(result.isUndeclared).toBeUndefined(); // it DID declare — honesty applies
+    expect(result.errors.length).toBeGreaterThan(0); // still a hard failure
   });
 
-  it('requires >= 2 DISTINCT shapeTags — two solutions of the same family fail', () => {
+  it('ADVISORY (BR-015): two solutions of the same family PASS with a plurality warning, not an error', () => {
     const twin: DeclaredSolution = { ...lineSolution };
     const result = multiSolutionCheck({ json: buildLevel('ch1-l05', [lineSolution, twin]) }, world);
-    expect(result.errors.some((e) => e.includes('distinct'))).toBe(true);
+    expect(result.errors).toEqual([]); // plurality is advisory now
+    expect((result.warnings ?? []).some((w) => w.includes('distinct') || w.includes('plurality'))).toBe(true);
     expect(MULTI_SOLUTION_MIN_DISTINCT_SHAPES).toBe(2);
   });
 
-  it('tutorial allowlist relaxes the distinct-shape floor to 1 (ch1-l01)', () => {
-    expect(MULTI_SOLUTION_ALLOWLIST).toEqual(new Set(['ch1-l01', 'ch1-l02']));
-    const result = multiSolutionCheck({ json: buildLevel('ch1-l01', [lineSolution]) }, world);
+  it('ADVISORY (BR-015): a single declared solution PASSES (no plurality requirement)', () => {
+    const result = multiSolutionCheck({ json: buildLevel('ch1-l05', [lineSolution]) }, world);
     expect(result.errors).toEqual([]);
   });
 
-  it('UNDECLARED: no solutions[] errors with isUndeclared=true, and the warn flag demotes exactly that', () => {
+  it('UNDECLARED (BR-015): no solutions[] PASSES with isUndeclared=true and an advisory warning', () => {
     const result = multiSolutionCheck({ json: buildLevel('ch1-l05', undefined) }, world);
     expect(result.isUndeclared).toBe(true);
-    expect(result.errors.length).toBe(1);
-    const demoted = applyWarnMode(result, true);
-    expect(demoted.errors).toEqual([]);
-    expect((demoted.warnings ?? []).some((w) => w.startsWith('WARN(deferred)'))).toBe(true);
+    expect(result.errors).toEqual([]); // free solutions are legitimate; advisory only
+    expect((result.warnings ?? []).some((w: string) => w.includes('ADVISORY'))).toBe(true);
   });
 
   it('rejects an invalid level with a gate0 pointer instead of crashing', () => {

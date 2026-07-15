@@ -48,7 +48,6 @@ import { collectCoinsAlongTrajectory, runScriptedAttempt } from '../../src/engin
 import type { TrajectorySample } from '../../src/engine/replay/GhostPlayer';
 import { World } from '../../src/engine/physics/World';
 import { COIN_ROOF_OFFSET_M, placeCoinsAlongTrajectory } from './coinPlacement';
-import { buildAtlas } from '../atlas/atlas';
 import { CH1_SOURCES } from './ch1';
 import type { LevelSource, StrokeSource } from './ch1';
 import { isManifestLevel, manifestOrderIndex } from './manifest';
@@ -131,8 +130,9 @@ function finalizeLevel(
   ghostSolutions: readonly GhostSolution[],
   coins: readonly Point[] = src.coins,
 ): Level {
+  const schemaVersion = src.schemaVersion ?? 1;
   return {
-    schemaVersion: 1,
+    schemaVersion,
     id: src.id,
     terrain: src.terrain,
     vehicleSpawn: src.vehicleSpawn,
@@ -161,6 +161,13 @@ function finalizeLevel(
     // gate reads them), so ghosts / determinism hashes are untouched.
     ...(src.solutions !== undefined
       ? { solutions: src.solutions.map((s) => ({ shapeTag: s.shapeTag, stroke: s.points.map((q): readonly [number, number] => [q.x, q.y]) })) }
+      : {}),
+    // ROUND-9 v2-only fields (BR-011/BR-014): objective drives the ★2 star and the
+    // results-screen label; persons are static NPC obstacles. Rejected by
+    // validateLevel on a v1 level, so emit them ONLY when schemaVersion === 2.
+    ...(schemaVersion === 2 && src.objective !== undefined ? { objective: src.objective } : {}),
+    ...(schemaVersion === 2 && src.persons !== undefined
+      ? { persons: src.persons.map((pt): Point => ({ x: pt.x, y: pt.y })) }
       : {}),
   };
 }
@@ -223,7 +230,22 @@ function deriveEconomy(
   const defaultStars = { star3: round2(tightInk * 1.1), star2: round2(tightInk * 1.35) };
   let inkBudget: number;
   let starThresholds: { star2: number; star3: number };
-  if (src.inkBudget !== undefined || src.starThresholds !== undefined) {
+  if ((src.schemaVersion ?? 1) === 2) {
+    // ROUND-9 v2 (BR-014, T4): objective-based stars. star3 = ghost ink x ~1.35 (a
+    // VISIBLE ★3 ink margin — the ghost at min ink clears ★3 comfortably); star2 is
+    // no longer ink-based (StarRating v2 uses only star3 + objectiveMet) so it is
+    // synthesized as inkBudget to keep the StarThresholds type total. inkBudget is
+    // still feelFactor x minimal (2-4x), floored to fit every candidate + the margin.
+    const v2Star3 = round2(src.starThresholds?.star3 ?? tightInk * 1.35);
+    inkBudget = round2(
+      Math.max(
+        src.inkBudget ?? tightInk * FEEL_FACTOR[src.inkFeel],
+        maxRawLen * 1.08, // every candidate must commit (raw length <= budget)
+        v2Star3 * 1.1, // keep star3 strictly below budget with headroom
+      ),
+    );
+    starThresholds = { star3: v2Star3, star2: inkBudget };
+  } else if (src.inkBudget !== undefined || src.starThresholds !== undefined) {
     inkBudget = round2(src.inkBudget ?? tightInk * FEEL_FACTOR[src.inkFeel]);
     starThresholds = src.starThresholds ?? defaultStars;
   } else {
@@ -470,13 +492,8 @@ function main(): void {
   } finally {
     recordWorld.destroy();
   }
-
-  // Optional: regenerate the route/coin atlas in the same flow (--atlas). Runs
-  // AFTER the record/emit worlds are destroyed so the atlas owns a clean slot.
-  if (argv.includes('--atlas')) {
-    const atlasPath = buildAtlas();
-    process.stderr.write(`\natlas regenerated: ${atlasPath}\n`);
-  }
+  // round-9: the route/coin atlas (scripts/atlas) is DEPRECATED — the --atlas flow
+  // was removed from this pipeline (CS-4). Level JSON is the single artifact.
 }
 
 main();

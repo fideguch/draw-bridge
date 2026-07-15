@@ -204,30 +204,47 @@ export function lineDisplacementCheck(
   if (!parsed.ok) {
     return { errors: [`gate0-invalid level (run gate0 first): ${parsed.errors[0] ?? 'unknown'}`] };
   }
-  const result = measureLineDisplacement(parsed.level, world);
-  if (!result.committed || result.maxDisplacement === null) {
+  // ROUND-9 (CS-4a): measure each level on a FRESH world. Displacement is compared
+  // to a FIXED bound (0.3 m), so — unlike Gate 2, which compares to recorded
+  // samples taken in the SAME shared-world sequence and is therefore self-cancelling
+  // — this gate must be DRIFT-FREE. The module-shared recycled world's residual
+  // b2World-slot state amplifies in sensitive sag levels (a 0.29 m knife-edge swung
+  // to 0.39 m purely because upstream l01-l12 content changed), so a fresh world
+  // yields the level's INTRINSIC, reproducible shove. The gate runs in its own
+  // process (run-gates spawnSync) — 28 levels ≤ the 32-slot cap; a >30-level slate
+  // (CS-4b/4c) will need slot recycling or a full-b2World-reset engine primitive.
+  const ownWorld = world ?? new World();
+  try {
+    const result = measureLineDisplacement(parsed.level, ownWorld);
+    if (!result.committed || result.maxDisplacement === null) {
+      return {
+        errors: [`line-displacement: primary ghost did not build a bridge to measure (${result.reason ?? 'unknown'})`],
+      };
+    }
+    // Pure-shield level: the car never rides the drawn line (it drives the ground
+    // under a roof / catch), so there is no car-path shove to bound — auto-pass.
+    if (!result.carRodeChain) {
+      return { errors: [], warnings: ['line-displacement: car never rides the line (pure shield) — car-path shove n/a'] };
+    }
+    if (result.maxDisplacement > LINE_DISPLACEMENT_MAX_M) {
+      return {
+        errors: [
+          `line-displacement: chain shove UNDER THE CAR ${round2(result.maxDisplacement)}m > limit ` +
+            `${LINE_DISPLACEMENT_MAX_M}m (game_plan_v5 §9.2 F5) — anchor the ridden span (rim / mid-pillar / ledge). ` +
+            `(rock deflection away from the car is sanctioned and NOT measured.)`,
+        ],
+      };
+    }
     return {
-      errors: [`line-displacement: primary ghost did not build a bridge to measure (${result.reason ?? 'unknown'})`],
+      errors: [],
+      warnings: [`line-displacement (car-path) ${round2(result.maxDisplacement)}m <= ${LINE_DISPLACEMENT_MAX_M}m`],
     };
+  } finally {
+    // Only destroy a world WE created (a caller-supplied recycled world is theirs).
+    if (world === undefined) {
+      ownWorld.destroy();
+    }
   }
-  // Pure-shield level: the car never rides the drawn line (it drives the ground
-  // under a roof / catch), so there is no car-path shove to bound — auto-pass.
-  if (!result.carRodeChain) {
-    return { errors: [], warnings: ['line-displacement: car never rides the line (pure shield) — car-path shove n/a'] };
-  }
-  if (result.maxDisplacement > LINE_DISPLACEMENT_MAX_M) {
-    return {
-      errors: [
-        `line-displacement: chain shove UNDER THE CAR ${round2(result.maxDisplacement)}m > limit ` +
-          `${LINE_DISPLACEMENT_MAX_M}m (game_plan_v5 §9.2 F5) — anchor the ridden span (rim / mid-pillar / ledge). ` +
-          `(rock deflection away from the car is sanctioned and NOT measured.)`,
-      ],
-    };
-  }
-  return {
-    errors: [],
-    warnings: [`line-displacement (car-path) ${round2(result.maxDisplacement)}m <= ${LINE_DISPLACEMENT_MAX_M}m`],
-  };
 }
 
 // Round-7 rollout COMPLETE: the 28-slate passes this gate strictly, so it no

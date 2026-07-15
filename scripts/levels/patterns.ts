@@ -10,11 +10,12 @@
  * Two kinds of builders:
  *   1. TERRAIN builders return Polyline fragments (spread into a level's
  *      `terrain`). Winding convention (Terrain.ts / TerrainSolids.ts): authored
- *      left->right = TOP solid (ground/plateau/pillar/spike); authored
- *      right->left = UNDERSIDE solid (ceiling/overhang). Spikes never turn a
- *      falling straight into a rideable ramp (research §2), so they are the
- *      diversification-safe straight-killer; flat pillar tops can, so pillars
- *      used as anti-dominant fulcrums are kept NARROW.
+ *      left->right = TOP solid (ground/plateau/pillar); authored right->left =
+ *      UNDERSIDE solid (ceiling/overhang). ROUND-9 (AC-4, designer ban): all
+ *      SPIKE / needle terrain builders are REMOVED (spike / steppingStones /
+ *      spikePit / spikeField). New content clips a lazy line with plain WALL /
+ *      pillar crowns (a narrow flat-top pillar is kept NARROW so a falling
+ *      straight cannot settle into a rideable ramp).
  *   2. STROKE-SHAPE builders return the ink polyline (Point[]) the ghost draws:
  *      Line / Hump∧ / Scoop⌣ / Ramp / S / W / M / Flat-hug. Multi-bend shapes go
  *      through a Catmull-Rom spline so sharp corners never catapult the car
@@ -190,16 +191,6 @@ export function pillar(cx: number, topY: number, chasmY: number, halfTop = 0.7, 
 }
 
 /**
- * Narrow rock SPIKE rising from the chasm floor. Nothing rests stably on the
- * point: a straight crossing below the tip collides with the faces and dies,
- * while an arc can pass over (or apex on) the tip. THE diversification-safe
- * straight-killer (research §2). `halfBase` sets how wide the collision body is.
- */
-export function spike(cx: number, topY: number, chasmY: number, halfBase: number): Polyline {
-  return [v(cx - halfBase, chasmY), v(cx, topY), v(cx + halfBase, chasmY)];
-}
-
-/**
  * One-sided CEILING/overhang: authored right->left so the UNDERSIDE is solid
  * (Terrain PORT-CONVENTION). `ya` = underside y at x1, `yb` at x2 (default flat).
  * Blocks strokes/cars approaching from BELOW only. Must stay a 2-point polyline
@@ -252,10 +243,8 @@ export function pillarForest(xs: readonly number[], topY: number, chasmY: number
   return xs.map((x) => pillar(x, topY, chasmY, 0.35, 0.55));
 }
 
-/** B05 Stepping Stones — a row of spike tips; only the apexes are touchable (stock). */
-export function steppingStones(xs: readonly number[], topY: number, chasmY: number, halfBase = 0.5): Polyline[] {
-  return xs.map((x) => spike(x, topY, chasmY, halfBase));
-}
+// B05 Stepping Stones (spike-tip row) REMOVED round-9 (AC-4 spike ban). Flat-top
+// stepping pillars are the replacement; use `pillar()` / `longTraverse()`.
 
 // =================================================================================
 // PATTERN CATALOG — Family C: CLIMB / Family D: DESCENT (stairs & ramps)
@@ -385,15 +374,8 @@ export function funnel(cx: number, neckHalf: number, topY: number, chasmY: numbe
 // PATTERN CATALOG — Family G: TRAP geometry
 // =================================================================================
 
-/** G01 Spike Pit — one spike mid-gap; arc a Hump over the tip (alias of spike). */
-export function spikePit(cx: number, topY: number, chasmY: number, halfBase = 0.9): Polyline {
-  return spike(cx, topY, chasmY, halfBase);
-}
-
-/** G02 Spike Corridor — a row of floor spikes; span a flat high bridge over all (stock). */
-export function spikeField(xs: readonly number[], topY: number, chasmY: number, halfBase = 0.45): Polyline[] {
-  return xs.map((x) => spike(x, topY, chasmY, halfBase));
-}
+// G01 Spike Pit + G02 Spike Corridor REMOVED round-9 (AC-4 spike ban). A central
+// WALL crown (`wall()`) is the diversification-safe straight-killer replacement.
 
 /** D03 Chimney / Drop Shaft — two facing vertical walls forming a descent shaft (stock). */
 export function chimney(cx: number, half: number, topY: number, chasmY: number): Polyline[] {

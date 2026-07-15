@@ -13,20 +13,24 @@ import {
 } from '../../scripts/levels/manifest';
 
 /**
- * Locks the ONE Chapter-1 slate (game_plan_v5 §5 — 28 slots: 23 numbered +
- * 5 bonus) that the Hub grid, unlock chain, campaign E2E, atlas, and authoring
- * all derive from. If any of those goes out of sync, it is this data that moved.
+ * Locks the ONE Chapter-1 slate (round-9 designs/levels_round9.md — 45 slots:
+ * 40 numbered + 5 bonus) that the Hub grid, unlock chain, campaign E2E, and
+ * authoring all derive from. If any of those goes out of sync, it is this data
+ * that moved. (Level CONTENT ships incrementally; the slate is the full target —
+ * consumers filter it to the ids whose JSON exists.)
  */
-describe('Chapter 1 level manifest (game_plan_v5 §5 — 28-slot slate)', () => {
-  it('declares 28 slots: 23 numbered (L1-L23) + 5 bonus (B1-B5)', () => {
-    expect(CHAPTER1_NUMBERED_COUNT).toBe(23);
-    expect(CHAPTER1_MANIFEST).toHaveLength(28);
+describe('Chapter 1 level manifest (round-9 — 45-slot slate)', () => {
+  it('declares 45 slots: 40 numbered (L1-L40) + 5 bonus (B1-B5)', () => {
+    expect(CHAPTER1_NUMBERED_COUNT).toBe(40);
+    expect(CHAPTER1_MANIFEST).toHaveLength(45);
     expect(CHAPTER1_MANIFEST.filter((e) => e.isBonus)).toHaveLength(5);
-    expect(CHAPTER1_MANIFEST.filter((e) => !e.isBonus)).toHaveLength(23);
+    expect(CHAPTER1_MANIFEST.filter((e) => !e.isBonus)).toHaveLength(40);
   });
 
-  it('interleaves bonuses AFTER L4/L7/L11/L15/L23 in campaign order', () => {
-    // The full 28-slot campaign order (§5.2 table / §5.3 sawtooth).
+  it('interleaves bonuses AFTER L4/L7/L11/L15/L23, then trails l24-l40', () => {
+    // Bonus insertion points are UNCHANGED so all five stay reachable with the
+    // shipped 23 numbered levels; l24-l40 are declared trailing slots (CS-4b/4c).
+    const trailing = Array.from({ length: 17 }, (_v, i) => `ch1-l${String(i + 24).padStart(2, '0')}`);
     expect(CHAPTER1_MANIFEST_IDS).toEqual([
       'ch1-l01', 'ch1-l02', 'ch1-l03', 'ch1-l04', 'ch1-b1',
       'ch1-l05', 'ch1-l06', 'ch1-l07', 'ch1-b2',
@@ -34,12 +38,13 @@ describe('Chapter 1 level manifest (game_plan_v5 §5 — 28-slot slate)', () => 
       'ch1-l12', 'ch1-l13', 'ch1-l14', 'ch1-l15', 'ch1-b4',
       'ch1-l16', 'ch1-l17', 'ch1-l18', 'ch1-l19', 'ch1-l20', 'ch1-l21', 'ch1-l22', 'ch1-l23',
       'ch1-b5',
+      ...trailing,
     ]);
   });
 
-  it('labels numbered tiles 1-23 and bonus tiles B1-B5', () => {
+  it('labels numbered tiles 1-40 and bonus tiles B1-B5', () => {
     const numbered = CHAPTER1_MANIFEST.filter((e) => !e.isBonus).map((e) => e.label);
-    expect(numbered).toEqual(Array.from({ length: 23 }, (_v, i) => String(i + 1)));
+    expect(numbered).toEqual(Array.from({ length: 40 }, (_v, i) => String(i + 1)));
     const bonus = CHAPTER1_MANIFEST.filter((e) => e.isBonus).map((e) => e.label);
     expect(bonus).toEqual(['B1', 'B2', 'B3', 'B4', 'B5']);
   });
@@ -77,7 +82,8 @@ describe('Chapter 1 level manifest (game_plan_v5 §5 — 28-slot slate)', () => 
     expect(manifestOrderIndex('ch1-l05')).toBe(5);
     expect(manifestOrderIndex('nope')).toBe(-1);
     expect(isManifestLevel('ch1-l23')).toBe(true);
-    expect(isManifestLevel('ch1-l24')).toBe(false);
+    expect(isManifestLevel('ch1-l40')).toBe(true);
+    expect(isManifestLevel('ch1-l41')).toBe(false);
   });
 
   it('filters to authored ids preserving campaign order', () => {
