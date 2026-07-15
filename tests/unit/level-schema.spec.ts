@@ -472,11 +472,18 @@ describe('validateLevel — optional dangerZones[] hazards', () => {
     expectErrors(validateLevel(json));
   });
 
-  it.each(['zone', 'spike', 'spikeDown'] as const)('accepts the render-only style tag "%s"', (style) => {
+  it('accepts the render-only style tag "zone"', () => {
+    const json = cloneFixture();
+    json['dangerZones'] = [{ x: -2, y: 0, width: 3, height: 1.5, style: 'zone' }];
+    const level = expectOk(validateLevel(json));
+    expect(level.dangerZones?.[0]).toEqual({ x: -2, y: 0, width: 3, height: 1.5, style: 'zone' });
+  });
+
+  it.each(['spike', 'spikeDown'])('rejects the removed legacy style tag "%s" (round-9 ban, all versions)', (style) => {
     const json = cloneFixture();
     json['dangerZones'] = [{ x: -2, y: 0, width: 3, height: 1.5, style }];
-    const level = expectOk(validateLevel(json));
-    expect(level.dangerZones?.[0]).toEqual({ x: -2, y: 0, width: 3, height: 1.5, style });
+    const errors = expectErrors(validateLevel(json));
+    expect(errors.join('\n')).toContain('style');
   });
 
   it('a zone with NO style key parses without a style property (byte-compatible)', () => {

@@ -106,21 +106,19 @@ export interface Rect {
 }
 
 /**
- * DangerZone VISUAL style (render-only). `zone` = a plain red hazard band. The
- * legacy `spike`/`spikeDown` saw-tooth silhouettes are DEPRECATED game-wide
- * (round-9 designer ban): v2 levels may only carry 'zone', but the values remain
- * in the union so v1 levels authored before the ban still LOAD during the
- * CS-1->CS-4 transition. The tag is INERT to physics/Judge (the engine always
- * collides the base rect regardless of style), so it never moves the hash. Only
- * the renderers read it. Absent == `zone`.
+ * DangerZone VISUAL style (render-only). `zone` = a plain red hazard band — the
+ * ONLY style since round-9 (designer ban on saw-tooth silhouettes; the legacy
+ * `spike`/`spikeDown` values were removed once every shipped level regenerated
+ * as v2 — CS-4c). The tag is INERT to physics/Judge (the engine always collides
+ * the base rect regardless of style), so it never moves the hash. Absent == `zone`.
  */
-export type DangerStyle = 'zone' | 'spike' | 'spikeDown';
+export type DangerStyle = 'zone';
 
-/** Allowed `style` values for v1 (legacy tolerance) — v2 uses V2_DANGER_STYLES. */
-export const DANGER_STYLES: readonly DangerStyle[] = ['zone', 'spike', 'spikeDown'];
+/** Allowed `style` values (all schema versions — spikes removed game-wide, round-9). */
+export const DANGER_STYLES: readonly DangerStyle[] = ['zone'];
 
-/** Allowed `style` values for v2 — spikes are removed game-wide (round-9). */
-export const V2_DANGER_STYLES: readonly DangerStyle[] = ['zone'];
+/** Alias kept for the version-gated v2 validation call sites. */
+export const V2_DANGER_STYLES: readonly DangerStyle[] = DANGER_STYLES;
 
 /**
  * A DangerZone hazard band (optional `dangerZones[]`): an axis-aligned,
