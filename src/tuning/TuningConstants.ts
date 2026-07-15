@@ -278,6 +278,39 @@ export const camera = {
   goalZoomInPct: 20,
 };
 
+/**
+ * Stage framing (round-9 CS-3 — portrait-first). The whole level is fit into a
+ * world-viewport RECT at camera scroll(0,0)/zoom 1 (static min-fit, NO live
+ * follow — levelFraming.ts invariant). These numbers size that rect and the
+ * v2 content padding so a tall (up to 15 m × 24 m) authoring box frames entirely.
+ *
+ * SAFE-AREA RULE (2026-07-08 device bug): insets are applied PER-EDGE by the
+ * caller (playViewport.ts), NEVER folded into one uniform margin — that once ate
+ * ~247 px of stage width. `hudBandPx` / `bottomBandPx` reserve the top HUD row
+ * and the bottom restart zone; the world viewport lives strictly between them.
+ */
+export const framing = {
+  /** Screen-space L/R inset of the world viewport rect, design px (ui-scaled). */
+  viewportMarginXPx: 40,
+  /**
+   * Top HUD band height in design px (BELOW safe.top) — the world viewport begins
+   * under it so the pause row + ink gauge never overlap the stage. Sized to clear
+   * the ink gauge (centre safe.top+ui(72) + bar/marker ≈ 91 design px).
+   */
+  hudBandPx: 96,
+  /**
+   * Bottom band height in design px (ABOVE safe.bottom) reserved for the restart
+   * thumb zone — the world viewport ends above it (restart iconL sits here).
+   */
+  bottomBandPx: 80,
+  /** v2 stage: horizontal world padding (m) added on each side of all content. */
+  contentPadXM: 1.5,
+  /** v2 stage: world padding (m) below the lowest content (landing/drop room). */
+  contentPadBelowM: 1.5,
+  /** v2 stage: world padding (m) above the highest content (arc draw headroom). */
+  contentPadAboveM: 2.0,
+};
+
 /** Juice — drawing (game_design §8.3) */
 export const draw = {
   /** Min distance between stroke vertices in px. Range 4-8. */

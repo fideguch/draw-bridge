@@ -63,6 +63,7 @@ import { camera as cameraTuning, car, draw, economy, launch, physics, speedLines
 import { setBridgeMidDeviation, setDevPlayState, setDevResultNextReady, setDevStrokePointCount, setWorldToGame } from '@render/devhook';
 import type { DevHookPlayState } from '@render/devhook';
 import { framingFor, type FramingViewport } from './play/levelFraming';
+import { worldViewportRect } from './play/playViewport';
 import { shouldOfferInkUpsell as shouldOfferInkUpsellDecision } from './play/inkUpsell';
 import { DrawRejectToast } from './play/DrawRejectToast';
 import { PauseOverlay } from './play/PauseOverlay';
@@ -92,8 +93,6 @@ const DEPTH = {
 /** Draw-reject toast depth: above the world/ink bar, below the HUD buttons. */
 const TOAST_DEPTH = DEPTH.hud - 100;
 
-/** Viewport inset for the level-fit framing (px). */
-const FRAME_MARGIN_PX = 40;
 /** Frame-time clamp so a stalled tab cannot spiral the fixed-step loop (ms). */
 const MAX_FRAME_MS = 100;
 /** Cap steps per frame (paired with the clamp above) to bound catch-up work. */
@@ -353,22 +352,15 @@ export class PlayScene extends Phaser.Scene {
   }
 
   /**
-   * Framing viewport in game px (research §2.3 — real gameSize makes the world
-   * crisp). Safe-area top is folded into the inset so the overview clears the
-   * notch + home indicator; content still centres in the remaining area.
+   * The world-viewport RECT the level is framed into (round-9 CS-3, playViewport).
+   * The rect reserves the HUD band + bottom restart band and applies per-edge
+   * safe insets (NEVER a uniform margin — 2026-07-08 device bug). Version-gated:
+   * v1 levels keep the pre-round-9 full-area rect (framing unchanged), v2 levels
+   * get the reduced portrait-stage rect. `layout` structurally satisfies the
+   * ViewportLayout snapshot (width/height/safe/ui) playViewport reads.
    */
   private framingViewport(): FramingViewport {
-    // Safe-area insets go in per-edge: folding safe.top into the uniform
-    // margin also shrank the horizontal fit (2026-07-08 device bug).
-    return {
-      width: layout.width,
-      height: layout.height,
-      margin: layout.ui(FRAME_MARGIN_PX),
-      safeTop: layout.safe.top,
-      safeBottom: layout.safe.bottom,
-      safeLeft: layout.safe.left,
-      safeRight: layout.safe.right,
-    };
+    return worldViewportRect(layout, this.level?.schemaVersion ?? 1);
   }
 
   /**
