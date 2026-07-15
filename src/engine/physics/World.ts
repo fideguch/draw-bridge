@@ -1,0 +1,256 @@
+/**
+ * World — phaser-box2d world lifecycle wrapper (FR-026 substrate, S3 precursor).
+ *
+ * Responsibilities:
+ * - create with gravity from TuningConstants (physics.gravityY)
+ * - fixed 1/60 stepping (physics.fixedDt x physics.subStepCount)
+ * - frame-time accumulator: advance(elapsedMs) -> steps taken + render alpha
+ * - registry of created bodies + stateHash() over their full dynamic state
+ *
+ * Determinism / stateHash precision: the hash mixes the EXACT float64 bits of
+ * every body's position, rotation (cos/sin), linear velocity, and angular
+ * velocity — deliberately NO quantization. Identical (level, stroke) runs on
+ * the same engine replay the same op order, and IEEE 754 doubles are
+ * bit-reproducible, so any hash difference is a real divergence (Gate 2/S3
+ * relies on this to detect even 1-ulp drift).
+ *
+ * LIB-QUIRK(phaser-box2d@1.1.0): b2DestroyWorld reassigns a local instead of
+ * the global slot, so world slots are never freed -> max 32 World instances
+ * per process, and b2World_IsValid stays true after destroy. This wrapper
+ * therefore tracks its own `isDestroyed` flag and guards every method.
+ *
+ * Spiral-of-death note: advance() itself never clamps elapsedMs (pure engine
+ * policy); the Render driver is responsible for clamping frame time before
+ * calling advance (Phase 5, T045).
+ */
+
+import {
+  b2BodyType,
+  b2Body_GetAngularVelocity,
+  b2Body_GetLinearVelocity,
+  b2Body_GetPosition,
+  b2Body_GetRotation,
+  b2CreateBody,
+  b2CreateWorld,
+  b2CreateWorldArray,
+  b2DefaultBodyDef,
+  b2DefaultWorldDef,
+  b2DestroyBody,
+  b2DestroyJoint,
+  b2DestroyWorld,
+  b2Joint_IsValid,
+  b2Vec2,
+  b2World_IsValid,
+  b2World_Step,
+} from 'phaser-box2d';
+import type { b2BodyId, b2JointId, b2WorldId } from 'phaser-box2d';
+import type { Point } from '../level/LevelSchema';
+import { physics } from '@tuning/TuningConstants';
+
+const MS_PER_SEC = 1000;
+
+/** FNV-1a-style 32-bit word mix (deterministic, allocation-free). */
+const FNV_PRIME_32 = 0x01000193;
+const FNV_OFFSET_BASIS_32 = 0x811c9dc5;
+
+export type BodyKind = 'static' | 'dynamic';
+
+export interface CreateBodyOptions {
+  readonly type: BodyKind;
+  readonly position: Point;
+  readonly fixedRotation?: boolean;
+}
+
+export interface AdvanceResult {
+  /** Fixed steps executed during this advance call. */
+  readonly steps: number;
+  /** Interpolation factor for rendering, always in [0, 1). */
+  readonly alpha: number;
+}
+
+export class World {
+  private readonly worldId: b2WorldId;
+  private readonly bodies: b2BodyId[] = [];
+  /** Joints created against this world (registerJoint) — freed by reset(). */
+  private readonly joints: b2JointId[] = [];
+  private accumulatorSec = 0;
+  private destroyed = false;
+
+  // Scratch views reused by stateHash to read exact float bits without allocation.
+  private readonly hashBuffer = new ArrayBuffer(8);
+  private readonly hashF64 = new Float64Array(this.hashBuffer);
+  private readonly hashU32 = new Uint32Array(this.hashBuffer);
+
+  constructor() {
+    b2CreateWorldArray(); // idempotent global init required by phaser-box2d
+    const def = b2DefaultWorldDef();
+    def.gravity = new b2Vec2(0, physics.gravityY);
+    this.worldId = b2CreateWorld(def);
+    // LIB-QUIRK guard (module header): b2CreateWorld returns b2WorldId(0,0)
+    // silently once all 32 process slots are in use (b2DestroyWorld never frees
+    // one). An invalid id would fail deep inside the vendor with an opaque
+    // TypeError on first use — fail loudly here, and point at reset() reuse.
+    if (!b2World_IsValid(this.worldId)) {
+      throw new Error(
+        'phaser-box2d world slot limit (32/process) exhausted — reuse World via reset(), see .fable/decisions.md',
+      );
+    }
+  }
+
+  /** Underlying world id for joint/query APIs that need it (BridgeChainBuilder). */
+  get id(): b2WorldId {
+    this.assertAlive();
+    return this.worldId;
+  }
+
+  get isDestroyed(): boolean {
+    return this.destroyed;
+  }
+
+  /** Bodies currently tracked by this wrapper (insertion order = hash order). */
+  get bodyCount(): number {
+    return this.bodies.length;
+  }
+
+  /** Create a body and register it for stateHash coverage. */
+  createBody(options: CreateBodyOptions): b2BodyId {
+    this.assertAlive();
+    const def = b2DefaultBodyDef();
+    def.type = options.type === 'dynamic' ? b2BodyType.b2_dynamicBody : b2BodyType.b2_staticBody;
+    def.position = new b2Vec2(options.position.x, options.position.y);
+    def.fixedRotation = options.fixedRotation ?? false;
+    const bodyId = b2CreateBody(this.worldId, def);
+    this.bodies.push(bodyId);
+    return bodyId;
+  }
+
+  /** Destroy a tracked body and remove it from the hash registry. */
+  destroyBody(bodyId: b2BodyId): void {
+    this.assertAlive();
+    const index = this.bodies.indexOf(bodyId);
+    if (index === -1) {
+      throw new Error('World.destroyBody: body is not tracked by this world');
+    }
+    b2DestroyBody(bodyId);
+    this.bodies.splice(index, 1);
+  }
+
+  /**
+   * Register a joint for lifecycle tracking so reset() can free it (bodies auto-
+   * destroy their joints, but tracking lets reset() tear the world down joint-
+   * first, independent of which wrapper built it). Returns the id for chaining:
+   * `world.registerJoint(b2CreateRevoluteJoint(world.id, def))`.
+   */
+  registerJoint(jointId: b2JointId): b2JointId {
+    this.assertAlive();
+    this.joints.push(jointId);
+    return jointId;
+  }
+
+  /**
+   * Recycle this world's slot for a fresh attempt: destroy every tracked joint
+   * (guarded — StressTracker/BridgeChain may have broken some already) and body,
+   * then clear the fixed-step accumulator. The SAME phaser-box2d slot then
+   * serves unlimited attempts, dodging the 32-slot cap (module header). Attempt
+   * recyclers (GameSimulation.reset, GhostPlayer batches) build on top of this.
+   *
+   * DETERMINISM (measured): a recycled slot carries over Box2D's internal
+   * solver-set / id-pool ordering, so the exact-float stateHash of a recycled
+   * attempt is NOT bit-identical to a fresh slot's — but the effect is bounded
+   * and reproducible, not chaotic: tick counts stay identical and final
+   * positions drift < 2 mm across 60+ recycled attempts (well inside the Gate 2
+   * ±30 tick / 0.05 m band), and an identical attempt SEQUENCE yields an
+   * identical hash sequence across independent worlds. Fresh-slot determinism
+   * (the 1000-run S3 proof, which never calls reset) is therefore untouched.
+   * See .fable/decisions.md.
+   */
+  reset(): void {
+    this.assertAlive();
+    for (const jointId of this.joints) {
+      if (b2Joint_IsValid(jointId)) {
+        b2DestroyJoint(jointId); // free joints before bodies so nothing dangles
+      }
+    }
+    this.joints.length = 0;
+    for (const bodyId of this.bodies) {
+      b2DestroyBody(bodyId);
+    }
+    this.bodies.length = 0;
+    this.accumulatorSec = 0;
+  }
+
+  /** One fixed physics step (physics.fixedDt, physics.subStepCount). */
+  step(): void {
+    this.assertAlive();
+    b2World_Step(this.worldId, physics.fixedDt, physics.subStepCount);
+  }
+
+  /**
+   * Feed elapsed wall-clock milliseconds into the fixed-step accumulator.
+   * Runs as many fixed steps as fit; the remainder becomes the render alpha.
+   */
+  advance(elapsedMs: number): AdvanceResult {
+    this.assertAlive();
+    if (!Number.isFinite(elapsedMs) || elapsedMs < 0) {
+      throw new Error(`World.advance: elapsedMs must be a finite number >= 0, got ${elapsedMs}`);
+    }
+    this.accumulatorSec += elapsedMs / MS_PER_SEC;
+    let steps = 0;
+    while (this.accumulatorSec >= physics.fixedDt) {
+      this.step();
+      this.accumulatorSec -= physics.fixedDt;
+      steps++;
+    }
+    return { steps, alpha: this.accumulatorSec / physics.fixedDt };
+  }
+
+  /**
+   * Stable hash over all tracked bodies' position + rotation (cos/sin) +
+   * linear velocity + angular velocity. Exact float bits, no quantization —
+   * see module header for the rationale.
+   *
+   * SCOPE: this hash covers physical body STATE only, never the tick count.
+   * Gate 2 composes the tick count externally (per contracts/gate-pipeline.md
+   * §3, tick delta is a separate ±30 tolerance axis), so stateHash stays a pure
+   * function of the world's bodies and needs no lifecycle/tick input.
+   */
+  stateHash(): string {
+    this.assertAlive();
+    let hash = FNV_OFFSET_BASIS_32;
+    const mix = (value: number): void => {
+      this.hashF64[0] = value;
+      hash = Math.imul(hash ^ (this.hashU32[0] as number), FNV_PRIME_32);
+      hash = Math.imul(hash ^ (this.hashU32[1] as number), FNV_PRIME_32);
+    };
+    for (const bodyId of this.bodies) {
+      const position = b2Body_GetPosition(bodyId);
+      const rotation = b2Body_GetRotation(bodyId);
+      const linearVelocity = b2Body_GetLinearVelocity(bodyId);
+      mix(position.x);
+      mix(position.y);
+      mix(rotation.c);
+      mix(rotation.s);
+      mix(linearVelocity.x);
+      mix(linearVelocity.y);
+      mix(b2Body_GetAngularVelocity(bodyId));
+    }
+    return (hash >>> 0).toString(16).padStart(8, '0');
+  }
+
+  /** Destroy the underlying Box2D world. Idempotent. */
+  destroy(): void {
+    if (this.destroyed) {
+      return;
+    }
+    b2DestroyWorld(this.worldId);
+    this.bodies.length = 0;
+    this.joints.length = 0;
+    this.destroyed = true;
+  }
+
+  private assertAlive(): void {
+    if (this.destroyed) {
+      throw new Error('World: already destroyed');
+    }
+  }
+}

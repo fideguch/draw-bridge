@@ -1,4 +1,13 @@
-name: CI Quality Check
+name: CI
+
+# Coherent CI split (no duplicated jobs):
+#   - ci.yml (this file)      -> fast `lint` gate only (naming + layer boundaries).
+#   - eval-on-change.yml      -> deterministic gate: npm ci -> gates -> vitest -> build
+#                                + specs-evals run/report (eval baseline regression gate).
+# The former commented `gates`/`e2e` placeholders here are RESOLVED by relocation into
+# eval-on-change.yml (gates now live + gated). e2e stays deferred there (PENDING) until the
+# PlayScene composition lands — see .evals/specs/tempo-contracts.eval.md.
+
 on:
   pull_request:
     branches: [main, develop]
@@ -6,30 +15,15 @@ on:
     branches: [main]
 
 jobs:
-  quality:
+  lint:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '20.x'
           cache: 'npm'
-
       - name: Install dependencies
         run: npm ci
-
-      - name: Lint
+      - name: Lint (naming + layer boundaries)
         run: npm run lint
-
-      - name: Type Check
-        run: npm run typecheck
-
-      - name: Format Check
-        run: npm run format:check
-
-      - name: Unit Tests
-        run: npm test -- --coverage
-
-      - name: Build
-        run: npm run build

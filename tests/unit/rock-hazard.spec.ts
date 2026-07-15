@@ -1,0 +1,324 @@
+import { afterAll, describe, expect, it } from 'vitest';
+import type { Level, Point, Rock } from '@engine/level/LevelSchema';
+import { GameSimulation } from '@engine/GameSimulation';
+import { RockHazard } from '@engine/physics/RockHazard';
+import { World } from '@engine/physics/World';
+import {
+  SPIKE_WORLD_BUDGET,
+  arcStroke,
+  buildSpikeLevel,
+  simulationInternals,
+} from '../../src/debug/SpikeScenario';
+
+/**
+ * Rock hazard — the competitor-documented "block the falling/rolling object with
+ * your line" entity (user round-5 mandate). A RockHazard is a plain dynamic
+ * circle: it rolls/falls under normal gravity, collides with terrain, the drawn
+ * BridgeChain, and the car, and — with NO new fail rule — induces the existing
+ * tipOver/fall/timeout when it reaches the car undeflected. The drawn line is its
+ * shield/deflector.
+ *
+ * WORLD BUDGET (LIB-QUIRK, World.ts header): phaser-box2d@1.1.0 never frees world
+ * slots (~32/process). Every fresh GameSimulation here owns one slot; this file
+ * builds well under SPIKE_WORLD_BUDGET (asserted below).
+ */
+
+/** The frozen no-rock determinism hash (research.md §R10; spike:determinism). */
+const NO_ROCK_PROBE_HASH = 'd39a29bd';
+
+/** A tiny valid stroke resting on the left platform: commits, but is NOT a bridge. */
+const HARMLESS_STROKE: readonly Point[] = [
+  { x: -12, y: 0.2 },
+  { x: -9, y: 0.2 },
+];
+
+function spikeLevelWithRocks(gapM: number, rocks: readonly Rock[]): Level {
+  return { ...buildSpikeLevel(gapM, { runUpM: 6, flagOffsetM: 5 }), rocks };
+}
+
+/** Run a full attempt on a fresh world; return the world stateHash + rock pose. */
+function runFreshToOutcome(
+  level: Level,
+  stroke: readonly Point[],
+): { hash: string; outcome: string; ticks: number; rock: Rock | undefined } {
+  const sim = new GameSimulation(level, { method: 'chain' });
+  try {
+    const commit = sim.commitStroke(stroke);
+    if (!commit.committed) {
+      throw new Error(`commit failed: ${commit.reason}`);
+    }
+    const outcome = sim.runToOutcome();
+    const state = sim.renderRocks.renderState()[0];
+    return {
+      hash: simulationInternals(sim).world.stateHash(),
+      outcome: outcome.outcome,
+      ticks: outcome.ticks,
+      rock: state === undefined ? undefined : { x: state.x, y: state.y, radius: state.radius },
+    };
+  } finally {
+    sim.destroy();
+  }
+}
+
+/** Step `ticks` fixed steps (or until the attempt ends); return min rock y seen. */
+function minRockYOverRun(level: Level, stroke: readonly Point[], ticks: number): number {
+  const sim = new GameSimulation(level, { method: 'chain' });
+  try {
+    const commit = sim.commitStroke(stroke);
+    if (!commit.committed) {
+      throw new Error(`commit failed: ${commit.reason}`);
+    }
+    let minY = Infinity;
+    for (let i = 0; i < ticks; i++) {
+      const out = sim.step();
+      const rock = sim.renderRocks.renderState()[0];
+      if (rock !== undefined) {
+        minY = Math.min(minY, rock.y);
+      }
+      if (out !== null) {
+        break;
+      }
+    }
+    return minY;
+  } finally {
+    sim.destroy();
+  }
+}
+
+describe('RockHazard — spawn + render observation', () => {
+  it('reserves well under the phaser-box2d world budget', () => {
+    // 19 fresh worlds across this file (spawn 1, velocity 1, determinism 2,
+    // negative-control 1, shield 2, crush 2, triggered: liveTick 2 + preHash 2 +
+    // determinism 2, F2 leftward-crossing 1 shared, F3 rockContactObserved 2) —
+    // keep the budget guard honest.
+    expect(19).toBeLessThanOrEqual(SPIKE_WORLD_BUDGET);
+  });
+
+  it('spawns one body per level rock at its authored position (after settle, unmoved)', () => {
+    const level = spikeLevelWithRocks(4, [{ x: 1.5, y: 2.5, radius: 0.4 }]);
+    const sim = new GameSimulation(level, { method: 'chain' });
+    try {
+      expect(sim.renderRocks.count).toBe(1);
+      const state = sim.renderRocks.renderState();
+      expect(state).toHaveLength(1);
+      // Spawned AFTER the pre-commit settle, so it is exactly at spawn (unstepped).
+      expect(state[0]?.x).toBe(1.5);
+      expect(state[0]?.y).toBe(2.5);
+      expect(state[0]?.radius).toBe(0.4);
+    } finally {
+      sim.destroy();
+    }
+  });
+
+  it('a level with no rocks builds zero rock bodies', () => {
+    const sim = new GameSimulation(buildSpikeLevel(4), { method: 'chain' });
+    try {
+      expect(sim.renderRocks.count).toBe(0);
+      expect(sim.renderRocks.renderState()).toEqual([]);
+    } finally {
+      sim.destroy();
+    }
+  });
+
+  it('honours initialVelocity — a rock rolls in its seeded direction', () => {
+    const level = spikeLevelWithRocks(4, [{ x: -6, y: 0.6, radius: 0.3, initialVelocity: { x: -4, y: 0 } }]);
+    const sim = new GameSimulation(level, { method: 'chain' });
+    try {
+      const startX = sim.renderRocks.renderState()[0]?.x ?? 0;
+      sim.commitStroke(HARMLESS_STROKE);
+      for (let i = 0; i < 10; i++) {
+        sim.step();
+      }
+      const laterX = sim.renderRocks.renderState()[0]?.x ?? 0;
+      expect(laterX).toBeLessThan(startX - 0.2); // seeded -x velocity carried it left
+    } finally {
+      sim.destroy();
+    }
+  });
+});
+
+describe('RockHazard — determinism (rocks participate in stateHash)', () => {
+  it('two fresh runs of a rock level produce ONE identical stateHash + rock pose', () => {
+    const level = spikeLevelWithRocks(4, [{ x: 0, y: 1.2, radius: 0.3 }]);
+    const a = runFreshToOutcome(level, arcStroke(4));
+    const b = runFreshToOutcome(level, arcStroke(4));
+
+    expect(a.outcome).toBe(b.outcome);
+    expect(a.ticks).toBe(b.ticks);
+    expect(a.hash).toBe(b.hash); // exact float64 bits, no quantization
+    // exact float equality on the rock's final resting pose (bit-reproducibility)
+    expect(a.rock?.x).toBe(b.rock?.x);
+    expect(a.rock?.y).toBe(b.rock?.y);
+  });
+
+  it('NEGATIVE CONTROL: an empty rocks[] is byte-identical to a pre-rock world', () => {
+    // Same scenario as runDeterminismProbe (buildSpikeLevel(2), arcStroke(2)),
+    // but with rocks:[] injected. The frozen hash MUST NOT move — proof that the
+    // rock feature is a true no-op when a level carries no rocks.
+    const level: Level = { ...buildSpikeLevel(2, { runUpM: 5, flagOffsetM: 3 }), rocks: [] };
+    const result = runFreshToOutcome(level, arcStroke(2));
+    expect(result.outcome).toBe('clear');
+    expect(result.hash).toBe(NO_ROCK_PROBE_HASH);
+    expect(result.rock).toBeUndefined();
+  });
+});
+
+describe('RockHazard — collision (line is a shield/deflector)', () => {
+  it('rock-vs-bridge: a drawn line blocks the rock; without it the rock falls through', () => {
+    const level = spikeLevelWithRocks(4, [{ x: 0, y: 1.2, radius: 0.3 }]);
+    // WITH a bridge over the gap the falling rock is caught and held up high…
+    const caughtMinY = minRockYOverRun(level, arcStroke(4), 60);
+    // …WITHOUT one (a harmless off-gap stroke) it drops through the empty gap.
+    const droppedMinY = minRockYOverRun(level, HARMLESS_STROKE, 60);
+
+    expect(caughtMinY).toBeGreaterThan(-1); // stayed on/near the bridge
+    expect(droppedMinY).toBeLessThan(-2.5); // fell into the chasm
+    expect(caughtMinY - droppedMinY).toBeGreaterThan(2); // decisive deflection
+  });
+
+  it('rock-vs-car: an undeflected rock reaching the car turns a clear into a fail', () => {
+    const cleanLevel = buildSpikeLevel(4, { runUpM: 6, flagOffsetM: 5 });
+    const rockLevel = spikeLevelWithRocks(4, [{ x: 0.3, y: 1.5, radius: 0.45, density: 8 }]);
+
+    const clean = runFreshToOutcome(cleanLevel, arcStroke(4));
+    const crushed = runFreshToOutcome(rockLevel, arcStroke(4));
+
+    expect(clean.outcome).toBe('clear'); // no rock → the car crosses
+    expect(crushed.outcome).toBe('fail'); // the rock lands in its path → fail
+  });
+});
+
+describe('RockHazard — triggered spawn (round-6 rocks[].triggerCarX)', () => {
+  /** Step to the tick a triggered rock transitions armed -> live; -1 if never. */
+  function firstLiveTick(level: Level, stroke: readonly Point[]): number {
+    const sim = new GameSimulation(level, { method: 'chain' });
+    try {
+      // Before the trigger the rock is ARMED: it is counted + rendered (at spawn)
+      // but has NO physical body, so it is inert to physics and the state hash.
+      expect(sim.renderRocks.count).toBe(1);
+      expect(sim.renderRocks.renderState()[0]?.armed).toBe(true);
+      expect(sim.renderRocks.bodyIds).toHaveLength(0);
+      sim.commitStroke(stroke);
+      let liveTick = -1;
+      let outcome = sim.outcome;
+      while (outcome === null) {
+        outcome = sim.step();
+        if (liveTick < 0 && sim.renderRocks.renderState()[0]?.armed === false) {
+          liveTick = sim.currentTick;
+        }
+      }
+      return liveTick;
+    } finally {
+      sim.destroy();
+    }
+  }
+
+  it('an armed rock spawns at the EXACT tick the car reaches triggerCarX — identical across two runs', () => {
+    // Car launches from the left runUp and drives right over the gap; the rock is
+    // armed until the reference x first reaches triggerCarX (mid-run).
+    const level = spikeLevelWithRocks(4, [{ x: 0, y: 5, radius: 0.3, triggerCarX: -2 }]);
+    const a = firstLiveTick(level, arcStroke(4));
+    const b = firstLiveTick(level, arcStroke(4));
+    expect(a).toBeGreaterThan(0); // fired only after the car travelled to triggerCarX
+    expect(a).toBe(b); // pure function of the reference x -> the same tick both runs
+  });
+
+  it('pre-trigger stateHash is BYTE-IDENTICAL to a world without the triggered rock (armed == no body)', () => {
+    // A trigger far to the right so it does not fire in the first N ticks. The armed
+    // rock adds no body, so the world hash must match a rock-free run tick-for-tick.
+    const withArmed = spikeLevelWithRocks(4, [{ x: 3, y: 6, radius: 0.3, triggerCarX: 3 }]);
+    const withoutRock = buildSpikeLevel(4, { runUpM: 6, flagOffsetM: 5 });
+    const hashAfter = (level: Level): string => {
+      const sim = new GameSimulation(level, { method: 'chain' });
+      try {
+        sim.commitStroke(arcStroke(4));
+        for (let i = 0; i < 20; i++) sim.step(); // 20 ticks: still pre-trigger
+        expect(sim.renderRocks.renderState()[0]?.armed ?? true).toBe(true); // not yet fired
+        return simulationInternals(sim).world.stateHash();
+      } finally {
+        sim.destroy();
+      }
+    };
+    expect(hashAfter(withArmed)).toBe(hashAfter(withoutRock));
+  });
+
+  it('two fresh runs of a triggered-rock level produce ONE identical final stateHash + outcome', () => {
+    const level = spikeLevelWithRocks(4, [{ x: 0, y: 5, radius: 0.3, triggerCarX: -2 }]);
+    const a = runFreshToOutcome(level, arcStroke(4));
+    const b = runFreshToOutcome(level, arcStroke(4));
+    expect(a.outcome).toBe(b.outcome);
+    expect(a.ticks).toBe(b.ticks);
+    expect(a.hash).toBe(b.hash); // triggered body creation is bit-reproducible
+  });
+});
+
+describe('RockHazard — crossing trigger is DIRECTION-AGNOSTIC (review R6 F2)', () => {
+  // One shared world (bodies freed at afterAll) — RockHazard.updateTriggers is
+  // driven directly with scripted reference-x sequences, no full simulation.
+  const world = new World();
+  afterAll(() => world.destroy());
+
+  it('fires a LEFTWARD crossing: a car moving in DECREASING x still spawns the rock', () => {
+    // The old `carX >= triggerCarX` rule never fired for -x travel; the crossing
+    // rule fires the tick the [prev, cur] interval first straddles triggerCarX.
+    const rocks = new RockHazard(world, [{ x: 0, y: 5, radius: 0.3, triggerCarX: -2 }]);
+    expect(rocks.renderState()[0]?.armed).toBe(true);
+    rocks.updateTriggers(0); // first sample: no motion observed, 0 !== -2 -> armed
+    expect(rocks.renderState()[0]?.armed).toBe(true);
+    rocks.updateTriggers(-1); // interval [-1, 0] does not contain -2 -> still armed
+    expect(rocks.renderState()[0]?.armed).toBe(true);
+    rocks.updateTriggers(-3); // interval [-3, -1] straddles -2 -> FIRES on the crossing
+    expect(rocks.renderState()[0]?.armed).toBe(false);
+    expect(rocks.bodyIds).toHaveLength(1);
+  });
+
+  it('fires a RIGHTWARD crossing symmetrically (interval straddles the trigger)', () => {
+    const rocks = new RockHazard(world, [{ x: 0, y: 5, radius: 0.3, triggerCarX: 2 }]);
+    rocks.updateTriggers(0); // 0 !== 2 -> armed
+    rocks.updateTriggers(1); // interval [0, 1] does not contain 2 -> armed
+    expect(rocks.renderState()[0]?.armed).toBe(true);
+    rocks.updateTriggers(3); // interval [1, 3] straddles 2 -> FIRES
+    expect(rocks.renderState()[0]?.armed).toBe(false);
+    expect(rocks.bodyIds).toHaveLength(1);
+  });
+
+  it('does NOT fire while the car only APPROACHES the trigger without crossing it', () => {
+    const rocks = new RockHazard(world, [{ x: 0, y: 5, radius: 0.3, triggerCarX: -2 }]);
+    for (const x of [0, -0.5, -1, -1.5, -1.9]) {
+      rocks.updateTriggers(x); // monotone toward -2 but never reaches it
+    }
+    expect(rocks.renderState()[0]?.armed).toBe(true);
+    expect(rocks.bodyIds).toHaveLength(0);
+  });
+});
+
+describe('GameSimulation.rockContactObserved — interaction latch (review R6 F3)', () => {
+  it('latches TRUE when a rock rests on the drawn bridge (rock-on-dome settle)', () => {
+    const level: Level = { ...buildSpikeLevel(4, { runUpM: 6, flagOffsetM: 5 }), rocks: [{ x: 0, y: 1.2, radius: 0.3 }] };
+    const sim = new GameSimulation(level, { method: 'chain' });
+    try {
+      expect(sim.rockContactObserved).toBe(false); // nothing has touched before the run
+      sim.commitStroke(arcStroke(4));
+      sim.runToOutcome();
+      // The falling rock is caught by the dome and rests on it -> rock↔bridge
+      // contact observed, so Gate 2 keeps the wide settle epsilon for this level.
+      expect(sim.rockContactObserved).toBe(true);
+    } finally {
+      sim.destroy();
+    }
+  });
+
+  it('stays FALSE when the rock never touches the car or the bridge (out of reach)', () => {
+    const level: Level = { ...buildSpikeLevel(4, { runUpM: 6, flagOffsetM: 5 }), rocks: [{ x: 40, y: 30, radius: 0.3 }] };
+    const sim = new GameSimulation(level, { method: 'chain' });
+    try {
+      sim.commitStroke(arcStroke(4));
+      sim.runToOutcome();
+      // The rock free-falls far from the car and bridge — no interaction, so the
+      // strict 0.05 m final-position bound applies (not the loose settle band).
+      expect(sim.rockContactObserved).toBe(false);
+    } finally {
+      sim.destroy();
+    }
+  });
+});

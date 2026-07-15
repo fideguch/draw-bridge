@@ -1,0 +1,525 @@
+/**
+ * Atlas level card — pure SVG renderer for ONE level (round-4 deliverable B).
+ *
+ * USER MANDATE: "各ステージの正解ルートとコイン獲得ルートをまとめてローカルの
+ * ウェブで表示して見せて。コインの配置と車、ゴールの配置、想定ルートを私が全
+ * ステージ確認する". Each card draws, in world coordinates (y-up, manually
+ * flipped to SVG y-down so nothing — including text — is mirrored):
+ *   - terrain (filled ground + rock lips / overhangs)
+ *   - the killY line, the spawn car, the goal flag
+ *   - the intended STROKE (ink polyline, thick)
+ *   - the driven TRAJECTORY (dashed line through the recorded reference point)
+ *   - coins (gold dots labelled with collection order; a red X marks any coin
+ *     the route misses — after the T2 auto-placement there should be none)
+ *
+ * No external assets: every colour is inline, the SVG is embedded in the page.
+ */
+
+import type { Level, Point } from '../../src/engine/level/LevelSchema';
+
+/**
+ * One rock hazard's recorded MOTION over the ghost run (round-5 shield atlas).
+ * `points[0]` is the authored spawn (run start, drawn hollow), the last point is
+ * the final resting/exit position (drawn as the solid rock disc). The whole path
+ * is the falling/rolling arc the drawn line has to shield or deflect.
+ */
+export interface RockPath {
+  /** Per-tick centre positions (world m): first = spawn, last = final. */
+  readonly points: readonly Point[];
+  /** Rock radius (world m). */
+  readonly radius: number;
+  /**
+   * TRIGGERED spawn car-x (round-6): when set, the rock's body is created the tick
+   * the car's reference x first reaches this value (it is ARMED at its spawn until
+   * then). The card draws a HOLLOW dashed spawn + a "触発" note + a vertical trigger
+   * line at this x, so the timed nature is legible.
+   */
+  readonly triggerCarX?: number;
+}
+
+export interface CardData {
+  readonly level: Level;
+  /** Archetype / design label from the level source. */
+  readonly design: string;
+  /** The intended ink stroke (primary ghost) — the RAW authored line (fallback only). */
+  readonly strokePts: readonly Point[];
+  /**
+   * The SETTLED bridge-chain shape (capsule-centre polyline read from the engine
+   * at the car-launch tick) — the physically-truthful "correct line" the atlas
+   * draws as the solid ink polyline (round-6: the raw authored stroke lies through
+   * terrain / gets shoved; a settled chain physically cannot be inside solids).
+   */
+  readonly settledChainLaunch: readonly Point[];
+  /** The settled chain sampled again at mid-crossing — the faint "pushed / shoved" line. */
+  readonly settledChainMid: readonly Point[];
+  /** The driven reference-point path (per-tick). */
+  readonly trajectory: readonly Point[];
+  /** Per-coin collection order (1-based) along the route, or null if missed. */
+  readonly coinOrder: readonly (number | null)[];
+  /** Per-rock recorded trajectory (same order as level.rocks; empty when none). */
+  readonly rockPaths: readonly RockPath[];
+  /** Raw stroke polyline length (m). */
+  readonly strokeLen: number;
+  /** Ink consumed by the primary ghost (m). */
+  readonly inkConsumed: number;
+}
+
+const COLORS = {
+  ground: '#d8c6a0',
+  groundEdge: '#6f5a35',
+  rockLip: '#7a6444',
+  carBody: '#1c6fb4',
+  wheel: '#1a1a1a',
+  goalZone: 'rgba(47,158,68,0.16)',
+  goalPole: '#555',
+  goalFlag: '#2f9e44',
+  ink: '#1f2d5a',
+  shove: '#8a93c4', // faint mid-crossing settled line (the "pushed / shoved" bridge)
+  trajectory: '#f08c00',
+  // RESERVED hazard signal palette (matches theme.ts §4.9 — hazards only).
+  hazardFill: '#e11d0e', // saturated red wash
+  hazardStripe: '#8a0f06', // deep-red diagonal hatch
+  hazardBorder: '#b00d04', // darker-red band border
+  hazardToothTip: '#e11d0e', // red spike-tip
+  hazardToothMid: '#8a0f06', // deep-red mid
+  hazardToothBase: '#161011', // near-black tooth base
+  coin: '#f5b301',
+  coinEdge: '#a9760a',
+  coinLabel: '#3a2a00',
+  coinMissed: '#e03131',
+  rock: '#2a2327', // dark charcoal boulder body
+  rockEdge: '#161011', // near-black rim
+  rockCrack: '#ff5a1e', // red-orange crack accent
+  rockLabel: '#fff0c2', // warm label on the dark boulder
+  rockPath: '#6f6a78',
+  rockArrow: '#403c48',
+} as const;
+
+function fmt(n: number): number {
+  return Math.round(n * 1000) / 1000;
+}
+
+interface Bounds {
+  minX: number;
+  maxX: number;
+  minY: number;
+  maxY: number;
+}
+
+function boundsOf(data: CardData): Bounds {
+  const { level } = data;
+  const xs: number[] = [];
+  const ys: number[] = [];
+  const add = (x: number, y: number): void => {
+    xs.push(x);
+    ys.push(y);
+  };
+  for (const line of level.terrain) {
+    for (const [x, y] of line) add(x, y);
+  }
+  add(level.vehicleSpawn.x - 0.9, level.vehicleSpawn.y - 0.5);
+  add(level.vehicleSpawn.x + 0.9, level.vehicleSpawn.y + 0.5);
+  add(level.goalFlag.x, level.goalFlag.y);
+  add(level.goalFlag.x + level.goalFlag.width, level.goalFlag.y + level.goalFlag.height);
+  for (const c of level.coins) add(c.x, c.y);
+  // Rock MOTION drives the shield levels: bound the full recorded arc (spawn ->
+  // final) plus radius so neither the drop/roll path nor the discs get clipped.
+  for (const rp of data.rockPaths) {
+    for (const p of rp.points) {
+      add(p.x - rp.radius, p.y - rp.radius);
+      add(p.x + rp.radius, p.y + rp.radius);
+    }
+  }
+  for (const p of data.strokePts) add(p.x, p.y);
+  for (const p of data.settledChainLaunch) add(p.x, p.y);
+  for (const p of data.settledChainMid) add(p.x, p.y);
+  for (const p of data.trajectory) add(p.x, p.y);
+  for (const z of data.level.dangerZones ?? []) {
+    add(z.x, z.y);
+    add(z.x + z.width, z.y + z.height);
+  }
+  // Show a bounded slice of the pit below the lowest terrain so the chasm reads
+  // without squashing the playfield. killY is NO LONGER drawn (round-7 F3: it is an
+  // out-of-world engine failsafe at minTerrainY-6, not a visual danger line) — the
+  // shown depth is a fixed 2.5 m below terrain, independent of the failsafe plane.
+  const lowestTerrain = Math.min(...level.terrain.flatMap((l) => l.map(([, y]) => y)));
+  add(0, lowestTerrain - 2.5);
+  const pad = 0.6;
+  return {
+    minX: Math.min(...xs) - pad,
+    maxX: Math.max(...xs) + pad,
+    minY: Math.min(...ys) - pad,
+    maxY: Math.max(...ys) + pad,
+  };
+}
+
+/** Build a coordinate projector (world y-up -> SVG y-down, no mirror). */
+function projector(b: Bounds): (x: number, y: number) => [number, number] {
+  return (x, y) => [fmt(x), fmt(b.maxY - y)];
+}
+
+function polyPoints(pts: readonly Point[], proj: (x: number, y: number) => [number, number]): string {
+  return pts.map((p) => proj(p.x, p.y).join(',')).join(' ');
+}
+
+/** A terrain overhang: a short 2-point segment sitting high above the floor. */
+function isCeiling(line: Level['terrain'][number], b: Bounds): boolean {
+  if (line.length !== 2) return false;
+  const lowestPointY = Math.min(...line.map(([, y]) => y));
+  return lowestPointY > b.minY + 2;
+}
+
+function renderTerrain(data: CardData, b: Bounds, proj: (x: number, y: number) => [number, number]): string {
+  const parts: string[] = [];
+  for (const line of data.level.terrain) {
+    if (isCeiling(line, b)) {
+      // Rock lip / overhang: a thick underside bar, not filled ground.
+      parts.push(
+        `<polyline points="${polyPoints(
+          line.map(([x, y]) => ({ x, y })),
+          proj,
+        )}" fill="none" stroke="${COLORS.rockLip}" stroke-width="0.34" stroke-linecap="round"/>`,
+      );
+      continue;
+    }
+    // Ground / obstacle: fill the surface polyline down to the view floor.
+    const surface = line.map(([x, y]) => proj(x, y).join(','));
+    const first = line[0] as readonly [number, number];
+    const last = line[line.length - 1] as readonly [number, number];
+    const floorY = fmt(b.maxY - b.minY);
+    const poly = [...surface, `${fmt(last[0])},${floorY}`, `${fmt(first[0])},${floorY}`].join(' ');
+    parts.push(`<polygon points="${poly}" fill="${COLORS.ground}" stroke="none"/>`);
+    parts.push(
+      `<polyline points="${polyPoints(
+        line.map(([x, y]) => ({ x, y })),
+        proj,
+      )}" fill="none" stroke="${COLORS.groundEdge}" stroke-width="0.1" stroke-linejoin="round"/>`,
+    );
+  }
+  return parts.join('\n');
+}
+
+
+function renderCar(data: CardData, proj: (x: number, y: number) => [number, number]): string {
+  const s = data.level.vehicleSpawn;
+  const [cx, cyTop] = proj(s.x - 0.75, s.y + 0.25);
+  const [, wheelY] = proj(s.x, s.y - 0.28);
+  const [rearX] = proj(s.x - 0.5, s.y);
+  const [frontX] = proj(s.x + 0.5, s.y);
+  return (
+    `<rect x="${cx}" y="${cyTop}" width="1.5" height="0.5" rx="0.12" fill="${COLORS.carBody}" opacity="0.92"/>` +
+    `<circle cx="${rearX}" cy="${wheelY}" r="0.22" fill="${COLORS.wheel}"/>` +
+    `<circle cx="${frontX}" cy="${wheelY}" r="0.22" fill="${COLORS.wheel}"/>`
+  );
+}
+
+function renderGoal(data: CardData, proj: (x: number, y: number) => [number, number]): string {
+  const g = data.level.goalFlag;
+  const [zx, zyTop] = proj(g.x, g.y + g.height);
+  const [poleX, poleTop] = proj(g.x, g.y + g.height);
+  const [, poleBottom] = proj(g.x, g.y);
+  const [tipX, tipY] = proj(g.x + 0.9, g.y + g.height - 0.35);
+  const [, flagBottomY] = proj(g.x, g.y + g.height - 0.7);
+  return (
+    `<rect x="${zx}" y="${zyTop}" width="${fmt(g.width)}" height="${fmt(g.height)}" fill="${COLORS.goalZone}" stroke="${COLORS.goalFlag}" stroke-width="0.04" stroke-dasharray="0.2 0.2"/>` +
+    `<line x1="${poleX}" y1="${poleTop}" x2="${poleX}" y2="${poleBottom}" stroke="${COLORS.goalPole}" stroke-width="0.08"/>` +
+    `<polygon points="${poleX},${poleTop} ${tipX},${tipY} ${poleX},${flagBottomY}" fill="${COLORS.goalFlag}"/>`
+  );
+}
+
+/**
+ * Physically-truthful routes (round-6). The solid "正解の線" is the SETTLED bridge
+ * chain at the car-launch tick (`settledChainLaunch`) — NOT the raw authored
+ * stroke, which lies through terrain and gets shoved by the car. A faint second
+ * line is the same chain sampled at mid-crossing (`settledChainMid`), showing how
+ * far the car pushes it. The dashed orange line is the real driven car path.
+ * Falls back to the raw stroke only if the settled chain is unavailable.
+ */
+function renderRoutes(data: CardData, proj: (x: number, y: number) => [number, number]): string {
+  const parts: string[] = [];
+  if (data.trajectory.length >= 2) {
+    parts.push(
+      `<polyline points="${polyPoints(data.trajectory, proj)}" fill="none" stroke="${COLORS.trajectory}" ` +
+        `stroke-width="0.08" stroke-dasharray="0.28 0.2" stroke-linecap="round" opacity="0.9"/>`,
+    );
+  }
+  // Faint mid-crossing settled shape (the "押されズレ" — pushed / shoved bridge).
+  if (data.settledChainMid.length >= 2) {
+    parts.push(
+      `<polyline points="${polyPoints(data.settledChainMid, proj)}" fill="none" stroke="${COLORS.shove}" ` +
+        `stroke-width="0.09" stroke-dasharray="0.18 0.14" stroke-linecap="round" opacity="0.85"/>`,
+    );
+  }
+  // Solid settled bridge at launch (the physically-real "正解の線").
+  const solid = data.settledChainLaunch.length >= 2 ? data.settledChainLaunch : data.strokePts;
+  if (solid.length >= 2) {
+    parts.push(
+      `<polyline points="${polyPoints(solid, proj)}" fill="none" stroke="${COLORS.ink}" ` +
+        `stroke-width="0.13" stroke-linecap="round" stroke-linejoin="round"/>`,
+    );
+  }
+  return parts.join('\n');
+}
+
+/**
+ * DangerZone hazard bands: a translucent red rect + diagonal hatch + red border —
+ * the same "danger" language as the in-game DangerZoneRenderer (round-6). Drawn
+ * under the routes/car so the marked ground reads clearly.
+ */
+function renderDangerZones(
+  data: CardData,
+  b: Bounds,
+  proj: (x: number, y: number) => [number, number],
+): string {
+  const zones = data.level.dangerZones ?? [];
+  if (zones.length === 0) return '';
+  const parts: string[] = [];
+  for (const z of zones) {
+    const [x0, yTop] = proj(z.x, z.y + z.height);
+    const [x1, yBottom] = proj(z.x + z.width, z.y);
+    const w = fmt(x1 - x0);
+    const h = fmt(yBottom - yTop);
+    // Saturated red wash.
+    parts.push(
+      `<rect x="${fmt(x0)}" y="${fmt(yTop)}" width="${w}" height="${h}" fill="${COLORS.hazardFill}" ` +
+        `fill-opacity="0.3"/>`,
+    );
+    // 45° diagonal hatch (x + y = c family), clipped to the rect.
+    const spacing = 0.32;
+    for (let c = x0 + yTop; c <= x1 + yBottom; c += spacing) {
+      const xa = Math.max(x0, c - yBottom);
+      const xb = Math.min(x1, c - yTop);
+      if (xa <= xb) {
+        parts.push(
+          `<line x1="${fmt(xa)}" y1="${fmt(c - xa)}" x2="${fmt(xb)}" y2="${fmt(c - xb)}" ` +
+            `stroke="${COLORS.hazardStripe}" stroke-width="0.05" opacity="0.7"/>`,
+        );
+      }
+    }
+    // Teeth (redundant shape coding) for spike / spikeDown zones — matches the
+    // in-game DangerZoneRenderer (near-black base -> deep-red -> red tip).
+    if (z.style === 'spike' || z.style === 'spikeDown') {
+      parts.push(renderTeeth(z.style === 'spike', x0, x1, yTop, yBottom, z.width));
+    }
+    // Darker-red band border.
+    parts.push(
+      `<rect x="${fmt(x0)}" y="${fmt(yTop)}" width="${w}" height="${h}" fill="none" ` +
+        `stroke="${COLORS.hazardBorder}" stroke-width="0.09"/>`,
+    );
+  }
+  return parts.join('\n');
+}
+
+/**
+ * A saw row of near-black teeth with a red-tip gradient (fill-only triangles),
+ * in projected SVG coords. `up` = floor spikes (apex toward the smaller y / top);
+ * else stalactites (apex toward the larger y / bottom).
+ */
+function renderTeeth(up: boolean, x0: number, x1: number, yTop: number, yBottom: number, worldWidth: number): string {
+  const count = Math.max(2, Math.round(worldWidth * 1.7));
+  const bandH = yBottom - yTop;
+  const toothH = bandH * 0.9;
+  const baseY = up ? yBottom : yTop;
+  const apexY = up ? baseY - toothH : baseY + toothH;
+  const tris: string[] = [];
+  const tri = (ax: number, ay: number, bx: number, by: number, cx: number, cy: number, fill: string): string =>
+    `<polygon points="${fmt(ax)},${fmt(ay)} ${fmt(bx)},${fmt(by)} ${fmt(cx)},${fmt(cy)}" fill="${fill}"/>`;
+  for (let i = 0; i < count; i++) {
+    const xL = x0 + ((x1 - x0) * i) / count;
+    const xR = x0 + ((x1 - x0) * (i + 1)) / count;
+    const xc = (xL + xR) / 2;
+    const half = (xR - xL) / 2;
+    // Full near-black tooth.
+    tris.push(tri(xL, baseY, xc, apexY, xR, baseY, COLORS.hazardToothBase));
+    // Deep-red upper 55%.
+    const midHalf = half * 0.55;
+    const midY = apexY + (baseY - apexY) * 0.55;
+    tris.push(tri(xc, apexY, xc - midHalf, midY, xc + midHalf, midY, COLORS.hazardToothMid));
+    // Bright-red top 42%.
+    const tipHalf = half * 0.42;
+    const tipY = apexY + (baseY - apexY) * 0.42;
+    tris.push(tri(xc, apexY, xc - tipHalf, tipY, xc + tipHalf, tipY, COLORS.hazardToothTip));
+  }
+  return tris.join('\n');
+}
+
+/** Unit travel direction at the path end (last segment longer than eps), or null. */
+function endDirection(pts: readonly Point[]): Point | null {
+  const final = pts[pts.length - 1];
+  if (final === undefined) return null;
+  for (let i = pts.length - 2; i >= 0; i--) {
+    const prev = pts[i];
+    if (prev === undefined) continue;
+    const dx = final.x - prev.x;
+    const dy = final.y - prev.y;
+    const len = Math.hypot(dx, dy);
+    if (len > 0.12) return { x: dx / len, y: dy / len };
+  }
+  return null;
+}
+
+/** A small filled arrowhead poking out of the final disc along travel direction. */
+function rockArrow(
+  final: Point,
+  dir: Point,
+  radius: number,
+  proj: (x: number, y: number) => [number, number],
+): string {
+  const base = radius + 0.02; // sit just outside the disc rim
+  const len = 0.34;
+  const wing = 0.19;
+  const perp = { x: -dir.y, y: dir.x };
+  const tip = { x: final.x + dir.x * (base + len), y: final.y + dir.y * (base + len) };
+  const b1 = { x: final.x + dir.x * base + perp.x * wing, y: final.y + dir.y * base + perp.y * wing };
+  const b2 = { x: final.x + dir.x * base - perp.x * wing, y: final.y + dir.y * base - perp.y * wing };
+  const at = (p: Point): string => proj(p.x, p.y).join(',');
+  return `<polygon points="${at(tip)} ${at(b1)} ${at(b2)}" fill="${COLORS.rockArrow}"/>`;
+}
+
+/**
+ * Rock hazards: the recorded MOTION of each rock — a dotted grey polyline from
+ * the spawn (hollow circle) through the fall/roll to its final position, an
+ * arrowhead showing the exit direction, and the solid rock disc + 岩 label at
+ * the final resting/exit point. This is the whole point of the shield levels:
+ * the drawn line has to catch or deflect this arc.
+ */
+function renderRocks(data: CardData, proj: (x: number, y: number) => [number, number]): string {
+  return data.rockPaths
+    .map((rp) => {
+      const pts = rp.points;
+      const start = pts[0];
+      const final = pts[pts.length - 1];
+      if (start === undefined || final === undefined) return '';
+      const parts: string[] = [];
+      // Dotted grey path (falling/rolling arc).
+      if (pts.length >= 2) {
+        parts.push(
+          `<polyline points="${polyPoints(pts, proj)}" fill="none" stroke="${COLORS.rockPath}" ` +
+            `stroke-width="0.07" stroke-dasharray="0.04 0.2" stroke-linecap="round" opacity="0.9"/>`,
+        );
+      }
+      // Hollow spawn marker.
+      const [sx, sy] = proj(start.x, start.y);
+      parts.push(
+        `<circle cx="${sx}" cy="${sy}" r="${fmt(rp.radius)}" fill="none" stroke="${COLORS.rockPath}" ` +
+          `stroke-width="0.06" stroke-dasharray="0.14 0.1" opacity="0.85"/>`,
+      );
+      // TRIGGERED spawn note: a "触発" tag at the hollow spawn + a vertical trigger
+      // line at the car-x that arms it (the timing the round-6 mechanic adds).
+      if (rp.triggerCarX !== undefined) {
+        const tagSize = Math.min(0.5, Math.max(0.26, rp.radius * 0.8));
+        parts.push(
+          `<text x="${sx}" y="${fmt(sy - rp.radius - 0.18)}" font-size="${fmt(tagSize)}" font-weight="700" ` +
+            `text-anchor="middle" fill="${COLORS.rockArrow}">触発 x=${rp.triggerCarX.toFixed(1)}</text>`,
+        );
+        const [tx, tyTop] = proj(rp.triggerCarX, start.y);
+        const [, tyBot] = proj(rp.triggerCarX, 0);
+        parts.push(
+          `<line x1="${tx}" y1="${tyTop}" x2="${tx}" y2="${tyBot}" stroke="${COLORS.trajectory}" ` +
+            `stroke-width="0.05" stroke-dasharray="0.12 0.12" opacity="0.7"/>`,
+        );
+      }
+      // Exit-direction arrowhead (skip when the rock never really moved).
+      const dir = endDirection(pts);
+      if (dir !== null) parts.push(rockArrow(final, dir, rp.radius, proj));
+      // Solid rock disc at the final resting/exit position + hazard label.
+      const [fx, fy] = proj(final.x, final.y);
+      const labelSize = Math.min(0.6, Math.max(0.28, rp.radius * 0.9));
+      parts.push(
+        `<circle cx="${fx}" cy="${fy}" r="${fmt(rp.radius)}" fill="${COLORS.rock}" stroke="${COLORS.rockEdge}" stroke-width="0.1"/>`,
+      );
+      // Red-orange crack facets + glowing core (matches the in-game boulder).
+      const crackN = 7;
+      for (let k = 0; k < crackN; k++) {
+        const a = (k / crackN) * Math.PI * 2;
+        const ix = fx + Math.cos(a) * rp.radius * 0.18;
+        const iy = fy + Math.sin(a) * rp.radius * 0.18;
+        const ox = fx + Math.cos(a) * rp.radius * 0.82;
+        const oy = fy + Math.sin(a) * rp.radius * 0.82;
+        parts.push(
+          `<line x1="${fmt(ix)}" y1="${fmt(iy)}" x2="${fmt(ox)}" y2="${fmt(oy)}" stroke="${COLORS.rockCrack}" stroke-width="${fmt(rp.radius * 0.1)}" stroke-linecap="round"/>`,
+        );
+      }
+      parts.push(`<circle cx="${fx}" cy="${fy}" r="${fmt(rp.radius * 0.22)}" fill="${COLORS.rockCrack}"/>`);
+      parts.push(
+        `<text x="${fx}" y="${fmt(fy + labelSize * 0.35)}" font-size="${fmt(labelSize)}" font-weight="700" text-anchor="middle" fill="${COLORS.rockLabel}">岩</text>`,
+      );
+      return parts.join('\n');
+    })
+    .join('\n');
+}
+
+function renderCoins(data: CardData, proj: (x: number, y: number) => [number, number]): string {
+  return data.level.coins
+    .map((c, i) => {
+      const [x, y] = proj(c.x, c.y);
+      const order = data.coinOrder[i];
+      if (order === null || order === undefined) {
+        // Missed coin — the failure the atlas exists to surface (should be none).
+        return (
+          `<g stroke="${COLORS.coinMissed}" stroke-width="0.12" stroke-linecap="round">` +
+          `<line x1="${fmt(x - 0.22)}" y1="${fmt(y - 0.22)}" x2="${fmt(x + 0.22)}" y2="${fmt(y + 0.22)}"/>` +
+          `<line x1="${fmt(x - 0.22)}" y1="${fmt(y + 0.22)}" x2="${fmt(x + 0.22)}" y2="${fmt(y - 0.22)}"/></g>`
+        );
+      }
+      return (
+        `<circle cx="${x}" cy="${y}" r="0.27" fill="${COLORS.coin}" stroke="${COLORS.coinEdge}" stroke-width="0.05"/>` +
+        `<text x="${x}" y="${fmt(y + 0.14)}" font-size="0.36" font-weight="700" text-anchor="middle" fill="${COLORS.coinLabel}">${order}</text>`
+      );
+    })
+    .join('\n');
+}
+
+/** Render the level's SVG map (no surrounding HTML). */
+export function renderLevelSvg(data: CardData): string {
+  const b = boundsOf(data);
+  const proj = projector(b);
+  const w = fmt(b.maxX - b.minX);
+  const h = fmt(b.maxY - b.minY);
+  const body = [
+    renderTerrain(data, b, proj),
+    renderDangerZones(data, b, proj),
+    renderGoal(data, proj),
+    renderRoutes(data, proj),
+    renderRocks(data, proj),
+    renderCar(data, proj),
+    renderCoins(data, proj),
+  ].join('\n');
+  return (
+    `<svg class="map" viewBox="${fmt(b.minX)} 0 ${w} ${h}" preserveAspectRatio="xMidYMid meet" ` +
+    `xmlns="http://www.w3.org/2000/svg" role="img" aria-label="${data.level.id} route map">\n${body}\n</svg>`
+  );
+}
+
+/** Render a full level card: header + SVG map + stats footer (日本語 labels). */
+export function renderLevelCard(data: CardData): string {
+  const { level } = data;
+  const collected = data.coinOrder.filter((o) => o !== null).length;
+  const total = level.coins.length;
+  const bonus = level.bonusMultiplier !== undefined ? ` · ボーナス x${level.bonusMultiplier}` : '';
+  const ad = level.gimmickTags.includes('anti-dominant') ? ' · <span class="tag ad">直線封じ</span>' : '';
+  const coinClass = collected === total ? 'ok' : 'bad';
+  return `<article class="card">
+  <div class="card-head">
+    <h2>${level.id}${ad}</h2>
+    <p class="design">${escapeHtml(data.design)}</p>
+  </div>
+  ${renderLevelSvg(data)}
+  <div class="stats">
+    <span>インク予算 <b>${fmt(level.inkBudget)}</b></span>
+    <span>消費 <b>${fmt(data.inkConsumed)}</b></span>
+    <span>線長 <b>${fmt(data.strokeLen)}m</b></span>
+    <span>★3 &lt;<b>${fmt(level.starThresholds.star3)}</b></span>
+    <span>★2 &lt;<b>${fmt(level.starThresholds.star2)}</b></span>
+    <span class="coins ${coinClass}">コイン <b>${collected}/${total}</b></span>${bonus ? `<span>${bonus}</span>` : ''}
+  </div>
+</article>`;
+}
+
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}

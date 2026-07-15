@@ -1,0 +1,629 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>InkBridge — 設計アトラス v4（アトラス先行設計）</title>
+<style>
+  :root { color-scheme: light; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: -apple-system, "Hiragino Maru Gothic ProN", "Hiragino Sans", "Yu Gothic UI", system-ui, sans-serif;
+    background: #eef4f2; color: #1e1b33; padding: 20px; }
+  .legend { max-width: 1220px; margin: 0 auto 22px; background: #fff; border: 1px solid #d7e0dc;
+    border-radius: 14px; padding: 18px 22px; box-shadow: 0 2px 10px rgba(20,18,43,0.06); }
+  .legend h1 { font-size: 21px; margin: 0 0 8px; }
+  .legend p { font-size: 13px; line-height: 1.7; margin: 0 0 12px; color: #4a4660; }
+  .legend .defects { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px,1fr)); gap: 6px 16px; margin: 0 0 12px; padding: 0; list-style: none; font-size: 12px; }
+  .legend .defects li { padding: 6px 10px; background: #f4f7f6; border-left: 3px solid #21c46b; border-radius: 6px; line-height: 1.45; }
+  .keys { list-style: none; display: flex; flex-wrap: wrap; gap: 8px 18px; margin: 0; padding: 0; font-size: 12.5px; }
+  .keys li { display: flex; align-items: center; gap: 7px; }
+  .sw { width: 22px; height: 13px; border-radius: 3px; display: inline-block; flex: 0 0 auto; border: 1px solid rgba(0,0,0,0.15); }
+  .sw.car { background: #ff7a1a; }
+  .sw.goal { background: #ff4f9a; }
+  .sw.ink { background: #f8f5ec; border: 1.5px solid #2b2440; height: 7px; }
+  .sw.path { background: repeating-linear-gradient(90deg,#12805a 0 6px, transparent 6px 11px); height: 6px; border: none; }
+  .sw.coin { background: #ffe14d; border: 1px solid #8c6d1f; border-radius: 50%; width: 15px; height: 15px; }
+  .sw.kill { background: repeating-linear-gradient(90deg,#ff3b30 0 6px, transparent 6px 10px); height: 5px; border: none; }
+  .sw.rock { background: #7b7683; border: 1px solid #3f3b46; border-radius: 50%; width: 15px; height: 15px; }
+  .sw.danger { background: repeating-linear-gradient(45deg,#ff3b30 0 2px, rgba(255,59,48,0.18) 2px 6px); border: 1px solid #ff3b30; }
+  .sw.spike { background: #ff3b30; clip-path: polygon(0 100%,12% 20%,25% 100%,37% 20%,50% 100%,62% 20%,75% 100%,87% 20%,100% 100%); border: none; border-radius: 0; }
+  .grid { max-width: 1220px; margin: 0 auto; display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); gap: 18px; align-items: start; }
+  .card { background: #fff; border: 1px solid #d7e0dc; border-radius: 14px; padding: 14px;
+    box-shadow: 0 2px 10px rgba(20,18,43,0.06); display: flex; flex-direction: column; }
+  .card-head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; margin-bottom: 3px; }
+  .card-head h2 { font-size: 16px; margin: 0; }
+  .card-head .ord { font-size: 11px; font-weight: 700; color: #fff; background: #6e6a8a; border-radius: 999px; padding: 2px 8px; }
+  .card-head .role { font-size: 11px; font-weight: 700; color: #0e3a22; background: #c8f0da; border-radius: 999px; padding: 2px 8px; }
+  .card-head .diff { font-size: 12px; color: #d68a00; letter-spacing: 1px; }
+  .card-head .ad { font-size: 10.5px; font-weight: 700; background: #ffe3e3; color: #c92a2a; border-radius: 999px; padding: 2px 7px; }
+  .subtitle { font-size: 12px; color: #4a4660; margin: 2px 0 9px; line-height: 1.4; }
+  svg.map { width: 100%; height: auto; background: linear-gradient(#bfeaff,#a8e4ff 62%,#c9eeff); border: 1px solid #cfe4ee; border-radius: 10px; display: block; }
+  .aspect { font-size: 10.5px; color: #7a7690; margin: 5px 0 0; text-align: right; }
+  .aspect b.tall { color: #12805a; }
+  .info { font-size: 11.5px; line-height: 1.55; color: #3a3652; margin: 8px 0 0; display: grid; gap: 3px; }
+  .info div { display: grid; grid-template-columns: 68px 1fr; gap: 6px; }
+  .info div span.k { font-weight: 700; color: #6e6a8a; }
+  .src { font-size: 10.5px; color: #8a8698; margin-top: 6px; border-top: 1px dashed #e2e6e4; padding-top: 6px; }
+</style>
+</head>
+<body>
+<section class="legend">
+  <h1>InkBridge — 設計アトラス v4 <span style="font-size:13px;color:#7a7690;font-weight:400;">（アトラス先行設計 / 実装前の正本）</span></h1>
+  <p>本ページは実装より前に描いた<strong>18面全ての設計正本</strong>です。各面は <code>research/12_level_recipes.md</code> の出典付きレシピのみを idea source とし、幾何のみ調整しています。実装（レベルJSON＋エンジン）はこの図に一致させること。線は<strong>安定後（settled）の形状</strong>で描画し、両端をリム/地形にアンカーした「押されてもズレない」形にしています。</p>
+  <ul class="defects">
+    <li><b>欠陥1 縦活用</b>：全面 縦span ≥ 横spanの60%、うち4面は縦＞横（降下シャフト/落石シャフト）。空の深穴ではなく段層で使う。</li>
+    <li><b>欠陥2 危険可視化</b>：危険帯＝赤ハッチ矩形（DangerZone・接触失敗）。スパイクは三角の歯で描画。</li>
+    <li><b>欠陥3 同一形状の廃止</b>：18面すべて異なるシルエット（サムネイル判別可）。旧L9/L12の重複を解消。</li>
+    <li><b>欠陥4 岩を当てる</b>：全岩に spawn/初速/交差ETA を明記。正しい線なしなら車に必ず当たる。</li>
+    <li><b>欠陥5 押しズレ対策</b>：全ストロークの両端をリム/棚/ペグにアンカー。自由浮遊線を排除。</li>
+  </ul>
+  <ul class="keys">
+    <li><span class="sw car"></span>スタート車両</li>
+    <li><span class="sw goal"></span>ゴール旗</li>
+    <li><span class="sw ink"></span>想定ストローク（安定後の線）</li>
+    <li><span class="sw path"></span>想定 車ルート</li>
+    <li><span class="sw coin"></span>コイン（車ルート上）</li>
+    <li><span class="sw rock"></span>岩（○=spawn / 実円=交差点 / 矢印=進行）</li>
+    <li><span class="sw danger"></span>DangerZone（赤ハッチ・接触失敗）</li>
+    <li><span class="sw spike"></span>スパイク（三角の歯）</li>
+    <li><span class="sw kill"></span>killY（落下ライン）</li>
+    <li><span class="ad" style="border-radius:999px;padding:2px 7px;background:#ffe3e3;color:#c92a2a;font-weight:700;font-size:10.5px;">直線封じ</span> anti-dominant</li>
+  </ul>
+</section>
+<div class="grid" id="grid"></div>
+
+<script>
+/* ============================================================================
+ * InkBridge DESIGN-MODE atlas renderer (hand-authored, NOT engine-derived).
+ * World coords: metres, y-up. SVG is y-down, so proj flips: sy = maxY - y.
+ * viewBox = "minX 0 W H" (matches scripts/atlas projector convention).
+ * Colours mirror src/render/ui/theme.ts hexes so the review matches the game.
+ * ==========================================================================*/
+const C = {
+  terrain: '#a06a3f', grass: '#6bd24b', terrainStroke: '#4a2e17',
+  ink: '#f8f5ec', inkBorder: '#2b2440',
+  rock: '#7b7683', rockLight: '#a9a4b3', rockDark: '#3f3b46',
+  coin: '#ffe14d', coinStroke: '#8c6d1f', coinLabel: '#5b4708',
+  goal: '#ff4f9a', goalPole: '#4a2e17',
+  car: '#ff7a1a', carRoof: '#323a5e', carGlass: '#9bd9ff', carDark: '#e0590b', wheel: '#2b2440',
+  danger: '#ff3b30', dangerFill: 'rgba(255,59,48,0.16)', dangerEdge: '#b32820',
+  kill: '#ff3b30', path: '#12805a', anchor: '#2b2440',
+};
+const r3 = (n) => Math.round(n * 1000) / 1000;
+
+/* -- geometry helpers ------------------------------------------------------ */
+function makeProj(f) { return (x, y) => [r3(x), r3(f.maxY - y)]; }
+function poly(pts, proj) { return pts.map(p => proj(p[0], p[1]).join(',')).join(' '); }
+
+/* triangular teeth strip. dir=+1 teeth point UP (from baseY upward by len),
+ * dir=-1 teeth hang DOWN (from baseY downward). Returns SVG polygons. */
+function teeth(x0, baseY, w, n, dir, len, proj) {
+  const tw = w / n, out = [];
+  for (let i = 0; i < n; i++) {
+    const a = x0 + i * tw, b = a + tw, mid = a + tw / 2;
+    const p1 = proj(a, baseY), p2 = proj(b, baseY), tip = proj(mid, baseY + dir * len);
+    out.push(`<polygon points="${p1.join(',')} ${p2.join(',')} ${tip.join(',')}" fill="${C.danger}" stroke="${C.dangerEdge}" stroke-width="0.05" stroke-linejoin="round"/>`);
+  }
+  return out.join('');
+}
+
+/* -- element renderers ----------------------------------------------------- */
+function renderTerrain(L, f, proj) {
+  const floorY = r3(f.maxY - f.minY);
+  const parts = [];
+  for (const line of (L.terrain || [])) {
+    const surf = line.map(([x, y]) => proj(x, y).join(','));
+    const first = line[0], last = line[line.length - 1];
+    const pg = [...surf, `${r3(last[0])},${floorY}`, `${r3(first[0])},${floorY}`].join(' ');
+    parts.push(`<polygon points="${pg}" fill="${C.terrain}"/>`);
+    parts.push(`<polyline points="${poly(line, proj)}" fill="none" stroke="${C.grass}" stroke-width="0.22" stroke-linejoin="round" stroke-linecap="round"/>`);
+    parts.push(`<polyline points="${poly(line, proj)}" fill="none" stroke="${C.terrainStroke}" stroke-width="0.06" stroke-linejoin="round"/>`);
+  }
+  for (const bar of (L.ceilings || [])) {
+    parts.push(`<polyline points="${poly(bar, proj)}" fill="none" stroke="${C.terrain}" stroke-width="0.5" stroke-linecap="round"/>`);
+    parts.push(`<polyline points="${poly(bar, proj)}" fill="none" stroke="${C.terrainStroke}" stroke-width="0.06" stroke-linecap="round"/>`);
+  }
+  return parts.join('');
+}
+
+function renderDanger(L, f, proj) {
+  return (L.danger || []).map((d, di) => {
+    const parts = [];
+    // base hatched rect (world rect [x,x+w] x [y,y+h])
+    const tl = proj(d.x, d.y + d.h), br = proj(d.x + d.w, d.y);
+    const x = Math.min(tl[0], br[0]), yTop = Math.min(tl[1], br[1]);
+    const cid = `dz-${L.id}-${di}`;
+    parts.push(`<defs><clipPath id="${cid}"><rect x="${x}" y="${yTop}" width="${r3(d.w)}" height="${r3(d.h)}"/></clipPath></defs>`);
+    parts.push(`<rect x="${x}" y="${yTop}" width="${r3(d.w)}" height="${r3(d.h)}" fill="${C.dangerFill}" stroke="${C.danger}" stroke-width="0.06"/>`);
+    // diagonal hatch, clipped to the rect so it never bleeds into the sky
+    const hatch = [];
+    for (let hx = d.x - d.h; hx < d.x + d.w; hx += 0.4) {
+      const p0 = proj(hx, d.y), p1 = proj(hx + d.h, d.y + d.h);
+      hatch.push(`<line x1="${p0[0]}" y1="${p0[1]}" x2="${p1[0]}" y2="${p1[1]}" stroke="${C.danger}" stroke-width="0.045" opacity="0.5"/>`);
+    }
+    parts.push(`<g clip-path="url(#${cid})">${hatch.join('')}</g>`);
+    // teeth (intentionally extend beyond the base rect — the spiky silhouette)
+    if (d.kind === 'spike') parts.push(teeth(d.x, d.y + d.h, d.w, d.teeth || Math.max(3, Math.round(d.w / 0.55)), +1, 0.55, proj));
+    if (d.kind === 'spikeDown') parts.push(teeth(d.x, d.y, d.w, d.teeth || Math.max(3, Math.round(d.w / 0.55)), -1, 0.6, proj));
+    return parts.join('');
+  }).join('');
+}
+
+function renderKillY(L, f, proj) {
+  if (L.killY < f.minY) return '';
+  const a = proj(f.minX, L.killY), b = proj(f.maxX, L.killY);
+  return `<line x1="${a[0]}" y1="${a[1]}" x2="${b[0]}" y2="${b[1]}" stroke="${C.kill}" stroke-width="0.06" stroke-dasharray="0.45 0.32" opacity="0.8"/>`
+    + `<text x="${r3(f.minX + 0.15)}" y="${r3(a[1] - 0.12)}" font-size="0.4" fill="${C.kill}" opacity="0.9">killY</text>`;
+}
+
+function renderCarPath(L, proj) {
+  if (!L.carPath || L.carPath.length < 2) return '';
+  return `<polyline points="${poly(L.carPath, proj)}" fill="none" stroke="${C.path}" stroke-width="0.09" stroke-dasharray="0.3 0.22" stroke-linecap="round" stroke-linejoin="round" opacity="0.95"/>`;
+}
+
+function renderStroke(L, proj) {
+  const parts = [];
+  if (L.stroke && L.stroke.length >= 2) {
+    // dark border under, cream ink over — matches game ink (theme inkLine/inkBorder)
+    parts.push(`<polyline points="${poly(L.stroke, proj)}" fill="none" stroke="${C.inkBorder}" stroke-width="0.26" stroke-linecap="round" stroke-linejoin="round"/>`);
+    parts.push(`<polyline points="${poly(L.stroke, proj)}" fill="none" stroke="${C.ink}" stroke-width="0.16" stroke-linecap="round" stroke-linejoin="round"/>`);
+  }
+  for (const a of (L.anchors || [])) {
+    const p = proj(a[0], a[1]);
+    parts.push(`<circle cx="${p[0]}" cy="${p[1]}" r="0.17" fill="${C.ink}" stroke="${C.inkBorder}" stroke-width="0.06"/>`);
+    parts.push(`<circle cx="${p[0]}" cy="${p[1]}" r="0.06" fill="${C.inkBorder}"/>`);
+  }
+  return parts.join('');
+}
+
+function rockArrow(pts, radius, proj) {
+  const final = pts[pts.length - 1];
+  let dir = null;
+  for (let i = pts.length - 2; i >= 0; i--) {
+    const dx = final[0] - pts[i][0], dy = final[1] - pts[i][1], len = Math.hypot(dx, dy);
+    if (len > 0.15) { dir = [dx / len, dy / len]; break; }
+  }
+  if (!dir) return '';
+  const base = radius + 0.03, L = 0.36, wing = 0.2, perp = [-dir[1], dir[0]];
+  const tip = proj(final[0] + dir[0] * (base + L), final[1] + dir[1] * (base + L));
+  const b1 = proj(final[0] + dir[0] * base + perp[0] * wing, final[1] + dir[1] * base + perp[1] * wing);
+  const b2 = proj(final[0] + dir[0] * base - perp[0] * wing, final[1] + dir[1] * base - perp[1] * wing);
+  return `<polygon points="${tip.join(',')} ${b1.join(',')} ${b2.join(',')}" fill="${C.rockDark}"/>`;
+}
+
+function renderRocks(L, proj) {
+  return (L.rocks || []).map(rk => {
+    const parts = [];
+    const arc = rk.arc || [[rk.x, rk.y]];
+    const start = arc[0], final = arc[arc.length - 1];
+    if (arc.length >= 2) parts.push(`<polyline points="${poly(arc, proj)}" fill="none" stroke="${C.rockDark}" stroke-width="0.07" stroke-dasharray="0.05 0.22" stroke-linecap="round" opacity="0.85"/>`);
+    const s = proj(start[0], start[1]);
+    parts.push(`<circle cx="${s[0]}" cy="${s[1]}" r="${r3(rk.r)}" fill="none" stroke="${C.rockDark}" stroke-width="0.06" stroke-dasharray="0.16 0.1" opacity="0.8"/>`);
+    parts.push(rockArrow(arc, rk.r, proj));
+    const fpt = proj(final[0], final[1]);
+    parts.push(`<circle cx="${fpt[0]}" cy="${fpt[1]}" r="${r3(rk.r)}" fill="${C.rock}" stroke="${C.rockDark}" stroke-width="0.08"/>`);
+    parts.push(`<circle cx="${r3(fpt[0] - rk.r * 0.3)}" cy="${r3(fpt[1] - rk.r * 0.3)}" r="${r3(rk.r * 0.35)}" fill="${C.rockLight}" opacity="0.8"/>`);
+    return parts.join('');
+  }).join('');
+}
+
+function renderCar(L, proj) {
+  const s = L.spawn;
+  const bl = proj(s.x - 0.72, s.y + 0.02);
+  const w = 1.44, h = 0.46;
+  const [rearX] = proj(s.x - 0.5, s.y), [frontX] = proj(s.x + 0.5, s.y);
+  const [, wheelY] = proj(s.x, s.y - 0.22);
+  const roof = proj(s.x - 0.28, s.y + 0.44);
+  return `<g>`
+    + `<rect x="${bl[0]}" y="${r3(bl[1] - h)}" width="${w}" height="${h}" rx="0.14" fill="${C.car}" stroke="${C.carDark}" stroke-width="0.05"/>`
+    + `<rect x="${roof[0]}" y="${roof[1]}" width="0.78" height="0.3" rx="0.1" fill="${C.carRoof}"/>`
+    + `<rect x="${r3(roof[0] + 0.08)}" y="${r3(roof[1] + 0.05)}" width="0.3" height="0.18" rx="0.05" fill="${C.carGlass}"/>`
+    + `<circle cx="${rearX}" cy="${wheelY}" r="0.24" fill="${C.wheel}"/><circle cx="${rearX}" cy="${wheelY}" r="0.09" fill="${C.rockLight}"/>`
+    + `<circle cx="${frontX}" cy="${wheelY}" r="0.24" fill="${C.wheel}"/><circle cx="${frontX}" cy="${wheelY}" r="0.09" fill="${C.rockLight}"/>`
+    + `</g>`;
+}
+
+function renderGoal(L, proj) {
+  const g = L.goal;
+  const top = proj(g.x, g.y + g.h), bot = proj(g.x, g.y);
+  const tip = proj(g.x + 1.0, g.y + g.h - 0.4), fb = proj(g.x, g.y + g.h - 0.8);
+  return `<line x1="${top[0]}" y1="${top[1]}" x2="${bot[0]}" y2="${bot[1]}" stroke="${C.goalPole}" stroke-width="0.09"/>`
+    + `<polygon points="${top.join(',')} ${tip.join(',')} ${fb.join(',')}" fill="${C.goal}"/>`;
+}
+
+function renderCoins(L, proj) {
+  return (L.coins || []).map((c, i) => {
+    const p = proj(c[0], c[1]);
+    return `<circle cx="${p[0]}" cy="${p[1]}" r="0.26" fill="${C.coin}" stroke="${C.coinStroke}" stroke-width="0.06"/>`
+      + `<text x="${p[0]}" y="${r3(p[1] + 0.13)}" font-size="0.34" font-weight="700" text-anchor="middle" fill="${C.coinLabel}">${i + 1}</text>`;
+  }).join('');
+}
+
+function renderSvg(L) {
+  const f = L.frame, proj = makeProj(f);
+  const W = r3(f.maxX - f.minX), H = r3(f.maxY - f.minY);
+  const body = [
+    renderKillY(L, f, proj),
+    renderTerrain(L, f, proj),
+    renderDanger(L, f, proj),
+    renderCarPath(L, proj),
+    renderStroke(L, proj),
+    renderRocks(L, proj),
+    renderGoal(L, proj),
+    renderCar(L, proj),
+    renderCoins(L, proj),
+  ].join('');
+  return `<svg class="map" viewBox="${r3(f.minX)} 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="${L.id} design map">${body}</svg>`;
+}
+
+function renderCard(L) {
+  const f = L.frame, W = f.maxX - f.minX, H = f.maxY - f.minY;
+  const asp = H / W, tall = asp >= 1.0;
+  const ad = L.ad ? `<span class="ad">直線封じ${L.ad}</span>` : '';
+  const infoRows = [
+    ['縦活用', L.vertical],
+    ['アンカー', L.anchor],
+    ['直線不可', L.whyStraight],
+  ];
+  if (L.rockTiming) infoRows.splice(2, 0, ['岩ETA', L.rockTiming]);
+  const info = infoRows.map(([k, v]) => `<div><span class="k">${k}</span><span>${v}</span></div>`).join('');
+  return `<article class="card">
+    <div class="card-head">
+      <span class="ord">${L.order}</span>
+      <h2>${L.id}</h2>
+      <span class="role">${L.role}</span>
+      <span class="diff">${'★'.repeat(L.diff)}${'☆'.repeat(5 - L.diff)}</span>
+      ${ad}
+    </div>
+    <p class="subtitle">${L.title} — ${L.silhouette}</p>
+    ${renderSvg(L)}
+    <p class="aspect">枠 ${W.toFixed(1)}×${H.toFixed(1)}m · 縦/横 = <b class="${tall ? 'tall' : ''}">${asp.toFixed(2)}</b>${tall ? '（縦＞横）' : ''}</p>
+    <div class="info">${info}</div>
+    <p class="src">${L.recipe} · 出典: ${L.source}</p>
+  </article>`;
+}
+
+/* ============================================================================
+ * THE 18 LEVELS — hand-authored design geometry (world metres, y-up).
+ * Campaign order: L1 L2 L3 L4 L5 B1 L6 L7 L8 L9 L10 B2 L11 L12 L13 L14 L15 B3
+ * ==========================================================================*/
+const LEVELS = [
+/* ---- L1 ---------------------------------------------------------------- */
+{
+  id: 'ch1-l01', order: 1, diff: 1, role: 'road',
+  title: 'はじめの一歩', silhouette: '小さな谷を1本橋で渡る',
+  recipe: 'road (tutorial)', source: '既存チュートリアル',
+  frame: { minX: -6, maxX: 6, minY: -5, maxY: 3.5 }, killY: -4.5,
+  terrain: [[[-6, 0], [-1.6, 0]], [[1.6, 0], [6, 0]]],
+  spawn: { x: -4, y: 0.35 }, goal: { x: 2.4, y: 0, w: 1, h: 2 },
+  stroke: [[-1.6, 0], [-0.8, -0.28], [0, -0.4], [0.8, -0.28], [1.6, 0]],
+  anchors: [[-1.6, 0], [1.6, 0]],
+  carPath: [[-4, 0.35], [-1.6, 0.05], [0, -0.32], [1.6, 0.05], [2.4, 0.05]],
+  coins: [[-1.6, 0.25], [-0.8, -0.03], [0, -0.15], [0.8, -0.03], [1.6, 0.25]],
+  vertical: '縦/横0.71。谷底 killY-4.5 まで見せ、橋のたわみで縦を導入。',
+  anchor: '両リム (-1.6,0)/(1.6,0) に固定。自由端なし。',
+  whyStraight: 'チュートリアルにつき直線可。「離すと走る」を教える。',
+},
+/* ---- L2 ---------------------------------------------------------------- */
+{
+  id: 'ch1-l02', order: 2, diff: 2, role: 'road',
+  title: 'のぼり坂', silhouette: '低い左→高い右棚へ上るランプ',
+  recipe: 'road (climb)', source: '既存チュートリアル / Draw Climber 上り',
+  frame: { minX: -6, maxX: 7, minY: -5, maxY: 5 }, killY: -5,
+  terrain: [[[-6, 0], [-1.4, 0]], [[2.4, 2.6], [7, 2.6]]],
+  spawn: { x: -4, y: 0.35 }, goal: { x: 3.6, y: 2.6, w: 1, h: 2 },
+  stroke: [[-1.4, 0], [0.5, 1.35], [2.4, 2.6]],
+  anchors: [[-1.4, 0], [2.4, 2.6]],
+  carPath: [[-4, 0.35], [-1.4, 0.1], [0.5, 1.45], [2.4, 2.72], [3.6, 2.72]],
+  coins: [[-1.1, 0.35], [-0.2, 0.95], [0.7, 1.6], [1.6, 2.2], [2.4, 2.8]],
+  vertical: '縦/横0.77。ゴール棚を spawn より +2.6m 上に置き上方向を使う。',
+  anchor: '左リム (-1.4,0) と 右棚縁 (2.4,2.6) の両端支持。',
+  whyStraight: 'チュートリアル。上りランプの角度で走破を学ぶ。',
+},
+/* ---- L3 ---------------------------------------------------------------- */
+{
+  id: 'ch1-l03', order: 3, diff: 2, role: 'road+support', ad: '(幾何)',
+  title: 'ふたつの谷', silhouette: '中央の柱に載せて二連の谷を渡る',
+  recipe: 'road + mid-support', source: '既存チュートリアル / Draw Line Bridge 中州',
+  frame: { minX: -7, maxX: 7, minY: -5, maxY: 4 }, killY: -5,
+  terrain: [[[-7, 0], [-3, 0]], [[-0.5, 0.3], [0.5, 0.3]], [[3, 0], [7, 0]]],
+  spawn: { x: -5, y: 0.35 }, goal: { x: 4, y: 0, w: 1, h: 2 },
+  stroke: [[-3, 0], [-1.75, -0.22], [-0.5, 0.05], [0, 0.3], [0.5, 0.05], [1.75, -0.22], [3, 0]],
+  anchors: [[-3, 0], [0, 0.3], [3, 0]],
+  carPath: [[-5, 0.35], [-3, 0.05], [-1.75, -0.18], [0, 0.34], [1.75, -0.18], [3, 0.05], [4, 0.05]],
+  coins: [[-3, 0.2], [-1.75, 0.02], [0, 0.5], [1.75, 0.02], [3, 0.2]],
+  vertical: '縦/横0.64。中央柱を killY-5 から立て、縦の支持構造を見せる。',
+  anchor: '左リム+中央柱天 (0,0.3)+右リムの3点支持。',
+  whyStraight: 'リム間6mを無支持直線にすると破断。中央柱に載せる必要。',
+},
+/* ---- L4 ---------------------------------------------------------------- */
+{
+  id: 'ch1-l04', order: 4, diff: 3, role: 'shield-static', ad: '(落石)',
+  title: '落石の庇', silhouette: '高い落石シャフト＋斜めの庇＋端の側溝',
+  recipe: 'R04 shield-static', source: 'Stickman Rescue（傾け屋根）/ Happy Glass L20+',
+  frame: { minX: -6.5, maxX: 4.5, minY: -3.5, maxY: 7.8 }, killY: -3,
+  terrain: [[[-6.5, 0], [3, 0]]],
+  ceilings: [[[-2.4, 2.8], [-1.8, 2.8]]],
+  danger: [], // 側溝は killY 落下で表現
+  spawn: { x: -4.5, y: 0.35 }, goal: { x: 1.0, y: 0, w: 1, h: 2 },
+  stroke: [[-2.1, 2.8], [0.2, 2.55], [2.4, 2.2]],
+  anchors: [[-2.1, 2.8], [2.4, 2.2]],
+  rocks: [{ x: 0.3, y: 7, r: 0.4, arc: [[0.3, 7], [0.3, 4.2], [0.3, 2.62], [1.35, 2.42], [2.4, 2.22], [2.4, 0.5], [2.9, 0.15]] }],
+  carPath: [[-4.5, 0.35], [-2, 0.06], [0, 0.06], [1.0, 0.06]],
+  coins: [[-4, 0.4], [-2.6, 0.4], [-1.2, 0.4], [0.1, 0.4], [1.0, 0.4]],
+  rockTiming: '落下 h≈6.6m→ETA≈1.15s＝車がx0.3到達と一致。線なし＝直撃死。',
+  vertical: '縦/横1.03（縦＞横）。落石シャフト y+7〜側溝 killY-3。',
+  anchor: '左=天井ブラケット(-2.1,2.8)、右=ルート外の柱(2.4,2.2)。落石は庇を下へ押し込むので車接触ゼロでズレない。',
+  whyStraight: '線は道でなく「蓋」。道は地形（連続床）。庇の傾きで落石を右端の側溝(killY)へ逃がす。コインは走行地形側に配置。',
+},
+/* ---- L5 ---------------------------------------------------------------- */
+{
+  id: 'ch1-l05', order: 5, diff: 3, role: 'multi-seal', ad: '(幾何)',
+  title: '三つの穴', silhouette: '2本の柱を跨いで三連の穴を1本で塞ぐ櫛形',
+  recipe: 'R08 multi-seal', source: 'Draw Line Bridge / Happy Glass 少描画',
+  frame: { minX: -7, maxX: 7, minY: -5.5, maxY: 3 }, killY: -5.5,
+  terrain: [[[-7, 0], [-3.4, 0]], [[-1.9, -0.1], [-1.3, -0.1]], [[0.6, -0.1], [1.2, -0.1]], [[3.4, 0], [7, 0]]],
+  spawn: { x: -5, y: 0.35 }, goal: { x: 4.2, y: 0, w: 1, h: 2 },
+  stroke: [[-3.4, 0], [-2.65, -0.28], [-1.6, -0.1], [-0.35, -0.32], [0.9, -0.1], [2.15, -0.3], [3.4, 0]],
+  anchors: [[-3.4, 0], [-1.6, -0.1], [0.9, -0.1], [3.4, 0]],
+  carPath: [[-5, 0.35], [-3.4, 0.02], [-1.6, -0.05], [0.9, -0.05], [3.4, 0.02], [4.2, 0.05]],
+  coins: [[-3.4, 0.2], [-2.1, -0.05], [-0.35, -0.1], [1.4, -0.05], [3.4, 0.2]],
+  vertical: '縦/横0.61。3穴を killY-5.5 まで落とし、柱2本を縦に立てる。',
+  anchor: '左リム+柱1(-1.6)+柱2(0.9)+右リムの4点支持。',
+  whyStraight: '総幅6.8mを無支持直線→破断。2本の柱に載せ一筆で全穴被覆。',
+},
+/* ---- B1 ---------------------------------------------------------------- */
+{
+  id: 'ch1-b1', order: 6, diff: 1, role: 'multi-seal (息)',
+  title: 'ボーナス：ふたつのくぼみ', silhouette: '浅い二連くぼみ＋中央島、コイン祭り',
+  recipe: 'R08-lite (息抜き)', source: 'Draw Line Bridge（coin大）',
+  frame: { minX: -6.5, maxX: 6.5, minY: -4.5, maxY: 3.5 }, killY: -4.5,
+  terrain: [[[-6.5, 0], [-2.6, 0]], [[-0.6, -0.05], [0.6, -0.05]], [[2.6, 0], [6.5, 0]]],
+  spawn: { x: -4.5, y: 0.35 }, goal: { x: 4, y: 0, w: 1, h: 2 },
+  stroke: [[-2.6, 0], [-1.6, -0.28], [-0.6, -0.05], [0, 0.02], [0.6, -0.05], [1.6, -0.28], [2.6, 0]],
+  anchors: [[-2.6, 0], [0, 0.02], [2.6, 0]],
+  carPath: [[-4.5, 0.35], [-2.6, 0.02], [-1.1, -0.12], [0, 0.06], [1.1, -0.12], [2.6, 0.02], [4, 0.05]],
+  coins: [[-2.9, 0.3], [-2.1, -0.02], [-1.3, -0.12], [-0.5, 0.05], [0, 0.18], [0.5, 0.05], [1.3, -0.12], [2.1, -0.02], [2.9, 0.3], [3.6, 0.3]],
+  vertical: '縦/横0.62。息抜きだが killY-4.5 で縦を維持。',
+  anchor: '左リム+中央島(0,0.02)+右リムの3点支持。',
+  whyStraight: '息抜き回。浅い2連を1本で塞ぐ復習。コイン10枚でご褒美。',
+},
+/* ---- L6 ---------------------------------------------------------------- */
+{
+  id: 'ch1-l06', order: 7, diff: 3, role: 'ramp-jump', ad: '(スパイク)',
+  title: '跳べ', silhouette: '上りランプ→スパイク谷を放物線で飛び越す',
+  recipe: 'R10 ramp-jump', source: 'Draw Climber / Draw the Hill（launch ramp）',
+  frame: { minX: -7, maxX: 8, minY: -5, maxY: 5.5 }, killY: -5,
+  terrain: [[[-7, 0], [-2.5, 0], [-1.0, 1.0]], [[4.5, 0.5], [8, 0.5]]],
+  danger: [{ x: -1.0, y: -4.6, w: 5.5, h: 0.9, kind: 'spike', teeth: 9 }],
+  spawn: { x: -5, y: 0.35 }, goal: { x: 5.6, y: 0.5, w: 1, h: 2 },
+  stroke: [[-1.0, 1.0], [-0.3, 1.55], [0.3, 1.9]],
+  anchors: [[-1.0, 1.0], [0.3, 1.9]],
+  carPath: [[-5, 0.35], [-2.5, 0.1], [-1.0, 1.05], [0.3, 1.95], [2.0, 2.55], [3.5, 1.9], [4.5, 0.62], [5.6, 0.55]],
+  coins: [[-0.4, 1.75], [0.9, 2.35], [2.0, 2.6], [3.1, 2.3], [4.2, 1.15], [5.0, 0.65]],
+  rockTiming: '',
+  vertical: '縦/横0.70。放物線は y+2.6 峰、スパイク谷は killY-5 まで。',
+  anchor: '地形ランプ (-1.0,1.0) に載る短い延長で離陸(0.3,1.9)。地形が下支え＝押されない。',
+  whyStraight: 'スパイク谷(幅5.5m)は走破・架橋不可。ランプ角+助走(離陸≈5.5-6m/s)で飛び越えるのみ。',
+},
+/* ---- L7 ---------------------------------------------------------------- */
+{
+  id: 'ch1-l07', order: 8, diff: 4, role: 'shield-dyn-block', ad: '(転石)',
+  title: '転石を止めろ', silhouette: '上段メサの岩＋縁の縦ストップ壁、下段に車レーン',
+  recipe: 'R05 shield-dynamic-block', source: 'Stickman Rescue（矢=壁）/ Draw Bridge cover',
+  frame: { minX: -6.5, maxX: 6.5, minY: -3.5, maxY: 5.5 }, killY: -3.5,
+  terrain: [[[-6.5, 0], [6.5, 0]], [[1.2, 2.5], [6, 4.6]]],
+  spawn: { x: -5, y: 0.35 }, goal: { x: 4, y: 0, w: 1, h: 2 },
+  stroke: [[1.2, 2.5], [1.2, 3.1], [1.2, 3.7]],
+  anchors: [[1.2, 2.5], [1.2, 3.7]],
+  rocks: [{ x: 5.6, y: 4.4, r: 0.38, arc: [[5.6, 4.4], [4.2, 3.7], [2.8, 3.0], [1.7, 2.63]] }],
+  carPath: [[-5, 0.35], [-2, 0.05], [1, 0.05], [4, 0.05]],
+  coins: [[-4, 0.4], [-2, 0.4], [0, 0.4], [2, 0.4], [3.5, 0.4]],
+  rockTiming: '傾斜メサを転がり縁(1.2,2.5)へETA≈1.4s＝車がx1.1直下に一致。壁なし＝縁から落下し直撃。',
+  vertical: '縦/横0.69。上段メサ y+4.6 に岩、下段 y0 に車。上下二段で縦を使う。',
+  anchor: '壁の基部を上段メサ縁(1.2,2.5)に固定。転石は壁を棚の角へ押す＝自分の支持へ押す＝安定。車レーン外なので車も押さない。',
+  whyStraight: '転がってくる岩は「落下」でなく「横移動」。縁に縦の壁を立てて堰き止める。道は下段地形。',
+},
+/* ---- L8 ---------------------------------------------------------------- */
+{
+  id: 'ch1-l08', order: 9, diff: 4, role: 'catch-redirect', ad: '(転石)',
+  title: '逸らす滑り台', silhouette: '天井ブラケットから急斜のシュートで岩を側溝へ落とす',
+  recipe: 'R06 catch-redirect', source: 'Draw Physics Line / Brain Dots（redirect）',
+  frame: { minX: -6.5, maxX: 4.5, minY: -4.5, maxY: 6.2 }, killY: -4,
+  terrain: [[[-6.5, 0], [3, 0]]],
+  ceilings: [[[-0.9, 3.4], [-0.3, 3.4]]],
+  spawn: { x: -4.3, y: 0.35 }, goal: { x: 1.2, y: 0, w: 1, h: 2 },
+  stroke: [[-0.5, 3.4], [1.2, 1.8], [3.0, 0.2]],
+  anchors: [[-0.5, 3.4], [3.0, 0.2]],
+  rocks: [{ x: -2.5, y: 5.6, r: 0.38, arc: [[-2.5, 5.6], [-1.4, 4.6], [-0.3, 3.3], [0.8, 2.0], [1.9, 1.1], [2.95, 0.28], [3.1, -2.6]] }],
+  carPath: [[-4.3, 0.35], [-2, 0.05], [0, 0.05], [1.2, 0.05]],
+  coins: [[-3.6, 0.4], [-2.2, 0.4], [-0.8, 0.4], [0.4, 0.4], [1.2, 0.4]],
+  rockTiming: '岩は左上から vx+3.5 で弧を描き ETA≈1.05s で x1.2 着地＝車位置。シュートで受け右の側溝(killY)へ排出。',
+  vertical: '縦/横0.97（ほぼ縦）。岩は y+5.6 から、側溝は killY-4 へ。',
+  anchor: '左=天井ブラケット(-0.5,3.4)、右=側溝リム(3.0,0.2)。岩がシュート上を滑り押し下げる＝支持へ押す＝安定。',
+  whyStraight: '止めるでなく「受けて逸らす」。急斜シュートで転石をゴール奥の側溝へ排出。道は地形。',
+},
+/* ---- L9 ---------------------------------------------------------------- */
+{
+  id: 'ch1-l09', order: 10, diff: 3, role: 'hook (護り道)', ad: '(スパイク)',
+  title: '鍾乳の下をくぐる', silhouette: '中央に下向きスパイク鍾乳石、その下を谷型でくぐる',
+  recipe: 'R16 hook-cantilever (wrap)', source: 'Draw Bridge L210 / Draw Save!',
+  frame: { minX: -6, maxX: 6, minY: -4.5, maxY: 4 }, killY: -4,
+  terrain: [[[-6, 0.2], [-2.4, 0.2]], [[2.4, 1.8], [6, 1.8]]],
+  ceilings: [[[-1.2, 2.8], [1.2, 2.8]]],
+  danger: [{ x: -0.55, y: 0.6, w: 1.1, h: 2.0, kind: 'spikeDown', teeth: 3 }],
+  spawn: { x: -4.2, y: 0.55 }, goal: { x: 3.6, y: 1.8, w: 1, h: 2 },
+  stroke: [[-2.4, 0.2], [-1.3, -0.05], [0, 0.3], [1.3, 0.9], [2.4, 1.8]],
+  anchors: [[-2.4, 0.2], [2.4, 1.8]],
+  carPath: [[-4.2, 0.55], [-2.4, 0.25], [-1.3, 0.02], [0, 0.38], [1.3, 1.0], [2.4, 1.92], [3.6, 1.92]],
+  coins: [[-2.4, 0.45], [-1.3, 0.2], [0, 0.55], [1.3, 1.15], [2.4, 2.05]],
+  vertical: '縦/横0.71。天井から鍾乳スパイクを y0.6 まで垂らし、谷底 killY-4 でくぐる空間を確保。',
+  anchor: '低左リム(-2.4,0.2)＋高右棚(2.4,1.8)の両端支持。中央でスパイク尖端(0.6)の下へ谷型で回り込む。',
+  whyStraight: '低左→高右への直線ランプは中央 y1.0 でスパイク帯(0.6〜2.8)に刺さる。谷型に下げて尖端の下をくぐる必要。',
+},
+/* ---- L10 --------------------------------------------------------------- */
+{
+  id: 'ch1-l10', order: 11, diff: 4, role: 'dome-dual', ad: '(落石)',
+  title: '守る屋根＝走る道', silhouette: '深穴に架けた単アーチ、頂点に落石',
+  recipe: 'R14 dome-dual (lite)', source: 'Draw Bridge L69-74（証拠12.jpeg）',
+  frame: { minX: -6, maxX: 6, minY: -5.5, maxY: 6.5 }, killY: -5,
+  terrain: [[[-6, 0], [-2.4, 0]], [[2.4, 0], [6, 0]]],
+  spawn: { x: -4.5, y: 0.35 }, goal: { x: 4, y: 0, w: 1, h: 2 },
+  stroke: [[-2.4, 0], [-1.4, 1.3], [-0.5, 1.95], [0, 2.1], [0.5, 1.95], [1.4, 1.3], [2.4, 0]],
+  anchors: [[-2.4, 0], [2.4, 0]],
+  rocks: [{ x: 0, y: 6, r: 0.34, arc: [[0, 6], [0, 3.4], [0, 2.15], [0.7, 1.35], [1.1, 0.2], [1.2, -2.6]] }],
+  carPath: [[-4.5, 0.35], [-2.4, 0.1], [-1.2, 1.45], [0, 2.25], [1.2, 1.45], [2.4, 0.1], [4, 0.05]],
+  coins: [[-2.2, 0.35], [-1.2, 1.45], [-0.4, 2.05], [0.4, 2.05], [1.2, 1.45], [2.2, 0.35]],
+  rockTiming: '落石は頂点(0,2.1)へ ETA≈0.92s＝車が頂上到達(≈1.0s)と同時。正アーチは岩を右内面から穴へ受け流す。低い平橋なら落石荷重で破断→落下。',
+  vertical: '縦/横1.00（縦＝横）。落石 y+6〜深穴 killY-5。中間クライマックス。',
+  anchor: '両リム(-2.4,0)/(2.4,0)。落石は頂点を下へ＝アーチを両リムへ圧縮＝最強で安定。',
+  whyStraight: '1本が「守る屋根」かつ「走る道」。守れる高さと登れる勾配の交点。平線は落石で破断。',
+},
+/* ---- B2 ---------------------------------------------------------------- */
+{
+  id: 'ch1-b2', order: 12, diff: 2, role: 'sag-rope (息)',
+  title: 'ボーナス：たわむ綱', silhouette: '浅い穴に1本のスパイク、緩い懸垂線を張る',
+  recipe: 'R03-lite (息抜き)', source: 'Draw Line Bridge（sag-rope）',
+  frame: { minX: -6, maxX: 6.5, minY: -4.2, maxY: 3.3 }, killY: -3.5,
+  terrain: [[[-6, 0.4], [-2.8, 0.4]], [[2.8, 0.4], [6.5, 0.4]]],
+  danger: [{ x: -0.5, y: -1.6, w: 1.0, h: 0.55, kind: 'spike', teeth: 3 }],
+  spawn: { x: -4.3, y: 0.75 }, goal: { x: 4, y: 0.4, w: 1, h: 2 },
+  stroke: [[-2.8, 0.4], [-1.4, -0.15], [0, -0.35], [1.4, -0.15], [2.8, 0.4]],
+  anchors: [[-2.8, 0.4], [2.8, 0.4]],
+  carPath: [[-4.3, 0.75], [-2.8, 0.45], [-1.4, -0.08], [0, -0.28], [1.4, -0.08], [2.8, 0.45], [4, 0.45]],
+  coins: [[-2.8, 0.6], [-1.9, 0.05], [-0.9, -0.2], [0, -0.13], [0.9, -0.2], [1.9, 0.05], [2.8, 0.6], [3.5, 0.6]],
+  vertical: '縦/横0.60。息抜きだが killY-3.5 で縦を確保。',
+  anchor: '両リム(-2.8,0.4)。たわみは尖端(-1.0)の上に十分な余裕。',
+  whyStraight: '息抜き。張り渡しの「たわみ許容窓」を浅く体験。コイン祭り。',
+},
+/* ---- L11 --------------------------------------------------------------- */
+{
+  id: 'ch1-l11', order: 13, diff: 4, role: 'sag-rope', ad: '(スパイク)',
+  title: '棘の谷を張り渡す', silhouette: '深い峡谷の底に棘床＋中央尖塔、上を張った線で渡る',
+  recipe: 'R03 sag-rope-over-hazard', source: 'Draw Line Bridge（証拠11.jpeg 上）',
+  frame: { minX: -6, maxX: 6, minY: -6.5, maxY: 3 }, killY: -6,
+  terrain: [[[-6, 0.6], [-2.6, 0.6]], [[2.6, 0.6], [6, 0.6]], [[-0.35, -0.6], [0.35, -0.6]]],
+  danger: [{ x: -2.6, y: -3.4, w: 5.2, h: 0.9, kind: 'spike', teeth: 9 }],
+  spawn: { x: -4.4, y: 0.95 }, goal: { x: 4, y: 0.6, w: 1, h: 2 },
+  stroke: [[-2.6, 0.6], [-1.3, 0.35], [0, 0.25], [1.3, 0.35], [2.6, 0.6]],
+  anchors: [[-2.6, 0.6], [2.6, 0.6]],
+  carPath: [[-4.4, 0.95], [-2.6, 0.65], [-1.3, 0.42], [0, 0.32], [1.3, 0.42], [2.6, 0.65], [4, 0.65]],
+  coins: [[-2.6, 0.75], [-1.3, 0.55], [0, 0.45], [1.3, 0.55], [2.6, 0.75]],
+  vertical: '縦/横0.79。峡谷は killY-6 まで、底に棘床。中央尖塔(-0.6)がたわみ窓を締める。',
+  anchor: '両リム(-2.6,0.6)。5.2m（無支持上限近傍）を張力で保持。たわみ最小。',
+  whyStraight: 'たわみ過ぎると中央尖塔(-0.6)の棘に接触＝死。張った線のみ安全。緩い低線は不可。',
+},
+/* ---- L12 --------------------------------------------------------------- */
+{
+  id: 'ch1-l12', order: 14, diff: 4, role: 'hook (wrap)', ad: '(危険帯)',
+  title: '降下シャフト', silhouette: '縦の竪穴、壁から突き出す赤帯をS字で回り込み降りる',
+  recipe: 'R02 hook-cantilever (wrap)', source: 'Draw Bridge L210（証拠10.png）',
+  frame: { minX: -5.5, maxX: 4, minY: -5.5, maxY: 5.5 }, killY: -5,
+  terrain: [[[-5, 4.5], [-1.6, 4.5], [-1.6, 3.2]], [[-0.4, -1.2], [3, -1.2]]],
+  danger: [{ x: -2.2, y: 1.6, w: 2.0, h: 1.2, kind: 'zone' }],
+  spawn: { x: -3.2, y: 4.85 }, goal: { x: 1.4, y: -1.2, w: 1, h: 2 },
+  stroke: [[-1.6, 4.5], [-0.7, 3.6], [-0.2, 2.9], [0.2, 2.0], [0.1, 0.9], [-0.2, -0.2], [-0.4, -1.2]],
+  anchors: [[-1.6, 4.5], [-0.4, -1.2]],
+  carPath: [[-3.2, 4.85], [-1.6, 4.55], [-0.4, 3.2], [0.2, 2.05], [0.05, 0.8], [-0.3, -0.4], [-0.4, -1.15], [1.4, -1.15]],
+  coins: [[-1.5, 4.35], [-0.5, 3.4], [0.2, 2.2], [0.1, 0.9], [-0.2, -0.3], [0.6, -1.05]],
+  vertical: '縦/横1.16（縦＞横・最大）。上段ledge y+4.5 → 下段棚 y-1.2 への降下シャフト。竪穴を主役に。',
+  anchor: '上端=spawn ledge縁(-1.6,4.5)、下端=下段棚(-0.4,-1.2)の両端支持。中間で赤帯の右を回る。',
+  whyStraight: 'ledge→棚の直線は赤帯(x-2.2〜-0.2, y1.6〜2.8)を貫き死。帯の上を越え右を回るS字が必須。',
+},
+/* ---- L13 --------------------------------------------------------------- */
+{
+  id: 'ch1-l13', order: 15, diff: 4, role: 'shield-dyn (timed)', ad: '(転石)',
+  title: '時限：来るぞ', silhouette: '長い上段レースを転がる岩を、ゴール手前の縁で堰き止める',
+  recipe: 'R11 timed shield', source: 'Stickman Rescue（観察）/ Happy Glass',
+  frame: { minX: -6, maxX: 7.3, minY: -3.5, maxY: 4.8 }, killY: -3.5,
+  terrain: [[[-6, 0], [6.5, 0]], [[0.5, 2.6], [7, 3.9]]],
+  spawn: { x: -4.5, y: 0.35 }, goal: { x: 4.4, y: 0, w: 1, h: 2 },
+  stroke: [[3.9, 2.6], [3.9, 3.2], [3.9, 3.8]],
+  anchors: [[3.9, 2.6], [3.9, 3.8]],
+  rocks: [{ x: 6.2, y: 3.4, r: 0.38, arc: [[6.2, 3.4], [5.3, 3.1], [4.5, 2.85], [4.1, 2.68]] }],
+  carPath: [[-4.5, 0.35], [-1.5, 0.05], [1.5, 0.05], [4.4, 0.05]],
+  coins: [[-3.5, 0.4], [-1.5, 0.4], [0.5, 0.4], [2.5, 0.4], [3.9, 0.4]],
+  rockTiming: 'ストローク確定で岩が発進、長い上段を転がり縁(3.9,2.6)へ ETA≈1.1s。線なし＝ゴール直前x3.9直下(車ETA≈1.85s)に落下し直撃。壁で上段に堰き止め。',
+  vertical: '縦/横0.62。上段レース y+3.9 を全幅に敷き、下段 y0 に車レーン。',
+  anchor: '壁基部を上段の縁(3.9,2.6)へ固定。転石が壁を縁角へ押す＝支持へ押す＝安定。車レーン外。',
+  whyStraight: '確定した瞬間に発進する岩の初速から逆算し、ゴール手前の縁に先回りして壁を置く。空間＋時間の複合。',
+},
+/* ---- L14 --------------------------------------------------------------- */
+{
+  id: 'ch1-l14', order: 16, diff: 5, role: 'catch+seal', ad: '(複合)',
+  title: '受けて塞ぐ', silhouette: 'M字：二穴を塞ぎつつ中央の受け皿で落石を右穴へ流す',
+  recipe: 'R12 + R08 (composite)', source: 'Happy Glass funnel / Draw Line Bridge',
+  frame: { minX: -6.5, maxX: 6.5, minY: -5.5, maxY: 6 }, killY: -5,
+  terrain: [[[-6.5, 0], [-3.4, 0]], [[-0.7, 0.1], [0.7, 0.1]], [[3.4, 0], [6.5, 0]]],
+  spawn: { x: -4.7, y: 0.35 }, goal: { x: 5, y: 0, w: 1, h: 2 },
+  stroke: [[-3.4, 0], [-2.4, -0.3], [-0.9, 0.3], [-0.2, 0.45], [0.5, 0.1], [1.4, -0.35], [2.5, -0.35], [3.4, 0]],
+  anchors: [[-3.4, 0], [-0.2, 0.45], [3.4, 0]],
+  rocks: [{ x: 0, y: 5.5, r: 0.34, arc: [[0, 5.5], [0, 2.6], [-0.15, 0.5], [0.55, -0.1], [0.9, -1.6], [1.0, -3.2]] }],
+  carPath: [[-4.7, 0.35], [-3.4, 0.02], [-2, -0.15], [-0.2, 0.5], [1, -0.1], [2.5, -0.28], [3.4, 0.02], [5, 0.05]],
+  coins: [[-3.4, 0.2], [-2.4, -0.12], [-0.2, 0.62], [1.5, -0.2], [3.4, 0.2]],
+  rockTiming: '落石は中央の皿の頂(0,0.45)へ ETA≈1.02s＝車が中央到達(≈1.04s)と一致。皿は右下がりで岩を右穴(killY)へ流す。橋下へ落ちるので車と非接触。',
+  vertical: '縦/横0.88。落石 y+5.5〜二穴 killY-5。左右に穴、中央に受け皿の起伏。',
+  anchor: '左リム+中央柱天(-0.2,0.45)+右リムの3点支持。柱が受け皿を物理支持。',
+  whyStraight: '「二穴を塞ぐ」＋「落石を受け流す」を一筆で両立。平線は塞げず落石荷重で破断。既習2役割の複合。',
+},
+/* ---- L15 --------------------------------------------------------------- */
+{
+  id: 'ch1-l15', order: 17, diff: 5, role: 'boss (複合)', ad: '(全機序)',
+  title: '章ボス：試練の連なり', silhouette: '蛇行で 棘床covering→落石アーチ→転石壁→登坂 を一筆',
+  recipe: 'R15 = R07+R14+R05', source: 'Draw Bridge 後半 / Stickman 多段',
+  frame: { minX: -7.5, maxX: 6, minY: -5.5, maxY: 7 }, killY: -5,
+  terrain: [
+    [[-7.5, 0.4], [-3.5, 0.4]],
+    [[-0.75, 0.6], [-0.25, 0.6]],
+    [[3.2, 3.2], [6, 3.2]],
+    [[1.75, 1.2], [2.25, 1.2]],
+  ],
+  ceilings: [],
+  danger: [{ x: -3.3, y: 0.0, w: 2.6, h: 0.5, kind: 'spike', teeth: 5 }],
+  spawn: { x: -6.5, y: 0.75 }, goal: { x: 4, y: 3.2, w: 1, h: 2 },
+  stroke: [
+    [-3.5, 0.4], [-2.6, 0.62], [-1.5, 0.66], [-0.5, 0.6],
+    [0.2, 1.4], [0.8, 2.2], [1.4, 1.6], [2.0, 1.2],
+    [2.5, 1.35], [2.7, 1.9], [2.6, 1.45],
+    [3.0, 2.3], [3.2, 3.2],
+  ],
+  anchors: [[-3.5, 0.4], [-0.5, 0.6], [2.0, 1.2], [3.2, 3.2]],
+  rocks: [
+    { x: 0.8, y: 6, r: 0.34, arc: [[0.8, 6], [0.8, 3.6], [0.8, 2.25], [1.5, 1.6], [1.9, 0.2], [2.0, -2.6]] },
+    { x: 4.4, y: 3.5, r: 0.36, arc: [[4.4, 3.5], [3.6, 3.3], [3.2, 3.2], [2.9, 2.35], [2.72, 1.6]] },
+  ],
+  carPath: [
+    [-6.5, 0.75], [-3.5, 0.45], [-2, 0.72], [-0.5, 0.7],
+    [0.8, 2.35], [2.0, 1.32], [2.7, 2.0], [3.2, 3.32], [4, 3.32],
+  ],
+  coins: [[-3.5, 0.6], [-2, 0.85], [-0.5, 0.82], [0.8, 2.5], [2.0, 1.45], [2.7, 2.15], [3.2, 3.45]],
+  rockTiming: '岩#1落石→中央アーチ頂(0.8,2.2)を車が越える時に受け流し（右穴killY）。岩#2は登坂前に上段から転がり、hump壁(2.7,1.9)で堰き止め。2岩は決定論で再現固定。',
+  vertical: '縦/横0.93。棘床 y0 → 落石アーチ y+2.2 → 登坂 → 高ゴール y+3.2。落石は y+6。上下フルに使う昇り階段。',
+  anchor: '左リム+棘床covering端(-0.5,0.6)+柱(2.0,1.2)+高棚(3.2,3.2)の4点で一筆蛇行を支持。',
+  whyStraight: '既習3役割（cover / dome-dual / block）を一筆蛇行に凝縮。平線は各機序で破綻。章の総決算。',
+},
+/* ---- B3 ---------------------------------------------------------------- */
+{
+  id: 'ch1-b3', order: 18, diff: 2, role: 'dome-dual (息)',
+  title: 'ボーナス：ゆるいドーム', silhouette: '広く浅いドーム、コインの弧、ゆっくりの岩1つ',
+  recipe: 'R01-lite (息抜き)', source: 'Draw Bridge L69-74（緩アーチ・coin祭）',
+  frame: { minX: -6.5, maxX: 7, minY: -4.3, maxY: 4 }, killY: -3.5,
+  terrain: [[[-6.5, 0], [-3.4, 0]], [[-0.4, -0.2], [0.4, -0.2]], [[3.4, 0], [7, 0]]],
+  spawn: { x: -4.6, y: 0.35 }, goal: { x: 5, y: 0, w: 1, h: 2 },
+  stroke: [[-3.4, 0], [-2.2, 0.7], [-1.1, 1.0], [0, 1.05], [1.1, 1.0], [2.2, 0.7], [3.4, 0]],
+  anchors: [[-3.4, 0], [0, 1.05], [3.4, 0]],
+  rocks: [{ x: 0, y: 4, r: 0.3, arc: [[0, 4], [0, 2.4], [0, 1.1], [0.8, 0.6], [1.6, 0.1], [1.7, 0.05]] }],
+  carPath: [[-4.6, 0.35], [-3.4, 0.05], [-1.7, 0.85], [0, 1.2], [1.7, 0.85], [3.4, 0.05], [5, 0.05]],
+  coins: [[-3.2, 0.2], [-2.3, 0.8], [-1.2, 1.15], [-0.4, 1.25], [0.4, 1.25], [1.2, 1.15], [2.3, 0.8], [3.2, 0.2], [4.2, 0.2]],
+  rockTiming: '緩い落石(y+4・低速)は頂点(0,1.05)に落ち右へ穏やかに逃げる。息抜きにつき余裕大。',
+  vertical: '縦/横0.61。広く浅いドームだが killY-3.5 で縦を維持。',
+  anchor: '左リム+中央島(0,1.05)+右リムの3点支持。',
+  whyStraight: '息抜き＋「守る道」の再確認。緩アーチにコイン9枚。',
+},
+];
+
+document.getElementById('grid').innerHTML = LEVELS.map(renderCard).join('');
+</script>
+</body>
+</html>

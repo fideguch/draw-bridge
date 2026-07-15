@@ -1,0 +1,141 @@
+# Quickstart: InkBridge MVP
+
+Dev setup, run, test, and device build. Web-first workflow (plan.md): the browser dev loop is where physics/juice tuning happens; devices are for verification.
+
+## 1. Prerequisites
+
+- **Node 20** — use the exact version in `.nvmrc` (`nvm use`); the same pin runs in CI (determinism contract).
+- npm (bundled with Node).
+- Device builds only: Xcode 15+ (iOS 16+ target) / Android Studio (API 29+).
+
+## 2. Install & Run
+
+```bash
+npm install
+npm run dev        # Vite dev server → http://localhost:5173
+```
+
+Open the URL in a browser (mobile viewport ≈ 390×844 portrait recommended in devtools). HMR is active; TuningConstants edits hot-reload.
+
+**Controls (web/desktop)**: mouse drag = draw the stroke (touch drag on devices); release = commit → car launches automatically; on-screen restart button = instant reset (≤ 1 s); any tap during the goal celebration = skip.
+
+## 3. Dev-Only Tools (excluded from release builds via `import.meta.env.DEV`)
+
+| Tool | Access | Purpose |
+|---|---|---|
+| Debug tuning panel (`src/debug/`) | `` ` `` (backtick) key, or triple-tap the top-left corner on touch | runtime sliders for every physics/camera/juice constant; continuous fps / physics-step-time (p95) / body-count readout; changed values persist for the session (FR-025) |
+| Level editor (`src/editor/`) | `#/editor` hash route | terrain vertex editing, spawn/flag/coin/gimmick placement, inkBudget + star2/star3 + tags; **save requires a recorded test-play clear** (attaches the ghost solution); exports/imports level JSON (FR-024) |
+
+Release builds tree-shake both directories out entirely — no runtime path can reveal them.
+
+## 4. Test & Validate
+
+```bash
+npm test           # Vitest — engine unit tests (target: ≥ 80% line coverage on src/engine)
+npm run gates      # Gate 0→1→2→3 over levels/*.json (headless; see contracts/gate-pipeline.md)
+npm run e2e        # Playwright — real-pointer L1 draw & clear, tempo contract, retry ≤ 1s
+```
+
+`npm run gates` is the pre-commit check when authoring levels — identical to the CI pipeline on the same pinned Node. Exit 0 = all pass, 1 = a level failed a gate, 2 = config error.
+
+## 5. Device Build (Capacitor 8)
+
+```bash
+npm run build              # production web bundle (≤ 5MB gzip budget)
+npx cap sync ios           # copy bundle + plugins into ios/
+npx cap sync android       # ... into android/
+npx cap open ios           # Xcode → run on device
+npx cap open android       # Android Studio → run on device
+```
+
+On-device verification target (week-1 spike + KPI-001): mid-tier Android (Snapdragon 6xx / Helio G), 60 fps with physics step p95 ≤ 4 ms — read it from the debug overlay (dev build on device). v1.0 plugins: `@capacitor/haptics`, `@capacitor/preferences` only; zero network calls.
+
+## 6. Project Layout (from plan.md)
+
+| Path | Contents |
+|---|---|
+| `src/engine/` | Phaser-free, headless-runnable: physics (World, BridgeChainBuilder, Vehicle, StressTracker, Terrain), rules (Judge, StarRating, InkBudget), level (LevelSchema, LevelLoader), replay (GhostRecorder/Player), EngineEvents |
+| `src/render/` | Phaser 4 scenes, draw capture, juice (camera/hit-stop/slow-mo/confetti), audio — observes Engine, never writes back |
+| `src/meta/` | coins, upgrades, progression, SaveManager |
+| `src/platform/` | `interfaces.ts` + `noop/` `web/` `capacitor/` implementations |
+| `src/tuning/TuningConstants.ts` | single source of ~70 tunables |
+| `src/editor/`, `src/debug/` | dev-only tools (§3) |
+| `levels/` | `ch1-l01.json`..`ch1-l15.json`, `ch1-b1..b3.json` |
+| `scripts/gates/` | gate0-schema / gate1-static / gate2-ghost / gate3-antidominant |
+| `tests/` | `unit/` (Vitest), `contract/` (schema + platform conformance), `e2e/` (Playwright) |
+| `ios/`, `android/` | generated Capacitor shells (committed) |
+
+## 7. Spike Bench & SpikeScene (research.md §R10)
+
+Headless (this machine, results recorded in research.md §R10):
+
+```bash
+npm run spike:bench                  # S1 matrix: chain|compound × N=8/16/24/32 × gap 2/4/6m (p50/p95/max step ms)
+npm run spike:bench -- --json        # NDJSON output
+npm run spike:bench -- --calibrate   # breakForceFactor × car-density sweep + recommendation
+npm run spike:determinism            # S3: 1000 full runs, 100% stateHash equality required
+```
+
+Browser visual check (S2): `npm run dev` → open `http://localhost:5173/?spike=1`.
+Controls: **1–9** scenario (gap 2/4/6m × N), **M** chain/compound toggle, **R** restart. HUD shows fps, physics step p50/p95/max, outcome, break count. Watch: load sag credibility, break separation, wheel-over-capsule contact popping (S2 criterion). The page auto-reloads after ~30 restarts (phaser-box2d world-slot leak — expected).
+
+## 8. Device Measurement Procedure (S1/S2 on Android — manual gatekeeper step)
+
+SpikeScene is dev-only (`import.meta.env.DEV`), so a production `npm run build` strips it. On device it runs via Capacitor **live reload** against the Mac dev server:
+
+1. Mac and the Android device on the same Wi-Fi. Start the dev server (it already listens on LAN): `npm run dev` — note the `Network:` URL (e.g. `http://192.168.x.x:5173`).
+2. Temporarily add a `server` block to `capacitor.config.ts` (do NOT commit):
+
+   ```ts
+   server: { url: 'http://192.168.x.x:5173/?spike=1', cleartext: true },
+   ```
+
+3. `npx cap sync android && npx cap open android` → run on the device (mid-tier target: Snapdragon 6xx / Helio G class, API 29+).
+4. The app boots straight into SpikeScene. For each scenario 1–9 (tap has no scenario keys on device — set the start scenario via the URL, e.g. `...?spike=1&s=6&m=chain`), let the attempt finish and read the HUD:
+   - **fps** — must hold 60,
+   - **step p95** — must be ≤ 4 ms (S1 pass criterion),
+   - visual: sag credibility, break separation, **no contact popping** while wheels cross capsules (S2).
+5. Record the per-scenario numbers in research.md §R10 (device row) and remove the `server` block again (`npx cap sync android` to restore the bundled build).
+
+Fail paths (research.md §R10): p95 > 4 ms on device → ship method A fallback (`m=compound` compares side-by-side); contact popping → fork phaser-box2d + apply upstream PR #24 or switch segments to rounded boxes.
+
+## 9. Tuning Workflow
+
+1. All tunables live in `src/tuning/TuningConstants.ts`, grouped `physics` / `bridge` / `car` / `camera` / `draw` / `launch` / `coin` / `goal` / `audio` / `haptic` / `economy` / `ads` — initial values transcribed from designs/game_design.md §8 (see data-model.md §1.8). Level-specific values (inkBudget, star thresholds, maxTicks) live in level JSON, not here.
+2. Run the game, open the debug panel (`` ` ``), move sliders mid-run — changes propagate immediately to every consumer (single source; magic numbers elsewhere are defects, grep-verifiable per NFR-010).
+3. Watch fps / step-time p95 / body count in the overlay while tuning (the spring-chain swamp: too stiff = dull collapse, too soft = flailing).
+4. Copy final values back into `TuningConstants.ts` (panel values persist for the session only).
+5. If a physics constant moved, re-run `npm run gates` — ghosts may need re-recording via the editor if Gate 2 drifts beyond ε = 0.05 m / ±30 ticks.
+
+## 9. Android emulator verification (no physical device)
+
+Established 2026-07-08 (AC-9 evidence path). One-time setup on a fresh Mac:
+
+```bash
+brew install --cask android-commandlinetools
+brew install openjdk@21           # Gradle rejects newer JDKs ("class file major version 70")
+export JAVA_HOME=/opt/homebrew/opt/openjdk@21 ANDROID_HOME="$HOME/Library/Android/sdk"
+SDKM=/opt/homebrew/share/android-commandlinetools/cmdline-tools/latest/bin/sdkmanager
+yes | "$SDKM" --sdk_root="$ANDROID_HOME" --licenses
+"$SDKM" --sdk_root="$ANDROID_HOME" "platform-tools" "emulator" "platforms;android-35" \
+  "build-tools;35.0.0" "system-images;android-35;google_apis;arm64-v8a" "cmdline-tools;latest"
+# IMPORTANT: use the SDK's own avdmanager (the homebrew copy resolves the wrong SDK root):
+echo no | "$ANDROID_HOME/cmdline-tools/latest/bin/avdmanager" create avd -n inkbridge \
+  -k "system-images;android-35;google_apis;arm64-v8a" --device pixel_7
+echo "sdk.dir=$ANDROID_HOME" > android/local.properties
+```
+
+Build, boot headless, install, launch, screenshot:
+
+```bash
+npm run build && npx cap sync android
+(cd android && JAVA_HOME=/opt/homebrew/opt/openjdk@21 ./gradlew assembleDebug)
+"$ANDROID_HOME/emulator/emulator" -avd inkbridge -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect &
+"$ANDROID_HOME/platform-tools/adb" wait-for-device
+until [ "$("$ANDROID_HOME/platform-tools/adb" shell getprop sys.boot_completed | tr -d '\r')" = "1" ]; do sleep 3; done
+"$ANDROID_HOME/platform-tools/adb" install -r android/app/build/outputs/apk/debug/app-debug.apk
+"$ANDROID_HOME/platform-tools/adb" shell am start -n com.medicavice.inkbridge/.MainActivity
+sleep 12 && "$ANDROID_HOME/platform-tools/adb" exec-out screencap -p > evidence.png
+```
+
+Note: the first WebView paint takes ~15-30 s under swiftshader — a black early screenshot just means "too soon". Emulator fps is NOT representative of mid-tier hardware; the real-device §8 procedure remains the performance gate.

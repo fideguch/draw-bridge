@@ -1,0 +1,69 @@
+# Deterministic eval + verification PR gate (specs-evals, Track A).
+# Owns the project's deterministic checks (gates -> vitest -> build) AND the eval
+# regression gate (specs-evals run/report). NO secrets -> safe on forked PRs.
+# Coherence: ci.yml keeps only the fast `lint` job; this workflow is the single home of
+# gates/vitest/build + eval baseline (the resolved successor to ci.yml's old gates placeholder).
+# e2e (tempo contracts) is intentionally excluded — PENDING/UNVALIDATED until PlayScene
+# composition lands (see .evals/specs/tempo-contracts.eval.md).
+name: evals (deterministic gate)
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: evals-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  deterministic-evals:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout project
+        uses: actions/checkout@v4
+
+      - name: Checkout specs-evals skill
+        uses: actions/checkout@v4
+        with:
+          repository: fideguch/specs-evals
+          path: .specs-evals-skill
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      # --- Deterministic SUT checks (the regression suite; no secrets, no network model calls) ---
+      # ROUND-8 ROLLOUT (temporary): --warn-new-gates demotes ONLY the new fun
+      # gates (7 lazy-line / 8 multi-solution "undeclared") to warnings while the
+      # level redesign lands; gates 0-6 stay strict (their runners ignore the
+      # flag). REMOVE the flag once the redesigned slate defeats the lazy line
+      # and declares solutions[] (scripts/gates/lib.ts WARN_NEW_GATES_FLAG).
+      - name: Level gates 0-8 (pinned Node determinism; round-8 gates in warn mode)
+        run: npm run gates -- --warn-new-gates
+
+      - name: Unit + contract tests (Vitest; incl. determinism + gate3 negative control)
+        run: npx vitest run
+
+      - name: Build (tsc + vite; bundle budget <= 5MB gzip)
+        run: npm run build
+
+      # --- specs-evals layer: record check-matrix run + regression-gate vs git-tracked baseline ---
+      # .evals/history/ is gitignored (session-local by skill design) — the
+      # runner starts without it, and the skill's mktemp needs it to exist.
+      - name: Prepare evals history dir
+        run: mkdir -p "$GITHUB_WORKSPACE/.evals/history"
+      - name: Record eval run (deterministic check-matrix health)
+        run: bash .specs-evals-skill/scripts/specs-evals.sh run --deterministic-only --root "$GITHUB_WORKSPACE"
+
+      # Exit codes: 0 pass / 1 regression / 2 no-baseline (warn) / 3 runner fail.
+      - name: Regression gate vs baseline
+        run: bash .specs-evals-skill/scripts/specs-evals.sh report --root "$GITHUB_WORKSPACE"
