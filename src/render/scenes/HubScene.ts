@@ -243,7 +243,7 @@ export class HubScene extends Phaser.Scene {
     if (!isUnlocked) {
       this.drawLock(container);
     } else {
-      this.drawStars(container, bestStars);
+      this.drawStars(container, bestStars, tile.isBonus);
     }
 
     container.setSize(tileSize, tileSize);
@@ -281,14 +281,16 @@ export class HubScene extends Phaser.Scene {
     }
   }
 
-  private drawStars(container: Phaser.GameObjects.Container, bestStars: number): void {
+  private drawStars(container: Phaser.GameObjects.Container, bestStars: number, isBonusTile = false): void {
     const starGap = this.ui(18);
+    // Bonus tiles are coin-yellow — color.star vanishes on them; use the dark coin stroke instead.
+    const earnedColor = isBonusTile ? color.coinStroke : color.star;
     for (let i = 0; i < MAX_STARS; i += 1) {
       const isEarned = i < bestStars;
       const glyph = isEarned ? '★' : '☆';
       container.add(
         this.add
-          .text((i - 1) * starGap, this.ui(24), glyph, makeTextStyle({ size: 16, bold: false }, isEarned ? color.star : color.starEmpty))
+          .text((i - 1) * starGap, this.ui(24), glyph, makeTextStyle({ size: 16, bold: false }, isEarned ? earnedColor : color.starEmpty))
           .setOrigin(0.5),
       );
     }

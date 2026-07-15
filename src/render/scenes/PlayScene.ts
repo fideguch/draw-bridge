@@ -570,7 +570,11 @@ export class PlayScene extends Phaser.Scene {
       if (eff > 0) {
         const clamp01 = (v: number): number => Math.min(1, Math.max(0, v));
         markers.push(clamp01((eff - level.starThresholds.star3) / eff)); // ★3 tick
-        markers.push(clamp01((eff - level.starThresholds.star2) / eff)); // ★2 tick
+        if (level.schemaVersion !== 2) {
+          // v1 only: ★2 was ink-based. v2's star2 field is a synthesized transitional
+          // value (BR-014: ★2 = level objective, not ink) — no tick to show.
+          markers.push(clamp01((eff - level.starThresholds.star2) / eff)); // ★2 tick
+        }
       }
     }
     // Directly under the LEVEL label (DESIGN.md §6.2 anchor map).
