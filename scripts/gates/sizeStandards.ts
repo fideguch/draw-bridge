@@ -54,7 +54,10 @@ export const SIZE_CLASS_BY_ID: Record<string, SizeClass> = {
   'ch1-l02': 'M', 'ch1-l03': 'M', 'ch1-l04': 'M', 'ch1-l05': 'M', 'ch1-l06': 'M', 'ch1-l09': 'M', 'ch1-b5': 'M',
   'ch1-l07': 'L', 'ch1-l08': 'L', 'ch1-l10': 'L', 'ch1-l11': 'L', 'ch1-l12': 'L', 'ch1-l13': 'L',
   'ch1-l14': 'L', 'ch1-l15': 'L', 'ch1-l16': 'L', 'ch1-b4': 'L',
-  'ch1-l17': 'XL', 'ch1-l18': 'XL', 'ch1-l19': 'XL', 'ch1-l20': 'XL', 'ch1-l21': 'XL', 'ch1-l22': 'XL', 'ch1-l23': 'XL',
+  'ch1-l18': 'XL', 'ch1-l20': 'XL', 'ch1-l22': 'XL', 'ch1-l23': 'XL',
+  // ROUND-9 CS-4b: round-9 reassigned l17 (Rock), l19 (Person+Bridge) + l21 (Red) to
+  // modest L envelopes; l24-l28 are new. Tiers match each level's authored size envelope.
+  'ch1-l17': 'L', 'ch1-l19': 'L', 'ch1-l21': 'L', 'ch1-l24': 'L', 'ch1-l25': 'XL', 'ch1-l26': 'L', 'ch1-l27': 'XL', 'ch1-l28': 'XL',
 };
 
 // Readable-window framing constants — MIRROR src/render/scenes/play/levelFraming.ts

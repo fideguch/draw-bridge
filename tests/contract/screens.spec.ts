@@ -69,16 +69,14 @@ describe('Chapter 1 catalog + sequential unlock (SC-002, FR-016)', () => {
     return tile;
   };
 
-  // The catalog is the v5 28-slot slate (scripts/levels/manifest.ts §5) filtered to the
-  // levels whose JSON currently ships. WAVE 2 shipped the 7 hazard-free tiles; WAVE 3 added
-  // the 6 spike/DangerZone levels (l04, l08, l09, l10, l12, l17); WAVE 4 added the 7 rock /
-  // ceiling-spike levels (l05, l06, l07, l11, l13, l14, l15); WAVE 5 adds the FINAL 8 —
-  // the XL tier + boss (l16, l18, l19, l20, l21, l22, l23, b5) — completing the full
-  // 28-slate (23 main + 5 bonus) in campaign order. The bonuses sit at their sawtooth
+  // The catalog is the round-9 slate (scripts/levels/manifest.ts) filtered to the levels
+  // whose JSON currently ships. ROUND-9 CS-4a authored l01-l12 as v2; CS-4b authored
+  // l13-l28 as v2 (l13-l23 replacing the round-8 designs, l24-l28 new) — completing the
+  // full 33-slate (28 main + 5 bonus) in campaign order. The bonuses sit at their sawtooth
   // valleys (L4→B1 / L7→B2 / L11→B3 / L15→B4 / L23→B5); manifestForAuthored keeps the
-  // full set in campaign order.
-  it('has 28 shipped tiles (23 main + 5 bonus) in v5 slate campaign order', () => {
-    expect(CHAPTER1_TILES).toHaveLength(28);
+  // full set in campaign order. (l29-l40 remain undeclared content — CS-4c+.)
+  it('has 33 shipped tiles (28 main + 5 bonus) in round-9 slate campaign order', () => {
+    expect(CHAPTER1_TILES).toHaveLength(33);
     expect(CHAPTER1_TILES.filter((tile) => tile.isBonus)).toHaveLength(5);
     expect(CHAPTER1_TILES.map((tile) => tile.id)).toEqual([
       'ch1-l01',
@@ -109,6 +107,11 @@ describe('Chapter 1 catalog + sequential unlock (SC-002, FR-016)', () => {
       'ch1-l22',
       'ch1-l23',
       'ch1-b5',
+      'ch1-l24',
+      'ch1-l25',
+      'ch1-l26',
+      'ch1-l27',
+      'ch1-l28',
     ]);
   });
 
