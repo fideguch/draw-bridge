@@ -57,6 +57,7 @@ import { fillRing } from '@render/ui/fillShapes';
 import { CHAPTER1_TILES } from '@render/ui/levelCatalog';
 import { getServices } from '@render/ui/services';
 import type { AttemptJuice, GameServices } from '@render/ui/services';
+import { getSharedWorld } from '@render/ui/sharedWorld';
 import { t } from '@render/i18n';
 import { color, layout, LAYOUT_EVENT, makeTextStyle, margin, space, type } from '@render/ui/theme';
 import { camera as cameraTuning, car, draw, economy, launch, physics, speedLines as speedLinesTuning } from '@tuning/TuningConstants';
@@ -264,7 +265,15 @@ export class PlayScene extends Phaser.Scene {
     this.level = level;
     this.centerPx = { x: layout.width / 2, y: layout.height / 2 };
     this.transform = new WorldToPixel(framingFor(level, this.framingViewport()));
-    this.sim = new GameSimulation(level, { upgrades: this.readUpgrades() });
+    // Bind to the ONE process-wide World (CS-6): phaser-box2d never frees a
+    // world slot (32/process cap, World.ts LIB-QUIRK), so a fresh `new World()`
+    // per scene-restart level entry threw at the 33rd entry and bricked the
+    // 45-level campaign. The shared world is reset()-recycled by the ctor
+    // (ownsWorld=false), so teardown's sim.destroy() leaves it alive to reuse.
+    this.sim = new GameSimulation(level, {
+      world: getSharedWorld(this),
+      upgrades: this.readUpgrades(),
+    });
 
     const cam = this.cameras.main;
     cam.setScroll(0, 0);
