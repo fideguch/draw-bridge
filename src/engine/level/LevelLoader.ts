@@ -11,10 +11,12 @@ import { validateLevel } from './LevelSchema';
 /**
  * Forward-migration hook (contracts/level-schema.md §4).
  *
- * schemaVersion 1 is the first shipped version, so this is currently an
- * identity pass. When schemaVersion 2 lands: validate against the version
- * declared in the file, apply the 1->2 step here, then re-validate against
- * current (Gate 2 ghosts must be re-verified after any migration).
+ * Round-9: validateLevel now accepts BOTH schemaVersion 1 and 2 directly, with
+ * version-gated semantics (LevelSchema header) — v1 keeps round-7 rules, v2 adds
+ * persons/objective and narrows danger styles. A v1 level is therefore still
+ * loaded and played as v1 (no in-place rewrite to v2); this stays an identity
+ * pass. Add a real 1->2 transform here only if v1 levels must be up-converted on
+ * load (Gate 2 ghosts would then need re-verification).
  */
 function migrateLevelJson(data: unknown): unknown {
   return data;

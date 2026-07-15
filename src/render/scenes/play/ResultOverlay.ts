@@ -83,6 +83,10 @@ const FAIL_HINT_KEY: Record<FailCause, MessageKey> = {
   timeout: 'result.failTimeout',
   divergence: 'result.failRetry',
   hazardContact: 'result.failHazard',
+  // CS-1 TRANSITIONAL STUB (round-9): personContact (Person NPC) reuses the generic
+  // hazard message so the exhaustive Record compiles. CS-2 OWNS the dedicated
+  // person fail message — add `result.failPerson` in all 7 locales and repoint here.
+  personContact: 'result.failHazard',
 };
 
 /** Localized fail-cause hint, resolved at call time (never at module load). */

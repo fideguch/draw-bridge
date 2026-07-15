@@ -118,13 +118,22 @@ describe('validateLevel — required fields', () => {
 });
 
 describe('validateLevel — schemaVersion / id', () => {
-  it('rejects schemaVersion !== 1', () => {
+  it('accepts schemaVersion 2 (round-9 v2)', () => {
     const json = cloneFixture();
     json['schemaVersion'] = 2;
-    expectErrors(validateLevel(json));
+    const level = expectOk(validateLevel(json));
+    expect(level.schemaVersion).toBe(2);
   });
 
-  it.each(['ch1-l00', 'ch1-l24', 'ch1-l1', 'ch2-l01', 'ch1-b6', 'ch1-b0', 'ch1-b01'])(
+  it('rejects an unsupported schemaVersion (3)', () => {
+    const json = cloneFixture();
+    json['schemaVersion'] = 3;
+    const errors = expectErrors(validateLevel(json));
+    expect(errors.join('\n')).toContain('schemaVersion');
+  });
+
+  // round-9: l41 is out of range (l01..l40); the others stay malformed.
+  it.each(['ch1-l00', 'ch1-l41', 'ch1-l1', 'ch2-l01', 'ch1-b6', 'ch1-b0', 'ch1-b01'])(
     'rejects malformed id %s',
     (id) => {
       const json = cloneFixture();
@@ -134,9 +143,10 @@ describe('validateLevel — schemaVersion / id', () => {
     },
   );
 
-  // round-7 28-slate widened the id pattern to l01..l23 / b1..b5 (LevelSchema).
-  it.each(['ch1-l16', 'ch1-l19', 'ch1-l23', 'ch1-b4', 'ch1-b5'])(
-    'accepts widened 28-slate id %s',
+  // round-9 40-slate widened the id pattern to l01..l40 / b1..b5 (LevelSchema).
+  // Negative control (e): ch1-l40 validates; ch1-l41 (above) does not.
+  it.each(['ch1-l16', 'ch1-l24', 'ch1-l23', 'ch1-l40', 'ch1-b4', 'ch1-b5'])(
+    'accepts widened 40-slate id %s',
     (id) => {
       const json = cloneFixture();
       json['id'] = id;
@@ -485,6 +495,96 @@ describe('validateLevel — optional dangerZones[] hazards', () => {
   it('rejects dangerZones that is not an array', () => {
     const json = cloneFixture();
     json['dangerZones'] = { x: 0, y: 0, width: 2, height: 2 };
+    expectErrors(validateLevel(json));
+  });
+});
+
+describe('validateLevel — schemaVersion 2 (round-9 v2 semantics)', () => {
+  function cloneV2(): MutableLevelJson {
+    const json = cloneFixture();
+    json['schemaVersion'] = 2;
+    return json;
+  }
+
+  it('accepts persons[] (v2 only) as center points', () => {
+    const json = cloneV2();
+    json['persons'] = [
+      { x: 3, y: 0.85 },
+      { x: 5, y: 0.85 },
+    ];
+    const level = expectOk(validateLevel(json));
+    expect(level.persons).toEqual([
+      { x: 3, y: 0.85 },
+      { x: 5, y: 0.85 },
+    ]);
+  });
+
+  it('rejects persons[] on a v1 level (version-gated)', () => {
+    const json = cloneFixture(); // v1
+    json['persons'] = [{ x: 3, y: 0.85 }];
+    const errors = expectErrors(validateLevel(json));
+    expect(errors.join('\n')).toContain('persons');
+  });
+
+  it('accepts objective {type} (coins / noBreak)', () => {
+    for (const type of ['coins', 'noBreak'] as const) {
+      const json = cloneV2();
+      json['objective'] = { type };
+      const level = expectOk(validateLevel(json));
+      expect(level.objective).toEqual({ type });
+    }
+  });
+
+  it('absent objective is undefined (defaults to coins at runtime)', () => {
+    const level = expectOk(validateLevel(cloneV2()));
+    expect(level.objective).toBeUndefined();
+  });
+
+  it('rejects an unknown objective type', () => {
+    const json = cloneV2();
+    json['objective'] = { type: 'flawless' };
+    expectErrors(validateLevel(json));
+  });
+
+  it('rejects objective on a v1 level (version-gated)', () => {
+    const json = cloneFixture();
+    json['objective'] = { type: 'coins' };
+    const errors = expectErrors(validateLevel(json));
+    expect(errors.join('\n')).toContain('objective');
+  });
+
+  it('narrows danger styles to zone: rejects a v2 spike style', () => {
+    const json = cloneV2();
+    json['dangerZones'] = [{ x: 0, y: 0, width: 2, height: 2, style: 'spike' }];
+    const errors = expectErrors(validateLevel(json));
+    expect(errors.join('\n')).toContain('style');
+  });
+
+  it('accepts the zone style in v2', () => {
+    const json = cloneV2();
+    json['dangerZones'] = [{ x: 0, y: 0, width: 2, height: 2, style: 'zone' }];
+    expectOk(validateLevel(json));
+  });
+
+  it('v2 starThresholds may carry only star3 (star2 dropped, BR-014)', () => {
+    const json = cloneV2();
+    json['starThresholds'] = { star3: 8 };
+    const level = expectOk(validateLevel(json));
+    expect(level.starThresholds.star3).toBe(8);
+    // star2 is synthesized as inkBudget so the type stays total (StarRating v2 ignores it).
+    expect(level.starThresholds.star2).toBe(level.inkBudget);
+  });
+
+  it('v2 rejects a non-positive star3', () => {
+    const json = cloneV2();
+    json['starThresholds'] = { star3: 0 };
+    expectErrors(validateLevel(json));
+  });
+
+  it('v2 rejects star3 above inkBudget', () => {
+    const json = cloneV2();
+    json['inkBudget'] = 10;
+    json['starThresholds'] = { star3: 11 };
     expectErrors(validateLevel(json));
   });
 });

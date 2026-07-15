@@ -11,6 +11,11 @@
  *
  * Coins are re-derived in-test (placeCoinsAlongTrajectory over the recorded
  * route) so the assertions are independent of whatever coin data is committed.
+ *
+ * ROUND-9 SCOPE: these cover the v1 coin gate on the shipped v1 levels (CS-1
+ * keeps them green). Under v2 the coins objective is the ★2 target (BR-014) —
+ * the collectability GATE itself is unchanged; v2 coin/objective gate coverage
+ * lands with CS-4's level regeneration.
  */
 
 import { readFileSync } from 'node:fs';

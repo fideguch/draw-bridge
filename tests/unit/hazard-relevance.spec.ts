@@ -13,6 +13,10 @@ import { arcStroke, buildSpikeLevel } from '../../src/debug/SpikeScenario';
  *   - FAIL (negative control) when the hazard is beyond the car's reach, and
  *   - FAIL when a rock overlaps the car at spawn (t=0 guard, game_plan_v5 §2.1).
  * All attempts recycle ONE World (phaser-box2d 32-slot cap).
+ *
+ * ROUND-9 SCOPE: v1-legacy — rock/zone relevance on the shipped levels (CS-1 keeps
+ * these green). Person-relevance and the v2 objective/lazyLine-advisory gate
+ * recalibration land with CS-4.
  */
 
 const world = new World();

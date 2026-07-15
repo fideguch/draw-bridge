@@ -44,8 +44,7 @@ import type { InkZone } from './rules/InkBudget';
 import type { StarCount } from './rules/StarRating';
 import { EngineEvents } from './EngineEvents';
 import { buildBridge } from './physics/BridgeChainBuilder';
-import { processStroke } from './physics/StrokePipeline';
-import { clipStrokeToSolids } from './physics/StrokeClipper';
+import { pointInRect, resolveCommittedStroke, strokeEntersDangerZone } from './physics/StrokeCommit';
 import { StressTracker, defaultBreakThresholds } from './physics/StressTracker';
 import { RockHazard } from './physics/RockHazard';
 import { Terrain } from './physics/Terrain';
@@ -56,7 +55,7 @@ import { World } from './physics/World';
 import { CoinTracker } from './rules/CoinTracker';
 import { InkBudget } from './rules/InkBudget';
 import { Judge } from './rules/Judge';
-import { rateStars } from './rules/StarRating';
+import { rateStars, rateStarsV2 } from './rules/StarRating';
 import { fail, physics } from '@tuning/TuningConstants';
 
 /**
@@ -64,26 +63,6 @@ import { fail, physics } from '@tuning/TuningConstants';
  * constant (not a tunable): changing it invalidates every recorded ghost.
  */
 export const ATTEMPT_SETTLE_TICKS = 90;
-
-/**
- * Best-effort clip fallback bound (review F1). When the clipped LONGEST outside
- * run is below the pipeline minimum, commitStroke may fall back to the UNCLIPPED
- * line ONLY if at least this fraction of the raw stroke lay outside solids — a
- * line hugging concave/staircase terrain that merely fragmented into short runs.
- * A stroke below the bound is predominantly BURIED and is DENIED (no line may
- * live inside solids), instead of the old unconditional bypass that committed
- * even a fully-buried stroke.
- *
- * Measured (probe over all 18 shipped levels + the clip fixture, 2026-07-08):
- * a fully-buried stroke has outsideFraction 0 (rejected); all 20 shipped ghosts
- * are clip NO-OPS (fraction 1, never reach the fallback); a deep-hug of the
- * ch1-l14 staircase (the ghost pushed into each concave corner past the 0.55 m
- * skin) measures fraction 0.9065 at a realistic 0.6 m over-draw and still 0.7188
- * at an implausible 1.2 m. 0.6 sits below that genuine-hug floor yet far above a
- * buried stroke (0) — a wide separation, so the exact value is not sensitive.
- * Structural constant (like SURFACE_SKIN_M).
- */
-export const FALLBACK_MIN_OUTSIDE_FRACTION = 0.6;
 
 /** The single per-attempt stroke id (exactly one stroke per attempt, FR-003). */
 const ATTEMPT_STROKE_ID = 1;
@@ -111,8 +90,19 @@ export interface GameSimulationOptions {
   readonly world?: World;
 }
 
-/** Why commitStroke rejected the stroke before a bridge was built. */
-export type CommitDiscardReason = StrokeDiscardReason | 'insufficientInk' | 'invalidPoints';
+/**
+ * Why commitStroke rejected the stroke before a bridge was built.
+ * round-9 adds two v2 pre-launch rejections (BR-012 / BR-013): 'enteredDangerZone'
+ * (the stroke touched a no-draw zone rect) and 'splitByTerrain' (the WYSIWYG guard
+ * — the stroke would clip into >1 run). Both refund all ink, same UX class as the
+ * existing 'tooShort' / 'insufficientInk' rejections.
+ */
+export type CommitDiscardReason =
+  | StrokeDiscardReason
+  | 'insufficientInk'
+  | 'invalidPoints'
+  | 'enteredDangerZone'
+  | 'splitByTerrain';
 
 export type CommitStrokeResult =
   | {
@@ -145,6 +135,8 @@ export type AttemptOutcome =
       readonly inkConsumed: number;
       readonly starRating: StarCount;
       readonly coinsCollected: number;
+      /** Whether the level objective was met (round-9 v2 only; undefined for v1). */
+      readonly objectiveMet?: boolean;
     }
   | {
       readonly outcome: 'fail';
@@ -260,6 +252,8 @@ export class GameSimulation {
   private isDestroyed = false;
   /** Latches once any LIVE rock touches the car or the bridge this attempt (F3). */
   private rockContacted = false;
+  /** BridgeChain segment breaks observed this attempt (round-9 noBreak objective). */
+  private breakCount = 0;
 
   constructor(level: Level, options?: GameSimulationOptions) {
     this.method = options?.method ?? 'chain';
@@ -298,6 +292,7 @@ export class GameSimulation {
       killY: level.killY,
       ...(level.maxTicks !== undefined ? { maxTicks: level.maxTicks } : {}),
       ...(level.dangerZones !== undefined ? { dangerZones: level.dangerZones } : {}),
+      ...(level.schemaVersion === 2 && level.persons !== undefined ? { persons: level.persons } : {}),
     });
     this.chain = null;
     this.stressTracker = null;
@@ -318,6 +313,7 @@ export class GameSimulation {
     // the World registry last, so they never perturb terrain/vehicle hash order.
     this.rockHazard = new RockHazard(this.world, this.level.rocks ?? []);
     this.rockContacted = false;
+    this.breakCount = 0;
   }
 
   /**
@@ -374,6 +370,27 @@ export class GameSimulation {
    */
   isInsideTerrain(point: Point): boolean {
     return isPointInSolids(point, this.terrainSolids);
+  }
+
+  /**
+   * The v2 draw-block predicate (round-9 BR-012): a world point is un-drawable if
+   * it lies INSIDE terrain OR inside any dangerZone rect. v1 levels block on
+   * terrain only (zones don't forbid drawing under round-7 semantics). The render
+   * layer (CS-2) switches the live-preview stop test to THIS so preview == commit:
+   * the identical predicate gates both. isInsideTerrain stays for internal use.
+   */
+  isDrawBlocked(point: Point): boolean {
+    if (this.isInsideTerrain(point)) {
+      return true;
+    }
+    if (this.level.schemaVersion === 2) {
+      for (const zone of this.level.dangerZones ?? []) {
+        if (pointInRect(point, zone)) {
+          return true;
+        }
+      }
+    }
+    return false;
   }
 
   // ── Render-observation surface (constitution IV) ────────────────────────────
@@ -515,37 +532,31 @@ export class GameSimulation {
       return { committed: false, reason: 'invalidPoints' };
     }
 
+    // v2 draw-block (BR-012): a stroke may not ENTER a dangerZone rect (zones
+    // forbid drawing). Checked before ink is touched — same UX class as a
+    // too-short rejection (no launch, no ink spend). v1 zones don't forbid drawing.
+    if (
+      this.level.schemaVersion === 2 &&
+      strokeEntersDangerZone(rawPoints, this.level.dangerZones ?? [])
+    ) {
+      return { committed: false, reason: 'enteredDangerZone' };
+    }
+
     const rawLength = rawPolylineLength(rawPoints);
     if (rawLength > this.inkBudget.remaining) {
       return { committed: false, reason: 'insufficientInk' };
     }
     const consumedRaw = this.inkBudget.consume(rawLength); // same-frame decrement (FR-002)
 
-    // TERRAIN CLIP (round-4 bug): a line cannot exist inside solid ground. Split
-    // the stroke into outside runs flush at the terrain surface and keep the
-    // LONGEST; a stroke that never touches a solid passes through unchanged
-    // (byte-identical — ghosts / determinism probe are unaffected). The clipped
-    // ink is refunded via the settlement below (committed simplified length).
-    const clip = clipStrokeToSolids(rawPoints, this.terrainSolids);
-
-    // Best-effort (review F1): the clip IMPROVES the stroke but must not make an
-    // otherwise valid line hugging concave/staircase terrain un-committable. When
-    // the clipped LONGEST run is sub-minimum, fall back to the UNCLIPPED stroke
-    // ONLY if the stroke was PREDOMINANTLY OUTSIDE solids (outsideFraction >=
-    // FALLBACK_MIN_OUTSIDE_FRACTION — a mostly-open line that merely fragmented).
-    // A predominantly-BURIED stroke (including a fully-buried one) is denied via
-    // the path below — no committed line may live inside solids. The prior code
-    // fell back unconditionally, which committed even fully-buried strokes.
-    let stroke = processStroke(clip.longestRun);
-    let isFallbackCommit = false;
-    if (stroke.discarded && clip.clipped && clip.outsideFraction >= FALLBACK_MIN_OUTSIDE_FRACTION) {
-      stroke = processStroke(rawPoints);
-      isFallbackCommit = !stroke.discarded;
-    }
-    if (stroke.discarded) {
+    // Resolve the committed line from terrain clipping (version-gated: v1 keeps the
+    // round-7 longest-run + buried fallback; v2 is WYSIWYG — a stroke split into
+    // >1 run is rejected). A rejected stroke refunds all ink and stays drawable.
+    const resolved = resolveCommittedStroke(rawPoints, this.terrainSolids, this.level.schemaVersion === 2);
+    if ('rejected' in resolved) {
       this.inkBudget.refund(consumedRaw); // full refund on discard (FR-003)
-      return { committed: false, reason: stroke.reason };
+      return { committed: false, reason: resolved.rejected };
     }
+    const { stroke, clipApplied: hasClipApplied, usedFallback: hasUsedFallback } = resolved;
     // settle the account to the authoritative simplified length (class header).
     // Simplification only removes vertices, so totalLength <= consumedRaw always;
     // clamp the difference to >= 0 because a perfectly straight stroke (raw ==
@@ -564,7 +575,10 @@ export class GameSimulation {
       this.stressTracker = new StressTracker(this.chain, {
         ...defaultBreakThresholds(this.vehicle.totalMass),
         onCreak: (jointIndex, stress) => this.events.emit('creak', { jointIndex, stress }),
-        onBreak: (jointIndex, position) => this.events.emit('break', { jointIndex, position }),
+        onBreak: (jointIndex, position) => {
+          this.breakCount++; // round-9 noBreak objective counter (BR-014)
+          this.events.emit('break', { jointIndex, position });
+        },
       });
     }
 
@@ -577,8 +591,8 @@ export class GameSimulation {
       length: stroke.totalLength,
       segments: stroke.segments.length,
       stroke: stroke.simplified,
-      clipApplied: clip.clipped,
-      usedFallback: isFallbackCommit,
+      clipApplied: hasClipApplied,
+      usedFallback: hasUsedFallback,
     };
   }
 
@@ -738,16 +752,44 @@ export class GameSimulation {
   }
 
   private enrichOutcome(judged: NonNullable<ReturnType<Judge['evaluate']>>): AttemptOutcome {
-    if (judged.outcome === 'clear') {
+    if (judged.outcome !== 'clear') {
+      return judged;
+    }
+    const inkConsumed = this.inkBudget.consumed;
+    const coinsCollected = this.coinTracker.collectedCount;
+    // v2 (BR-014): stars are OBJECTIVE-based. v1 keeps the ink-only star maths.
+    if (this.level.schemaVersion === 2) {
+      const hasMetObjective = this.isObjectiveMet();
       return {
         outcome: 'clear',
         ticks: judged.ticks,
-        inkConsumed: this.inkBudget.consumed,
-        starRating: rateStars(this.inkBudget.consumed, this.level.starThresholds),
-        coinsCollected: this.coinTracker.collectedCount,
+        inkConsumed,
+        starRating: rateStarsV2(hasMetObjective, inkConsumed, this.level.starThresholds.star3),
+        coinsCollected,
+        objectiveMet: hasMetObjective,
       };
     }
-    return judged;
+    return {
+      outcome: 'clear',
+      ticks: judged.ticks,
+      inkConsumed,
+      starRating: rateStars(inkConsumed, this.level.starThresholds),
+      coinsCollected,
+    };
+  }
+
+  /**
+   * Whether the level's ★2 objective is met (round-9 v2, BR-014). 'coins' = every
+   * level coin collected; 'noBreak' = zero BridgeChain segment breaks this run.
+   * Absent objective defaults to 'coins'. A level with no coins trivially meets
+   * the coins objective (collected 0 == total 0) — CS-4 places coins accordingly.
+   */
+  private isObjectiveMet(): boolean {
+    const type = this.level.objective?.type ?? 'coins';
+    if (type === 'noBreak') {
+      return this.breakCount === 0;
+    }
+    return this.coinTracker.collectedCount === this.coinTracker.total;
   }
 
   private assertAlive(): void {

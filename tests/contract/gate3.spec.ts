@@ -6,6 +6,10 @@
  * platform overlap and slide into every gap, so a bot limited to them "fails"
  * everywhere and Gate 3 passes vacuously. The calibrated candidate set adds
  * overlap extensions {0, 1, 2} m (contract gate-pipeline.md §5, calibratable).
+ *
+ * ROUND-9 SCOPE: v1-legacy — the anti-dominant bot on the shipped v1 fixtures
+ * (CS-1 keeps it green). Under BR-015 (free solutions) lazyLine/anti-dominance
+ * become advisory; that gate-policy recalibration is CS-4's, not CS-1's.
  */
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';

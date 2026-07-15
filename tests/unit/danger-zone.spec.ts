@@ -17,6 +17,10 @@ import { arcStroke, buildSpikeLevel, simulationInternals } from '../../src/debug
  * on a same-tick tie per game_plan_v5 §2.1). The drawn BridgeChain and rocks pass
  * through zones UNAFFECTED — a zone only kills the car. Zones are static and only
  * feed the Judge (no bodies), so they never perturb determinism.
+ *
+ * The describes below the marker are ROUND-7 v1-LEGACY (kill-only zones). The
+ * round-9 v2 additions (zones ALSO forbid drawing, BR-012 / WYSIWYG commit,
+ * BR-013) are the final describe block.
  */
 
 const FLAT_GROUND = {
@@ -193,5 +197,117 @@ describe('DangerZone — determinism (zones are static, no bodies)', () => {
     expect(tagged.cause).toBe(untagged.cause);
     expect(tagged.ticks).toBe(untagged.ticks);
     expect(tagged.hash).toBe(untagged.hash); // exact float bits
+  });
+});
+
+// ── ROUND-9 v2: zones forbid drawing (BR-012) + WYSIWYG commit (BR-013) ──────────
+
+/** A v2 spike level (schemaVersion 2 gates the new draw-block + WYSIWYG rules). */
+function v2SpikeLevel(extra: Partial<Level>): Level {
+  return { ...buildSpikeLevel(4, { runUpM: 6, flagOffsetM: 5 }), schemaVersion: 2, ...extra };
+}
+
+/** A ground with a central raised plateau (x ∈ [-3,3], y ∈ [0,3]) — splits a line drawn through it. */
+function plateauLevel(schemaVersion: 1 | 2): Level {
+  return {
+    schemaVersion,
+    id: 'ch1-l01',
+    terrain: [
+      [
+        [-15, 0],
+        [-3, 0],
+        [-3, 3],
+        [3, 3],
+        [3, 0],
+        [15, 0],
+      ],
+    ],
+    vehicleSpawn: { x: -10, y: 0.6 },
+    goalFlag: { x: 12, y: 0, width: 1.5, height: 2.5 },
+    killY: -8,
+    inkBudget: 64,
+    starThresholds: { star2: 48, star3: 24 },
+    coins: [],
+    gimmickTags: [],
+    ghostSolutions: [],
+  };
+}
+
+describe('GameSimulation — v2 draw-block: zones forbid drawing (BR-012)', () => {
+  const ZONE = { x: -1, y: 0, width: 2, height: 3 } as const; // covers x∈[-1,1], y∈[0,3]
+  const THROUGH_ZONE: Point[] = [
+    { x: -3, y: 1 },
+    { x: 3, y: 1 }, // passes through (0,1) — inside the zone
+  ];
+
+  it('NEGATIVE CONTROL (a): a v2 stroke entering a red rect is REJECTED pre-launch', () => {
+    const sim = new GameSimulation(v2SpikeLevel({ dangerZones: [ZONE] }), { method: 'chain' });
+    const commit = sim.commitStroke(THROUGH_ZONE);
+    expect(commit.committed).toBe(false);
+    if (!commit.committed) {
+      expect(commit.reason).toBe('enteredDangerZone');
+    }
+    expect(sim.phase).toBe('drawing'); // still drawable
+    expect(sim.inkState.remaining).toBe(sim.inkState.effectiveBudget); // no ink spent
+    sim.destroy();
+  });
+
+  it('the SAME zone+stroke COMMITS on a v1 level (v1 zones only kill, never forbid drawing)', () => {
+    const v1 = { ...buildSpikeLevel(4, { runUpM: 6, flagOffsetM: 5 }), dangerZones: [ZONE] };
+    const sim = new GameSimulation(v1, { method: 'chain' });
+    const commit = sim.commitStroke(THROUGH_ZONE);
+    expect(commit.committed).toBe(true);
+    sim.destroy();
+  });
+
+  it('isDrawBlocked = terrain ∪ zones in v2; terrain-only in v1', () => {
+    const v2 = new GameSimulation(v2SpikeLevel({ dangerZones: [ZONE] }), { method: 'chain' });
+    expect(v2.isDrawBlocked({ x: 0, y: 1 })).toBe(true); // inside the zone
+    expect(v2.isDrawBlocked({ x: 10, y: 6 })).toBe(false); // open air
+    v2.destroy();
+
+    const v1 = new GameSimulation({ ...buildSpikeLevel(4, { runUpM: 6, flagOffsetM: 5 }), dangerZones: [ZONE] });
+    expect(v1.isDrawBlocked({ x: 0, y: 1 })).toBe(false); // v1: a zone does not block drawing
+    v1.destroy();
+  });
+});
+
+describe('GameSimulation — v2 WYSIWYG commit (BR-013)', () => {
+  it('NEGATIVE CONTROL (b): a v2 stroke split by terrain into >1 run is REJECTED', () => {
+    const sim = new GameSimulation(plateauLevel(2), { method: 'chain' });
+    const commit = sim.commitStroke([
+      { x: -6, y: 1.5 },
+      { x: 6, y: 1.5 }, // dives through the plateau → outside runs [-6,-3] and [3,6]
+    ]);
+    expect(commit.committed).toBe(false);
+    if (!commit.committed) {
+      expect(commit.reason).toBe('splitByTerrain');
+    }
+    expect(sim.inkState.remaining).toBe(sim.inkState.effectiveBudget); // full refund
+    sim.destroy();
+  });
+
+  it('a single-run v2 stroke (open air) COMMITS and equals the preview', () => {
+    const sim = new GameSimulation(plateauLevel(2), { method: 'chain' });
+    const commit = sim.commitStroke([
+      { x: -13, y: 0.1 },
+      { x: -5, y: 0.1 }, // entirely on the left ground — one run, no split
+    ]);
+    expect(commit.committed).toBe(true);
+    if (commit.committed) {
+      expect(commit.clipApplied).toBe(false); // no-op clip: committed == drawn
+      expect(commit.usedFallback).toBe(false);
+    }
+    sim.destroy();
+  });
+
+  it('the SAME split stroke still COMMITS on a v1 level (round-7 longest-run kept)', () => {
+    const sim = new GameSimulation(plateauLevel(1), { method: 'chain' });
+    const commit = sim.commitStroke([
+      { x: -6, y: 1.5 },
+      { x: 6, y: 1.5 },
+    ]);
+    expect(commit.committed).toBe(true); // v1 keeps the longest outside run
+    sim.destroy();
   });
 });

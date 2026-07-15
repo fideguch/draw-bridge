@@ -184,6 +184,22 @@ export const rock = {
 };
 
 /**
+ * Person NPC obstacle half-extents in world metres (round-9 BR-011). A Person is
+ * a static AABB footprint the CAR must route over/around/jump — chassis or wheel
+ * overlap fails the attempt with FailCause 'personContact'. `{x, y}` in the level
+ * JSON `persons[]` is the AABB CENTRE, so the box spans x +/- halfWidth and y +/-
+ * halfHeight: 1.3 m wide x 1.7 m tall (a person-sized silhouette). Tunable, not a
+ * magic number — the Judge derives the person rects from these (level JSON carries
+ * only the centre points). To stand a person on ground y0, author y = y0 + halfHeight.
+ */
+export const person = {
+  /** Half of the person AABB width (m) — full width 1.3 m. */
+  halfWidth: 0.65,
+  /** Half of the person AABB height (m) — full height 1.7 m. */
+  halfHeight: 0.85,
+};
+
+/**
  * Hazard VISUAL LANGUAGE render tunables (DESIGN.md §4.9). Render-ONLY — these
  * never touch physics/Judge (DangerZone `style` is inert metadata), so changing
  * any value cannot move the determinism hash. Centralised here per the
