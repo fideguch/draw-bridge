@@ -58,6 +58,10 @@ export const SIZE_CLASS_BY_ID: Record<string, SizeClass> = {
   // ROUND-9 CS-4b: round-9 reassigned l17 (Rock), l19 (Person+Bridge) + l21 (Red) to
   // modest L envelopes; l24-l28 are new. Tiers match each level's authored size envelope.
   'ch1-l17': 'L', 'ch1-l19': 'L', 'ch1-l21': 'L', 'ch1-l24': 'L', 'ch1-l25': 'XL', 'ch1-l26': 'L', 'ch1-l27': 'XL', 'ch1-l28': 'XL',
+  // ROUND-9 CS-4c (finale wave): l29-l40. Climb/wow/finale rows sit in tall XL stage
+  // boxes (deep chasms + high goals); the rest are modest L envelopes.
+  'ch1-l29': 'L', 'ch1-l30': 'XL', 'ch1-l31': 'L', 'ch1-l32': 'L', 'ch1-l33': 'L', 'ch1-l34': 'L',
+  'ch1-l35': 'XL', 'ch1-l36': 'L', 'ch1-l37': 'L', 'ch1-l38': 'L', 'ch1-l39': 'XL', 'ch1-l40': 'XL',
 };
 
 // Readable-window framing constants — MIRROR src/render/scenes/play/levelFraming.ts

@@ -1,13 +1,13 @@
 /**
  * Chapter 1 declarative level sources.
  *
- * ROUND-9 (CS-4a): levels ch1-l01 .. ch1-l12 were rewritten as schemaVersion 2
- * and moved to ./ch1-levels-01-12.ts (spread into CH1_SOURCES below). THIS FILE
- * now holds only the v1 LEGACY blocks — the 5 bonuses (b1-b5) and l13-l23 (round-8
- * designs kept loadable this wave, rewritten in CS-4b/4c). Do not redesign the
- * legacy blocks: they regenerate to their committed JSON. (l14-l23 ghost SAMPLES
- * drift sub-mm when l01-l12 change — a consequence of the shared recycled-world
- * RECORD sequence — but the geometry is unchanged and every gate stays green.)
+ * ROUND-9 (CS-4a/4b/4c): the numbered levels ch1-l01 .. ch1-l40 were authored as
+ * schemaVersion 2 in dedicated modules (ch1-levels-01-12 / -13-28 / -29-40, all
+ * spread into CH1_SOURCES below). THIS FILE now holds only the 5 bonus SOURCES
+ * (b1-b5) — regenerated as schemaVersion 2 in CS-4c, so ZERO v1 levels remain in
+ * the slate. (Ghost SAMPLES drift sub-mm when the RECORD sequence changes — a
+ * consequence of the shared recycled-world replay — but the geometry is unchanged
+ * and every gate stays green.)
  *
  * Pure DATA consumed by scripts/levels/authoring.ts, which runs each candidate
  * stroke through the real engine at Lv0, derives the ink economy, records ghosts,
@@ -40,8 +40,11 @@ import {
 import { CH1_V2_SOURCES } from './ch1-levels-01-12';
 // ROUND-9 CS-4b: levels ch1-l13..ch1-l28 are authored as schemaVersion 2 in a
 // dedicated module (l13-l23 REPLACE the round-8 v1 legacy blocks removed below;
-// l24-l28 are NEW). Spread into CH1_SOURCES; only the 5 bonuses (b1-b5) stay v1.
+// l24-l28 are NEW). Spread into CH1_SOURCES.
 import { CH1_V2_SOURCES_13_28 } from './ch1-levels-13-28';
+// ROUND-9 CS-4c: levels ch1-l29..ch1-l40 (the finale wave) are authored as
+// schemaVersion 2 in a dedicated module. Spread into CH1_SOURCES.
+import { CH1_V2_SOURCES_29_40 } from './ch1-levels-29-40';
 
 /** Convert an explicit list of Points into a terrain Polyline ([x, y] pairs). */
 function pl(...pts: readonly Point[]): [number, number][] {
@@ -131,9 +134,11 @@ export const CH1_SOURCES: readonly LevelSource[] = [
   ...CH1_V2_SOURCES,
   // ROUND-9 v2 (CS-4b): ch1-l13 .. ch1-l28 — see ./ch1-levels-13-28.ts.
   ...CH1_V2_SOURCES_13_28,
+  // ROUND-9 v2 (CS-4c): ch1-l29 .. ch1-l40 (finale wave) — see ./ch1-levels-29-40.ts.
+  ...CH1_V2_SOURCES_29_40,
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // v1 LEGACY (round-8 designs; only the 5 bonuses b1-b5 remain v1, rewritten CS-4c).
+  // BONUS SLATE (CS-4c) — b1-b5 regenerated as schemaVersion 2. NO v1 levels remain.
   // ─────────────────────────────────────────────────────────────────────────────
   // B1 (v5 slate, after L4) — bonus multi-seal / tier / S. atlas card 5 (階段のコイン).
   // A raised central ISLAND the zigzag runs up-over-down; coin bonanza breather. The
@@ -142,6 +147,8 @@ export const CH1_SOURCES: readonly LevelSource[] = [
   {
     id: 'ch1-b1',
     design: 'multi-seal/tier/S: 中央の高い島を越える段違いジグザグ床・コイン祭 — v5 #B1 (R08-lite Draw Line Bridge)',
+    schemaVersion: 2,
+    objective: { type: 'coins' },
     inkFeel: 'generous',
     bonusMultiplier: 6,
     terrain: [
@@ -178,6 +185,8 @@ export const CH1_SOURCES: readonly LevelSource[] = [
   {
     id: 'ch1-b2',
     design: 'hook/S/S: 中央ペグに引っ掛ける緩S字・コイン弧 — v5 #B2 (R09-lite Happy Glass 支柱)',
+    schemaVersion: 2,
+    objective: { type: 'coins' },
     inkFeel: 'generous',
     bonusMultiplier: 7,
     terrain: [
@@ -213,6 +222,8 @@ export const CH1_SOURCES: readonly LevelSource[] = [
   {
     id: 'ch1-b3',
     design: 'catch/U/S: 浅い受け皿をなぞる緩U字の橋・コイン集め — v5 #B3 (R12-lite Happy Glass funnel)',
+    schemaVersion: 2,
+    objective: { type: 'coins' },
     inkFeel: 'generous',
     bonusMultiplier: 8,
     terrain: [
@@ -241,6 +252,8 @@ export const CH1_SOURCES: readonly LevelSource[] = [
   {
     id: 'ch1-b4',
     design: 'road/descent/L: 中棚を挟む二段の緩降下で高所から低ゴールへ・コイン流し取り — v5 #B4 (A12 Draw Climber 降下)',
+    schemaVersion: 2,
+    objective: { type: 'coins' },
     inkFeel: 'generous',
     bonusMultiplier: 5,
     terrain: [
@@ -269,30 +282,43 @@ export const CH1_SOURCES: readonly LevelSource[] = [
   },
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // B5 (v5 slate, after L23) — bonus dome-dual / M / rolling rock. atlas card 28
-  // (ゆるいドーム). The dome-dual PILOT: a gentle wide UP-BOW arch the car rides over a
-  // deep valley; a boulder rests in the left valley where the naive car falls. Breather
-  // (★2): generous ink, a broad forgiving arch. Non-AD.
+  // B5 (v5 slate, after L23) — bonus STEPPING PILLARS / M. REDESIGNED (CS-4c,
+  // designs/levels_round9.md bonus slate): the old "spike-tip stepping stones" is
+  // reborn as FLAT-TOP stepping pillars (NO spike shapes — the design doc mandate).
+  // Three flat-crowned pillars stand in a deep valley; the drawn line steps down
+  // onto their tops and back up to the far bank, raking a coin payout across the
+  // hops. Breather (generous ink), no hazard — a pure precision-free reward beat.
   {
     id: 'ch1-b5',
-    design: 'dome-dual/M/rolling: 高い左から低い右へ降りる緩ドームで谷の転石を頭上に越える（無線は谷へ落ち石に当たる）— v5 #B5 (R01-lite Draw Line arch)',
+    design: 'stepping-pillars/M: 深い谷に立つ三つの平頭ピラーの上を線でステップして渡りコインを流し取る（棘なし・平頭の飛び石に刷新）— v5 #B5 REDESIGNED (designs/levels_round9 bonus slate)',
+    schemaVersion: 2,
+    objective: { type: 'coins' },
     inkFeel: 'generous',
     bonusMultiplier: 5,
     gimmickTags: [],
     terrain: [
-      pl(p(-9.0, 1.3), p(-2.3, 1.3), p(-2.5, -5.7), p(2.5, -5.7), p(2.3, 0.3), p(9.0, 0.3)),
-      pillar(0, 1.45, -5.7, 0.4, 1.1), // round-8 W5: PEDESTAL crown (top 1.45, flat) lifting the valley rock to head height. With the 0.55 m surface-skin it must sit >0.55 m above the low/spawn-goal descent chords (y0.30-0.86) to CLIP them — 1.45 clears spawn-goal (0.86) by 0.59 m at commit; the descent-dome passes over its head.
+      pl(p(-9.0, 0.8), p(-2.8, 0.8), p(-3.0, -5.7)), // left bank y0.8
+      pillar(-1.5, 0.1, -5.7, 0.5, 0.9), // stepping pillar 1 (flat top +0.1)
+      pillar(0, 0.1, -5.7, 0.5, 0.9), // stepping pillar 2 (flat top +0.1)
+      pillar(1.5, 0.1, -5.7, 0.5, 0.9), // stepping pillar 3 (flat top +0.1)
+      pl(p(3.0, -5.7), p(2.8, 0.8), p(9.0, 0.8)), // right bank y0.8
     ],
-    vehicleSpawn: p(-5.9, 1.65),
-    goalFlag: flag(5.5, 0.3, 1, 2),
-    killY: -5,
-    coins: coinCount(7),
-    dangerZones: [{ x: -2.3, y: -5.6, width: 4.6, height: 0.9, style: 'spike' }], // round-8 W5: valley floor hazard (the "台座岩" realized as a crown + floor band — a dynamic rock rolled off the pedestal and the split car did not reliably contact a floor rock; the spike-floor gives robust attribution). Any car split off the crown drops onto it.
-    strokes: [{ kind: 'any', role: 'descent-dome', points: arch(-3.0, 1.32, 3.0, 0.32, 1.0) }],
-    // round-8 W5: descent dome (over the head) vs stepped deck down — Gate 8.
+    vehicleSpawn: p(-6.0, 1.15),
+    goalFlag: flag(5.8, 0.8, 1, 2),
+    killY: -5.7,
+    coins: coinCount(8),
+    strokes: [
+      {
+        kind: 'any',
+        role: 'step-across-pillars',
+        points: spline([p(-3.3, 0.82), p(-2.2, 0.2), p(-1.5, 0.12), p(0, 0.12), p(1.5, 0.12), p(2.2, 0.2), p(3.3, 0.82)]),
+      },
+    ],
+    // Plurality (advisory, Gate 8): step across the pillar tops (angle) vs a broad
+    // dome that leaps the whole pillar row (arch).
     solutions: [
-      { shapeTag: 'arch', points: arch(-3.0, 1.32, 3.0, 0.32, 1.0) },
-      { shapeTag: 'trapezoid', points: [p(-3.0, 1.32), ...spline([p(-2.6, 1.4), p(-1.5, 1.62), p(-0.5, 1.62), p(0.7, 1.5), p(1.8, 1.0), p(2.6, 0.5)]), p(3.0, 0.32)] },
+      { shapeTag: 'angle', points: spline([p(-3.3, 0.82), p(-2.2, 0.2), p(-1.5, 0.12), p(0, 0.12), p(1.5, 0.12), p(2.2, 0.2), p(3.3, 0.82)]) },
+      { shapeTag: 'arch', points: arch(-3.3, 0.82, 3.3, 0.82, 0.9) },
     ],
   },
 ];
