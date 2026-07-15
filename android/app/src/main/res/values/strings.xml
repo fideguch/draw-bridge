@@ -2,6 +2,6 @@
 <resources>
     <string name="app_name">InkBridge</string>
     <string name="title_activity_main">InkBridge</string>
-    <string name="package_name">com.medicavice.inkbridge</string>
-    <string name="custom_url_scheme">com.medicavice.inkbridge</string>
+    <string name="package_name">net.skyapp.inkbridge</string>
+    <string name="custom_url_scheme">net.skyapp.inkbridge</string>
 </resources>

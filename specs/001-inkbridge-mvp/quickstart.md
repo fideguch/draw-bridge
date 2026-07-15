@@ -134,7 +134,7 @@ npm run build && npx cap sync android
 "$ANDROID_HOME/platform-tools/adb" wait-for-device
 until [ "$("$ANDROID_HOME/platform-tools/adb" shell getprop sys.boot_completed | tr -d '\r')" = "1" ]; do sleep 3; done
 "$ANDROID_HOME/platform-tools/adb" install -r android/app/build/outputs/apk/debug/app-debug.apk
-"$ANDROID_HOME/platform-tools/adb" shell am start -n com.medicavice.inkbridge/.MainActivity
+"$ANDROID_HOME/platform-tools/adb" shell am start -n net.skyapp.inkbridge/.MainActivity
 sleep 12 && "$ANDROID_HOME/platform-tools/adb" exec-out screencap -p > evidence.png
 ```
 

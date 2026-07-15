@@ -1,4 +1,4 @@
-package com.medicavice.inkbridge;
+package net.skyapp.inkbridge;
 
 import com.getcapacitor.BridgeActivity;
 
