@@ -37,12 +37,15 @@ export interface StrokeRendererOptions {
   /** Render depth (draw order). */
   readonly depth?: number;
   /**
-   * Live-preview terrain clip (round-4 bug): when supplied, stroke vertices that
-   * fall INSIDE solid terrain are not drawn and the line breaks there, so the
-   * player SEES the line cannot go through the ground. Omitted ⇒ every vertex is
-   * drawn (original fast path, byte-identical). Takes WORLD-metre points.
+   * Live-preview draw-block clip (round-4 bug + round-9 BR-013 WYSIWYG): when
+   * supplied, stroke vertices for which this predicate is true are not drawn and
+   * the line breaks there, so the player SEES the line cannot go through the
+   * ground OR a no-draw DangerZone — the identical predicate the engine commit
+   * uses (GameSimulation.isDrawBlocked), so the preview equals the committed
+   * geometry exactly. Omitted ⇒ every vertex is drawn (original fast path,
+   * byte-identical). Takes WORLD-metre points.
    */
-  readonly isInsideTerrain?: (point: Point) => boolean;
+  readonly isDrawBlocked?: (point: Point) => boolean;
 }
 
 export class StrokeRenderer {
@@ -51,7 +54,7 @@ export class StrokeRenderer {
   private transform: WorldToPixel;
   private readonly lineWidthPx: number;
   private readonly borderWidthPx: number;
-  private readonly isInsideTerrain: ((point: Point) => boolean) | undefined;
+  private readonly isDrawBlocked: ((point: Point) => boolean) | undefined;
   /** Number of points already painted (append cursor). */
   private paintedCount = 0;
   private lastZoneColor: number | null = null;
@@ -66,7 +69,7 @@ export class StrokeRenderer {
     this.transform = options.transform;
     this.lineWidthPx = options.lineWidthPx ?? (draw.lineWidthScreenPct / 100) * layout.width;
     this.borderWidthPx = options.borderWidthPx ?? layout.ui(draw.borderWidthPx);
-    this.isInsideTerrain = options.isInsideTerrain;
+    this.isDrawBlocked = options.isDrawBlocked;
   }
 
   /** Border layer Graphics — PlayScene may reparent / reorder it. */
@@ -125,21 +128,21 @@ export class StrokeRenderer {
   private appendFrom(fromIndex: number, worldPoints: readonly Point[], zoneColor: number): void {
     this.lastZoneColor = zoneColor;
     const startIndex = Math.max(0, fromIndex - 1); // reconnect to the last painted vertex
-    if (this.isInsideTerrain === undefined) {
-      // Fast path (no terrain clip): one continuous slice — unchanged behavior.
+    if (this.isDrawBlocked === undefined) {
+      // Fast path (no draw-block clip): one continuous slice — unchanged behavior.
       const slice: PixelPoint[] = [];
       for (let i = startIndex; i < worldPoints.length; i++) {
         slice.push(this.transform.point(worldPoints[i] as Point));
       }
       this.paintSlice(slice, zoneColor);
     } else {
-      // Clip preview: break the tail into runs of OUTSIDE-solid vertices so the
-      // line stops at the ground surface (round-4 bug — a line cannot go through
-      // solids). Inside-solid vertices are simply not drawn.
+      // Clip preview: break the tail into runs of NOT-blocked vertices so the
+      // line stops at the ground surface / a red zone edge (round-4 bug + BR-013
+      // WYSIWYG). Blocked vertices are simply not drawn.
       let run: PixelPoint[] = [];
       for (let i = startIndex; i < worldPoints.length; i++) {
         const point = worldPoints[i] as Point;
-        if (this.isInsideTerrain(point)) {
+        if (this.isDrawBlocked(point)) {
           this.paintSlice(run, zoneColor);
           run = [];
         } else {

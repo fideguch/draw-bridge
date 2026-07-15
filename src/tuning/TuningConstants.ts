@@ -204,29 +204,15 @@ export const person = {
  * never touch physics/Judge (DangerZone `style` is inert metadata), so changing
  * any value cannot move the determinism hash. Centralised here per the
  * no-magic-numbers rule; the RockRenderer / DangerZoneRenderer read them.
+ *
+ * round-9 simplification (designer mandate + hard ban "kill zone = plain red
+ * rectangle only"): the DangerZone teeth/wash/hatch tunables were removed along
+ * with the animated renderer (DangerZoneRenderer is now a single static fill +
+ * `zoneBorderPx` edge). Rock warning/streak tunables are unaffected.
  */
 export const hazardRender = {
-  // ── DangerZone teeth (spike / spikeDown) ──
-  /** Spike teeth per world metre of zone width (density of the saw row). */
-  teethPerMeter: 1.7,
-  /** Tooth height as a fraction of the zone band height (apex reach into the band). */
-  toothHeightFrac: 0.9,
-  /** Red tip fraction of a tooth (upper portion painted hazardRed over the dark base). */
-  toothTipFrac: 0.42,
-  // ── DangerZone wash + hatch ──
-  /** Red wash alpha at the pulse trough / peak (was a pale 0.16 — now unmistakable). */
-  zoneFillAlphaMin: 0.28,
-  zoneFillAlphaMax: 0.42,
-  /** Diagonal hatch stripe alpha. */
-  zoneStripeAlpha: 0.7,
-  /** Hatch spacing / stripe width / border width in design px (ui-scaled). */
-  zoneHatchSpacingPx: 15,
-  zoneHatchWidthPx: 4,
+  /** DangerZone edge-border width in design px (ui-scaled). */
   zoneBorderPx: 3,
-  /** Stripe-scroll speed (design px per second) — the "live danger" barber-pole crawl. */
-  zoneStripeScrollPxPerSec: 22,
-  /** Wash breathing-pulse period (ms). */
-  zonePulsePeriodMs: 1200,
   // ── Rock motion streaks ──
   /** Screen-space speed (px/frame) above which a moving rock grows motion streaks. */
   streakSpeedMinPx: 1.6,
@@ -477,16 +463,6 @@ export const goal = {
   nextPopScale: 0.9,
   /** L13 Next button scale-in duration in ms. Range 140-200. */
   nextPopMs: 160,
-  /** L8 sunburst ray count radiating behind the panel. Range 12-16. */
-  sunburstRayCount: 14,
-  /**
-   * L8 sunburst alpha (static gold rays). Range 0.2-0.5. Own-eyes 2026-07-08:
-   * the rays are drawn STATIC — a large Graphics that is tweened (rotation or an
-   * alpha swell) rendered blank under the software-WebGL path, so rotation/swell
-   * were dropped and this is set directly. 0.28 read as invisible; 0.4 gives a
-   * legible gold radiance behind the title.
-   */
-  sunburstMaxAlpha: 0.4,
   /** L5 center-burst piece count from the flag at impact. Range 20-32. */
   centerBurstCount: 28,
   /** L5 center-burst min speed in px/s. */

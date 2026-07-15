@@ -102,4 +102,21 @@ describe('t', () => {
     setLocale('ja');
     expect(t('settings.resetTapHint', { word: t('settings.resetWord') })).toContain('リセット');
   });
+
+  it('resolves the round-9 draw-reject / personContact / objective keys in every locale', () => {
+    const ROUND9_KEYS: MessageKey[] = [
+      'draw.rejectSplit',
+      'draw.rejectDangerZone',
+      'result.failPerson',
+      'result.star3Ink',
+      'objective.coins',
+      'objective.noBreak',
+    ];
+    for (const locale of SUPPORTED_LOCALES) {
+      setLocale(locale);
+      for (const key of ROUND9_KEYS) {
+        expect(t(key), `${locale}/${key}`).toBeTruthy();
+      }
+    }
+  });
 });

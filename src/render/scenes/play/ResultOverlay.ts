@@ -1,14 +1,16 @@
 /**
  * ResultOverlay — the clear / fail result surface. The clear path is the "shell"
  * the GoalSequence drives: a scrim + title + reward coin count-up + a top-right
- * balance pill + Replay / Next + a 強化 link (DESIGN.md §6.4). The celebration
- * BEATS live in GoalSequence, which calls back into this shell to move the reward
- * counter (setCoinDisplay / punchCoinCounter) and activate Next.
+ * balance pill + the ★2 objective / ★3 ink condition lines (round-9 BR-014) +
+ * Replay / Next + a 強化 link (DESIGN.md §6.4). The celebration BEATS live in
+ * GoalSequence, which calls back into this shell to move the reward counter
+ * (setCoinDisplay / punchCoinCounter) and activate Next.
  *
- * Fail keeps its own self-contained path: dim + cause hint + Retry (primary L),
- * plus a レベル選択 link and — ONLY when ink shortage caused the fall (§8.4) — a
- * contextual 「インクを増やす」 premium button into the 強化 ink axis. A tap on the
- * scrim skips the clear celebration (onSkip → GoalSequence.skip()).
+ * Fail keeps its own self-contained, DELIBERATELY MINIMAL path: dim + cause hint
+ * + Retry (primary L) + a レベル選択 link. Round-9 designer ban: no meta/upsell UI
+ * inside the fail->retry loop — the 強化 entry (incl. the former contextual ink
+ * upsell) stays reachable from the clear result and level-select screens only.
+ * A tap on the scrim skips the clear celebration (onSkip → GoalSequence.skip()).
  *
  * Buttons carry the E2E dev ids and are pinned with setScrollFactor(0) so their
  * screen rects are camera-immune.
@@ -16,6 +18,7 @@
 
 import Phaser from 'phaser';
 import type { FailCause } from '@engine/rules/Judge';
+import type { ObjectiveType } from '@engine/level/LevelSchema';
 import { Button } from '@render/ui/Button';
 import type { ButtonVariant } from '@render/ui/Button';
 import type { IconName } from '@render/ui/icons';
@@ -25,22 +28,29 @@ import type { GameServices } from '@render/ui/services';
 import { t, type MessageKey } from '@render/i18n';
 import { color, layout, makeTextStyle, margin, scrim, space, stroke, type } from '@render/ui/theme';
 import { coinCounterPunch } from '@render/juice/RewardCountUp';
-import { SunburstView } from '@render/juice/SunburstView';
 import { goal } from '@tuning/TuningConstants';
 
 /**
- * Depths above the HUD. The clear shell layers, back to front: scrim → sunburst
- * rays (L8) → content (title / coin) → buttons. The GoalSequence confetti /
+ * Depths above the HUD. The clear shell layers, back to front: scrim → content
+ * (title / coin / objective lines) → buttons. The GoalSequence confetti /
  * coin-burst sit above all of these (2100+).
  */
 const SCRIM_DEPTH = 2000;
-const SUNBURST_DEPTH = 2001;
 const OVERLAY_DEPTH = 2002;
 const OVERLAY_BUTTON_DEPTH = 2003;
 
 /** Result 2-choice M-narrow (DESIGN.md §4.1 allowed exception, 148×52). */
 const CHOICE_WIDTH_DESIGN = 148;
 const CHOICE_HEIGHT_DESIGN = 52;
+/** Extra vertical room (design px) reserved for the ★2/★3 condition lines when present. */
+const OBJECTIVE_BLOCK_EXTRA_PX = 46;
+
+/** ★2 objective met/unmet + ★3 ink-margin met/unmet for the clear panel (round-9 BR-014). */
+export interface ClearObjectiveInfo {
+  readonly type: ObjectiveType;
+  readonly objectiveMet: boolean;
+  readonly star3Met: boolean;
+}
 
 export interface ClearShellData {
   readonly hasNext: boolean;
@@ -52,6 +62,8 @@ export interface ClearShellData {
   readonly onUpgrade: () => void;
   /** Tap-anywhere skip of the running celebration (§4.4 X-3). */
   readonly onSkip: () => void;
+  /** ★2/★3 condition lines (v2 levels only; omitted on v1 — round-9 BR-014). */
+  readonly objective?: ClearObjectiveInfo;
 }
 
 export interface FailOverlayData {
@@ -59,17 +71,14 @@ export interface FailOverlayData {
   readonly onRetry: () => void;
   /** Back to the Hub grid (レベル選択 link, DESIGN.md §6.4). */
   readonly onLevels: () => void;
-  /** Subdued 強化 entry when the ink upsell does NOT apply (DESIGN.md §9). */
-  readonly onUpgrade: () => void;
-  /** Present only when ink shortage caused the fall (§8.4) → 強化 ink axis. */
-  readonly onUpgradeInk?: () => void;
 }
 
 /**
  * Fail-cause hints. `hazardContact` (round-7 F1) is the unified rock / spike /
  * DangerZone contact death — worded generically ("危険物に当たった") because a
  * single cause covers all three hazard kinds (a rock-specific "岩に…" would be
- * wrong on the ~7 pure spike/zone levels). `fall` and `divergence` are failsafes
+ * wrong on the ~7 pure spike/zone levels). `personContact` (round-9 BR-011) gets
+ * its own dedicated message. `fall` and `divergence` are failsafes
  * (isFailsafeReset) routed to a silent reset, so their entries are never shown —
  * kept only to satisfy the exhaustive Record<FailCause, MessageKey>.
  *
@@ -83,15 +92,17 @@ const FAIL_HINT_KEY: Record<FailCause, MessageKey> = {
   timeout: 'result.failTimeout',
   divergence: 'result.failRetry',
   hazardContact: 'result.failHazard',
-  // CS-1 TRANSITIONAL STUB (round-9): personContact (Person NPC) reuses the generic
-  // hazard message so the exhaustive Record compiles. CS-2 OWNS the dedicated
-  // person fail message — add `result.failPerson` in all 7 locales and repoint here.
-  personContact: 'result.failHazard',
+  personContact: 'result.failPerson',
 };
 
 /** Localized fail-cause hint, resolved at call time (never at module load). */
 function failMessage(cause: FailCause): string {
   return t(FAIL_HINT_KEY[cause]);
+}
+
+/** ★2/★3 label + met/unmet display text: a leading check mark, dimmed when unmet. */
+function objectiveLabel(objective: ClearObjectiveInfo): string {
+  return objective.type === 'noBreak' ? t('objective.noBreak') : t('objective.coins');
 }
 
 export class ResultOverlay {
@@ -101,7 +112,6 @@ export class ResultOverlay {
   private coinText: Phaser.GameObjects.Text | null = null;
   private coinTextPos = { x: 0, y: 0 };
   private nextButton: Button | null = null;
-  private sunburst: SunburstView | null = null;
   private skipHandler: (() => void) | null = null;
 
   constructor(scene: Phaser.Scene, services: GameServices) {
@@ -114,22 +124,20 @@ export class ResultOverlay {
   }
 
   /**
-   * Clear shell: scrim + "クリア！" + reward counter (0) + balance pill +
-   * レベル選択 / Replay / Next / 強化. The GoalSequence owns the celebration
-   * timing and drives the counter / Next activation through the methods below.
+   * Clear shell: scrim + "クリア！" + reward counter (0) + balance pill + the
+   * ★2/★3 condition lines (when `data.objective` is present) + レベル選択 /
+   * Replay / Next / 強化. The GoalSequence owns the celebration timing and
+   * drives the counter / Next activation through the methods below.
    */
   showClearShell(data: ClearShellData): void {
     this.hide();
     const cx = layout.width / 2;
     const panelY = layout.height * 0.42;
+    const extraPx = data.objective !== undefined ? OBJECTIVE_BLOCK_EXTRA_PX : 0;
 
     this.skipHandler = data.onSkip;
     this.addScrim(goal.scrimFadeInMs); // L9: dim fades in to stage the panel
     this.addTopChrome({ onLevels: data.onLevels, withBalancePill: true });
-
-    // L8 sunburst rays behind the title cluster (above the scrim, below content).
-    this.sunburst = new SunburstView(this.scene, { color: color.star, depth: SUNBURST_DEPTH });
-    this.sunburst.show(cx, panelY - layout.ui(40), Math.max(layout.width, layout.height));
 
     // L7 title "クリア！" scale-bounce (Back.Out pop → Quad.Out settle).
     const title = this.scene.add
@@ -149,10 +157,13 @@ export class ResultOverlay {
     });
     this.track(title);
     this.addRewardCounter(cx, panelY + layout.ui(40));
+    if (data.objective !== undefined) {
+      this.addObjectiveLines(cx, panelY + layout.ui(72), data.objective);
+    }
 
     const replay = this.makeButton({
       x: cx - layout.ui(80),
-      y: panelY + layout.ui(128),
+      y: panelY + layout.ui(128 + extraPx),
       width: CHOICE_WIDTH_DESIGN,
       height: CHOICE_HEIGHT_DESIGN,
       label: t('result.replay'),
@@ -162,7 +173,7 @@ export class ResultOverlay {
     });
     const next = this.makeButton({
       x: cx + layout.ui(80),
-      y: panelY + layout.ui(128),
+      y: panelY + layout.ui(128 + extraPx),
       width: CHOICE_WIDTH_DESIGN,
       height: CHOICE_HEIGHT_DESIGN,
       label: data.hasNext ? t('result.next') : t('nav.toList'),
@@ -180,7 +191,7 @@ export class ResultOverlay {
     this.track(
       this.makeButton({
         x: cx,
-        y: panelY + layout.ui(190),
+        y: panelY + layout.ui(190 + extraPx),
         size: 'S',
         label: t('common.upgrade'),
         icon: 'coin',
@@ -192,7 +203,7 @@ export class ResultOverlay {
     );
   }
 
-  /** Fail result: dim + cause hint + Retry (primary L) + contextual ink upsell. */
+  /** Fail result: dim + cause hint + Retry (primary L). No meta/upsell entry (round-9 ban). */
   showFail(data: FailOverlayData): void {
     this.hide();
     const cx = layout.width / 2;
@@ -228,38 +239,6 @@ export class ResultOverlay {
         onClick: data.onRetry,
       }),
     );
-
-    // Contextual upsell — the missing thing, offered at the moment of lack
-    // (§8.4); otherwise a subdued ghost 強化 entry (DESIGN.md §9).
-    if (data.onUpgradeInk !== undefined) {
-      const onUpgradeInk = data.onUpgradeInk;
-      this.track(
-        this.makeButton({
-          x: cx,
-          y: panelY + layout.ui(160),
-          size: 'M',
-          label: t('result.addInk'),
-          icon: 'ink',
-          variant: 'premium',
-          devId: 'result-ink',
-          onClick: onUpgradeInk,
-        }),
-      );
-    } else {
-      this.track(
-        this.makeButton({
-          x: cx,
-          y: panelY + layout.ui(156),
-          size: 'S',
-          label: t('common.upgrade'),
-          icon: 'coin',
-          variant: 'ghost',
-          textColor: color.textInverse, // ghost on the dark scrim (WCAG AA)
-          devId: 'result-upgrade',
-          onClick: data.onUpgrade,
-        }),
-      );
-    }
   }
 
   /** Screen (game-px) position of the reward counter (CoinBurstFlight target). */
@@ -327,8 +306,6 @@ export class ResultOverlay {
     this.skipHandler = null;
     this.coinText = null;
     this.nextButton = null;
-    this.sunburst?.destroy();
-    this.sunburst = null;
     for (const object of this.objects) {
       this.scene.tweens.killTweensOf(object);
       object.destroy();
@@ -400,6 +377,28 @@ export class ResultOverlay {
       .setScrollFactor(0)
       .setDepth(OVERLAY_DEPTH);
     this.track(this.coinText);
+  }
+
+  /**
+   * ★2 objective + ★3 ink-margin condition lines (round-9 BR-014): two short,
+   * met/unmet-coded lines — a leading check mark + full opacity when met, dimmed
+   * (no mark) when unmet. Never reads `starThresholds.star2` (v2-transitional,
+   * PlayScene already resolves objectiveMet/star3Met from the engine outcome).
+   */
+  private addObjectiveLines(cx: number, y: number, objective: ClearObjectiveInfo): void {
+    const lineGap = layout.ui(22);
+    this.track(this.makeConditionText(cx, y, '★2', objectiveLabel(objective), objective.objectiveMet));
+    this.track(this.makeConditionText(cx, y + lineGap, '★3', t('result.star3Ink'), objective.star3Met));
+  }
+
+  private makeConditionText(cx: number, y: number, starLabel: string, label: string, met: boolean): Phaser.GameObjects.Text {
+    const glyph = met ? '✓ ' : '';
+    return this.scene.add
+      .text(cx, y, `${starLabel} ${glyph}${label}`, makeTextStyle(type.caption, color.textInverse))
+      .setOrigin(0.5)
+      .setScrollFactor(0)
+      .setDepth(OVERLAY_DEPTH)
+      .setAlpha(met ? 1 : 0.55);
   }
 
   private makeButton(options: {

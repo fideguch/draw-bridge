@@ -30,13 +30,14 @@ import Phaser from 'phaser';
 import type { Level, Point } from '@engine/level/LevelSchema';
 import { validateLevel } from '@engine/level/LevelSchema';
 import { GameSimulation } from '@engine/GameSimulation';
-import type { AttemptOutcome, UpgradeLevels } from '@engine/GameSimulation';
+import type { AttemptOutcome, CommitDiscardReason, UpgradeLevels } from '@engine/GameSimulation';
 import { isFailsafeReset } from '@engine/rules/Judge';
 import type { FailCause } from '@engine/rules/Judge';
 import { BridgeRenderer } from '@render/world/BridgeRenderer';
 import { CoinRenderer } from '@render/world/CoinRenderer';
 import { DangerZoneRenderer } from '@render/world/DangerZoneRenderer';
 import { FlagRenderer } from '@render/world/FlagRenderer';
+import { PersonRenderer } from '@render/world/PersonRenderer';
 import { RockRenderer } from '@render/world/RockRenderer';
 import { TerrainRenderer } from '@render/world/TerrainRenderer';
 import { VehicleRenderer } from '@render/world/VehicleRenderer';
@@ -63,9 +64,11 @@ import { setBridgeMidDeviation, setDevPlayState, setDevResultNextReady, setDevSt
 import type { DevHookPlayState } from '@render/devhook';
 import { framingFor, type FramingViewport } from './play/levelFraming';
 import { shouldOfferInkUpsell as shouldOfferInkUpsellDecision } from './play/inkUpsell';
+import { DrawRejectToast } from './play/DrawRejectToast';
 import { PauseOverlay } from './play/PauseOverlay';
 import { ResultOverlay } from './play/ResultOverlay';
 import { GoalSequence } from './play/GoalSequence';
+import type { ClearObjectiveInfo } from './play/ResultOverlay';
 
 /** Eager glob of every shipped level JSON (Vite inlines these at build). */
 const LEVEL_JSON = import.meta.glob('/levels/*.json', { eager: true, import: 'default' }) as Record<
@@ -74,7 +77,20 @@ const LEVEL_JSON = import.meta.glob('/levels/*.json', { eager: true, import: 'de
 >;
 
 /** Draw-order layers (world below the HUD below the overlay). */
-const DEPTH = { terrain: 1, danger: 2, flag: 3, coins: 4, bridge: 5, rocks: 6, vehicle: 7, stroke: 8, hud: 1500 } as const;
+const DEPTH = {
+  terrain: 1,
+  danger: 2,
+  persons: 2.5,
+  flag: 3,
+  coins: 4,
+  bridge: 5,
+  rocks: 6,
+  vehicle: 7,
+  stroke: 8,
+  hud: 1500,
+} as const;
+/** Draw-reject toast depth: above the world/ink bar, below the HUD buttons. */
+const TOAST_DEPTH = DEPTH.hud - 100;
 
 /** Viewport inset for the level-fit framing (px). */
 const FRAME_MARGIN_PX = 40;
@@ -155,12 +171,14 @@ export class PlayScene extends Phaser.Scene {
 
   private terrain: TerrainRenderer | null = null;
   private danger: DangerZoneRenderer | null = null;
+  private persons: PersonRenderer | null = null;
   private coins: CoinRenderer | null = null;
   private flag: FlagRenderer | null = null;
   private rocks: RockRenderer | null = null;
   private vehicle: VehicleRenderer | null = null;
   private bridge: BridgeRenderer | null = null;
   private strokeRenderer: StrokeRenderer | null = null;
+  private drawRejectToast: DrawRejectToast | null = null;
   private inkBar: InkBarView | null = null;
   private strokeInput: StrokeInput | null = null;
   private overlay: ResultOverlay | null = null;
@@ -292,11 +310,13 @@ export class PlayScene extends Phaser.Scene {
     this.strokeRenderer = new StrokeRenderer(this, {
       transform: this.transform,
       depth: DEPTH.stroke,
-      // Live clip preview: the line stops at the ground surface (round-4 bug).
-      isInsideTerrain: (point) => this.sim?.isInsideTerrain(point) ?? false,
+      // Live clip preview (BR-013 WYSIWYG): the line stops at terrain AND red
+      // zones exactly like the commit predicate (round-4 bug + round-9 parity).
+      isDrawBlocked: (point) => this.sim?.isDrawBlocked(point) ?? false,
     });
     this.inkBar = this.makeInkBar();
     this.overlay = new ResultOverlay(this, this.services);
+    this.drawRejectToast = new DrawRejectToast(this, { depth: TOAST_DEPTH });
     this.strokeInput = new StrokeInput(this, {
       transform: this.transform,
       camera: cam,
@@ -385,8 +405,8 @@ export class PlayScene extends Phaser.Scene {
     this.strokeRenderer = new StrokeRenderer(this, {
       transform: this.transform,
       depth: DEPTH.stroke,
-      // Live clip preview: the line stops at the ground surface (round-4 bug).
-      isInsideTerrain: (point) => this.sim?.isInsideTerrain(point) ?? false,
+      // Live clip preview (BR-013 WYSIWYG): matches the commit predicate exactly.
+      isDrawBlocked: (point) => this.sim?.isDrawBlocked(point) ?? false,
     });
     this.inkBar?.destroy();
     this.inkBar = this.makeInkBar();
@@ -509,6 +529,7 @@ export class PlayScene extends Phaser.Scene {
   private buildWorldRenderers(): void {
     this.terrain?.destroy();
     this.danger?.destroy();
+    this.persons?.destroy();
     this.coins?.destroy();
     this.flag?.destroy();
     this.rocks?.destroy();
@@ -522,6 +543,8 @@ export class PlayScene extends Phaser.Scene {
     // DangerZone bands sit just above terrain, below the flag/coins/car so the
     // hazard reads as a marked patch of ground the car must avoid.
     this.danger = new DangerZoneRenderer(this, level.dangerZones ?? [], this.transform, { depth: DEPTH.danger });
+    // Person NPC obstacles (round-9 BR-011, v2 levels only) — absent on v1.
+    this.persons = new PersonRenderer(this, level.persons ?? [], this.transform, { depth: DEPTH.persons });
     this.flag = new FlagRenderer(this, level.goalFlag, this.transform, { depth: DEPTH.flag });
     this.coins = new CoinRenderer(this, level.coins, this.transform, {
       events: sim.events,
@@ -746,9 +769,11 @@ export class PlayScene extends Phaser.Scene {
     const committedPixels = points.map((p) => this.transform.point(p));
     this.strokeVertices = [];
     if (!result.committed) {
-      // Discarded (too short / invalid / not enough ink): refund, nudge, stay.
+      // Discarded (too short / invalid / not enough ink / BR-012 zone / BR-013
+      // split): refund, nudge, stay — the cleared stroke is instantly redrawable.
       this.inkBar?.update(sim.inkState.ratio, sim.inkState.zone);
       this.inkBar?.playDepletedFeedback();
+      this.showRejectToast(result.reason);
       return;
     }
     this.strokeInput?.disable();
@@ -770,6 +795,21 @@ export class PlayScene extends Phaser.Scene {
     this.vehicle?.playAnticipation();
     this.fadeOutLevelLabel(); // running HUD is restart-only (FR-005)
     this.setPlayState('anticipation');
+  }
+
+  /**
+   * Dedicated toast for the round-9 v2 pre-launch rejections (BR-012
+   * `enteredDangerZone` / BR-013 `splitByTerrain`) — the ONLY additional
+   * feedback beyond the existing ink-bar nudge (already shown for every
+   * rejection reason above). Other reasons (tooShort / insufficientInk / ...)
+   * keep the pre-existing silent-nudge behavior unchanged.
+   */
+  private showRejectToast(reason: CommitDiscardReason): void {
+    if (reason === 'enteredDangerZone') {
+      this.drawRejectToast?.show(t('draw.rejectDangerZone'));
+    } else if (reason === 'splitByTerrain') {
+      this.drawRejectToast?.show(t('draw.rejectSplit'));
+    }
   }
 
   // ── run loop ───────────────────────────────────────────────────────────────
@@ -819,12 +859,14 @@ export class PlayScene extends Phaser.Scene {
       this.consecutiveFailsafeResets += 1;
       // ≥2 consecutive out-of-world failsafe resets in one level = an invisible
       // "bridge didn't reach" loop; when ink is ~spent and still upgradable, break
-      // the loop and surface the ink upsell instead of resetting silently again
-      // (round-7 upsell migration, game_plan_v5 §4).
+      // the loop and surface a real fail cause instead of resetting silently again
+      // (round-7 loop-break heuristic; round-9 drops the ink-upsell BUTTON from
+      // the fail surface, but the underlying "stop resetting silently" signal is
+      // still worth surfacing — shouldOfferInkUpsell is now used ONLY for this).
       if (this.shouldOfferInkUpsell(outcome.cause)) {
         this.consecutiveFailsafeResets = 0;
         this.setPlayState('result');
-        this.showFailWithCause(outcome, true);
+        this.showFailWithCause(outcome);
         return;
       }
       this.restartAttempt(); // solver failsafe — silent instant reset (≤1 s)
@@ -836,13 +878,32 @@ export class PlayScene extends Phaser.Scene {
       this.startGoalCelebration(outcome);
     } else {
       this.setPlayState('result');
-      this.showFailWithCause(outcome, this.shouldOfferInkUpsell(outcome.cause));
+      this.showFailWithCause(outcome);
     }
+  }
+
+  /**
+   * ★2/★3 condition lines for the clear panel (round-9 BR-014). v2-only: v1
+   * levels never carry `objective` and must NOT read the synthesized-transitional
+   * `starThresholds.star2` (PQG amendment) — omit the block entirely for them, so
+   * the panel falls back to its pre-round-9 layout (stars only).
+   */
+  private clearObjectiveInfo(outcome: Extract<AttemptOutcome, { outcome: 'clear' }>): ClearObjectiveInfo | undefined {
+    const level = this.level;
+    if (level === null || level.schemaVersion !== 2) {
+      return undefined;
+    }
+    return {
+      type: level.objective?.type ?? 'coins',
+      objectiveMet: outcome.objectiveMet ?? false,
+      star3Met: outcome.inkConsumed <= level.starThresholds.star3,
+    };
   }
 
   /** T060 clear path: credit first (BR-003), celebrate with the REAL total. */
   private startGoalCelebration(outcome: Extract<AttemptOutcome, { outcome: 'clear' }>): void {
     const nextId = this.nextLevelId();
+    const objective = this.clearObjectiveInfo(outcome);
     // Credit BEFORE the celebration so the count-up shows exactly what the
     // player received (clear reward + first-clear pickups — Codex R2 HIGH-1):
     // displaying raw pickups made rewards look duplicated on replays.
@@ -863,61 +924,46 @@ export class PlayScene extends Phaser.Scene {
           onLevels: () => this.scene.start('Hub'),
           onUpgrade: () =>
             this.scene.start('Upgrade', { returnScene: 'Play', returnData: { levelId: this.levelId } }),
+          ...(objective !== undefined ? { objective } : {}),
         });
       });
   }
 
   /**
-   * T061 fail path: a brief camera pan to the cause + a pulsing marker ring
-   * (§4.2 2-8 "折れ口ハイライト" / FR-008 cause highlight), then the Retry
-   * overlay. Kept light + fast (no hit-stop / slow-mo) per §4.4 X-3.
+   * T061 fail path (round-9: retry must be tappable IMMEDIATELY, BR-002 <=1s —
+   * no gating input on presentation). The overlay is shown right away; a brief
+   * camera pan-to-cause + pulsing marker ring (§4.2 2-8 "折れ口ハイライト" / FR-008
+   * cause highlight) keep playing BEHIND it. The fail surface no longer offers
+   * any 強化/upsell entry (round-9 designer ban on meta/upsell UI inside the
+   * fail->retry loop) — 強化 stays reachable from the clear result and
+   * level-select screens only.
    */
-  private showFailWithCause(
-    outcome: Extract<AttemptOutcome, { outcome: 'fail' }>,
-    hasInkUpsell: boolean,
-  ): void {
+  private showFailWithCause(outcome: Extract<AttemptOutcome, { outcome: 'fail' }>): void {
     const causePx = this.transform.point(outcome.causeLocation);
-    this.director.follow(() => causePx); // lerp-pan toward the cause point
+    this.director.follow(() => causePx); // lerp-pan toward the cause point (continues behind the overlay)
     this.spawnFailMarker(causePx);
-    this.time.delayedCall(FAIL_MARK_MS, () => {
-      if (this.playState === 'result') {
-        this.overlay?.showFail({
-          cause: outcome.cause,
-          onRetry: () => this.restartAttempt(),
-          onLevels: () => this.scene.start('Hub'),
-          onUpgrade: () =>
-            this.scene.start('Upgrade', { returnScene: 'Play', returnData: { levelId: this.levelId } }),
-          // Contextual ink upsell (DESIGN.md §8.4): only when ink shortage caused
-          // the fall — opens 強化 with the ink axis pre-recommended.
-          ...(hasInkUpsell
-            ? {
-                onUpgradeInk: () =>
-                  this.scene.start('Upgrade', {
-                    returnScene: 'Play',
-                    returnData: { levelId: this.levelId },
-                    recommendedAxis: 'inkCapacity',
-                  }),
-              }
-            : {}),
-        });
-      }
+    this.overlay?.showFail({
+      cause: outcome.cause,
+      onRetry: () => this.restartAttempt(),
+      onLevels: () => this.scene.start('Hub'),
     });
   }
 
   /**
-   * DESIGN.md §8.4 ink-shortage upsell gate (round-7 migration, game_plan_v5 §4).
-   * Offers the 強化 ink upsell when the ink was ~fully spent and still upgradable,
-   * on either signal that "the bridge couldn't reach on this ink":
-   *   A. a USER-FACING fail — hazardContact / tipOver / timeout (the causes that now
-   *      surface a fail overlay; `fall`/`divergence` silent-reset instead), OR
+   * Silent-failsafe-loop-break gate (round-7 origin, game_plan_v5 §4; round-9
+   * NARROWED: it no longer decides whether to show an ink-upsell BUTTON — that
+   * entry point was removed from the fail surface entirely — it ONLY decides
+   * whether ≥2 consecutive out-of-world failsafe resets should break out to a
+   * real (silent-reset-free) fail overlay instead of resetting again invisibly.
+   * Fires on either signal that "the bridge couldn't reach on this ink":
+   *   A. a USER-FACING fail — hazardContact / tipOver / timeout / personContact
+   *      (the causes that surface a fail overlay; `fall`/`divergence` silent-reset
+   *      instead), OR
    *   B. ≥2 consecutive out-of-world FAILSAFE resets in one level (a repeated
    *      invisible "bridge didn't reach" — this.consecutiveFailsafeResets),
    * AND (both branches):
    *   - consumed ≥ 90% of the effective ink budget, AND
    *   - the ink-capacity axis still has upgrade headroom.
-   *
-   * Migrated off the old cause==='fall' key: `fall` is now the demoted out-of-world
-   * killY failsafe (round-7 F3), so keying on it alone never fired.
    */
   private shouldOfferInkUpsell(cause: FailCause): boolean {
     const sim = this.sim;

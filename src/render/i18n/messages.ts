@@ -68,6 +68,12 @@ const en = {
   'result.failTipOver': 'The car flipped over',
   'result.failTimeout': 'Out of time',
   'result.failHazard': 'Hit a hazard',
+  'result.failPerson': 'Hit a person',
+  'result.star3Ink': 'Save ink',
+  'objective.coins': 'Collect all the coins',
+  'objective.noBreak': 'Never break your line',
+  'draw.rejectSplit': "That line would break at the ground — draw it as one piece",
+  'draw.rejectDangerZone': "Can't draw through the red zone",
 } as const;
 
 export type MessageKey = keyof typeof en;
@@ -120,6 +126,12 @@ const ja: Catalog = {
   'result.failTipOver': '車がひっくり返ってしまった',
   'result.failTimeout': '時間切れ',
   'result.failHazard': '危険物に当たってしまった',
+  'result.failPerson': '人にぶつかってしまった',
+  'result.star3Ink': 'インクを節約する',
+  'objective.coins': 'コインを全部集める',
+  'objective.noBreak': '線を一度も壊さない',
+  'draw.rejectSplit': '線が地面で分断されます。一筆でつながる形で描こう',
+  'draw.rejectDangerZone': '赤いゾーンの中には描けません',
 };
 
 const zhHans: Catalog = {
@@ -169,6 +181,12 @@ const zhHans: Catalog = {
   'result.failTipOver': '车翻倒了',
   'result.failTimeout': '时间到',
   'result.failHazard': '撞到了障碍物',
+  'result.failPerson': '撞到了行人',
+  'result.star3Ink': '节省墨水',
+  'objective.coins': '收集所有金币',
+  'objective.noBreak': '全程不断线',
+  'draw.rejectSplit': '这条线会被地面分断，请一笔连贯地画',
+  'draw.rejectDangerZone': '不能在红色区域内作画',
 };
 
 const ko: Catalog = {
@@ -218,6 +236,12 @@ const ko: Catalog = {
   'result.failTipOver': '차가 뒤집혔어요',
   'result.failTimeout': '시간 초과',
   'result.failHazard': '위험물에 부딪혔어요',
+  'result.failPerson': '사람과 부딪혔어요',
+  'result.star3Ink': '잉크 아끼기',
+  'objective.coins': '코인을 모두 모으기',
+  'objective.noBreak': '선이 한 번도 끊어지지 않기',
+  'draw.rejectSplit': '이 선은 바닥에서 끊어져요. 한 번에 이어지게 그려요',
+  'draw.rejectDangerZone': '빨간 구역 안에는 그릴 수 없어요',
 };
 
 const id: Catalog = {
@@ -267,6 +291,12 @@ const id: Catalog = {
   'result.failTipOver': 'Mobil terbalik',
   'result.failTimeout': 'Waktu habis',
   'result.failHazard': 'Menabrak rintangan',
+  'result.failPerson': 'Menabrak orang',
+  'result.star3Ink': 'Hemat tinta',
+  'objective.coins': 'Kumpulkan semua koin',
+  'objective.noBreak': 'Jangan sampai garis putus',
+  'draw.rejectSplit': 'Garis ini akan putus di tanah — gambar jadi satu garis utuh',
+  'draw.rejectDangerZone': 'Tidak bisa menggambar di zona merah',
 };
 
 const vi: Catalog = {
@@ -316,6 +346,12 @@ const vi: Catalog = {
   'result.failTipOver': 'Xe bị lật',
   'result.failTimeout': 'Hết giờ',
   'result.failHazard': 'Va phải chướng ngại',
+  'result.failPerson': 'Va phải người',
+  'result.star3Ink': 'Tiết kiệm mực',
+  'objective.coins': 'Thu thập hết xu',
+  'objective.noBreak': 'Không để đường vẽ bị đứt',
+  'draw.rejectSplit': 'Đường này sẽ bị đứt ở mặt đất — hãy vẽ liền một nét',
+  'draw.rejectDangerZone': 'Không thể vẽ vào vùng đỏ',
 };
 
 const th: Catalog = {
@@ -365,6 +401,12 @@ const th: Catalog = {
   'result.failTipOver': 'รถพลิกคว่ำ',
   'result.failTimeout': 'หมดเวลา',
   'result.failHazard': 'ชนสิ่งกีดขวาง',
+  'result.failPerson': 'ชนคนเข้า',
+  'result.star3Ink': 'ประหยัดหมึก',
+  'objective.coins': 'เก็บเหรียญให้ครบทุกเหรียญ',
+  'objective.noBreak': 'อย่าให้เส้นขาดแม้แต่ครั้งเดียว',
+  'draw.rejectSplit': 'เส้นนี้จะขาดที่พื้น — ลองวาดให้ต่อเนื่องเป็นเส้นเดียว',
+  'draw.rejectDangerZone': 'วาดในโซนสีแดงไม่ได้',
 };
 
 export const MESSAGES: Record<Locale, Catalog> = {
