@@ -14,8 +14,8 @@ export type Locale = (typeof SUPPORTED_LOCALES)[number];
 
 /** Canonical catalog. `MessageKey` is derived from these keys. */
 const en = {
-  title: 'InkBridge',
-  credits: 'InkBridge\nDesign & Development: InkBridge Team',
+  title: 'Draw Bridge Puzzle',
+  credits: 'Draw Bridge Puzzle\nDesign & Development: Draw Bridge Puzzle Team',
 
   'nav.backToLevels': 'Back to Levels',
   'nav.levelSelect': 'Levels',
@@ -80,8 +80,8 @@ export type MessageKey = keyof typeof en;
 type Catalog = Record<MessageKey, string>;
 
 const ja: Catalog = {
-  title: 'InkBridge',
-  credits: 'InkBridge\n企画・開発: InkBridge Team',
+  title: 'Draw Bridge Puzzle',
+  credits: 'Draw Bridge Puzzle\n企画・開発: Draw Bridge Puzzle Team',
   'nav.backToLevels': 'レベル一覧へ',
   'nav.levelSelect': 'レベル選択',
   'nav.toList': '一覧へ',
@@ -135,8 +135,8 @@ const ja: Catalog = {
 };
 
 const zhHans: Catalog = {
-  title: 'InkBridge',
-  credits: 'InkBridge\n策划·开发: InkBridge Team',
+  title: 'Draw Bridge Puzzle',
+  credits: 'Draw Bridge Puzzle\n策划·开发: Draw Bridge Puzzle Team',
   'nav.backToLevels': '返回关卡',
   'nav.levelSelect': '选择关卡',
   'nav.toList': '关卡列表',
@@ -190,8 +190,8 @@ const zhHans: Catalog = {
 };
 
 const ko: Catalog = {
-  title: 'InkBridge',
-  credits: 'InkBridge\n기획·개발: InkBridge Team',
+  title: 'Draw Bridge Puzzle',
+  credits: 'Draw Bridge Puzzle\n기획·개발: Draw Bridge Puzzle Team',
   'nav.backToLevels': '레벨 목록으로',
   'nav.levelSelect': '레벨 선택',
   'nav.toList': '목록으로',
@@ -245,8 +245,8 @@ const ko: Catalog = {
 };
 
 const id: Catalog = {
-  title: 'InkBridge',
-  credits: 'InkBridge\nDesain & Pengembangan: InkBridge Team',
+  title: 'Draw Bridge Puzzle',
+  credits: 'Draw Bridge Puzzle\nDesain & Pengembangan: Draw Bridge Puzzle Team',
   'nav.backToLevels': 'Kembali ke Level',
   'nav.levelSelect': 'Pilih Level',
   'nav.toList': 'Daftar Level',
@@ -300,8 +300,8 @@ const id: Catalog = {
 };
 
 const vi: Catalog = {
-  title: 'InkBridge',
-  credits: 'InkBridge\nThiết kế & Phát triển: InkBridge Team',
+  title: 'Draw Bridge Puzzle',
+  credits: 'Draw Bridge Puzzle\nThiết kế & Phát triển: Draw Bridge Puzzle Team',
   'nav.backToLevels': 'Về danh sách màn',
   'nav.levelSelect': 'Chọn màn',
   'nav.toList': 'Danh sách',
@@ -355,8 +355,8 @@ const vi: Catalog = {
 };
 
 const th: Catalog = {
-  title: 'InkBridge',
-  credits: 'InkBridge\nออกแบบและพัฒนา: InkBridge Team',
+  title: 'Draw Bridge Puzzle',
+  credits: 'Draw Bridge Puzzle\nออกแบบและพัฒนา: Draw Bridge Puzzle Team',
   'nav.backToLevels': 'กลับไปหน้าด่าน',
   'nav.levelSelect': 'เลือกด่าน',
   'nav.toList': 'รายการด่าน',

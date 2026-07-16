@@ -1,4 +1,4 @@
-InkBridge is a one-line physics puzzle game. Draw a single stroke across the gap, and it hardens into a bridge the instant your car starts rolling.
+Draw Bridge Puzzle is a one-line physics puzzle game. Draw a single stroke across the gap, and it hardens into a bridge the instant your car starts rolling.
 Every level is solved with one continuous line — no lifting your finger, no do-overs mid-stroke.
 Collect coins, dodge hazards, and chase 3-star clears across 45 hand-built levels.
 Simple to try, deep to master — one wrong curve and the bridge won't hold.

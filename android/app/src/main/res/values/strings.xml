@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">InkBridge</string>
-    <string name="title_activity_main">InkBridge</string>
+    <string name="app_name">Draw Bridge Puzzle</string>
+    <string name="title_activity_main">Draw Bridge Puzzle</string>
     <string name="package_name">net.skyapp.inkbridge</string>
     <string name="custom_url_scheme">net.skyapp.inkbridge</string>
 </resources>
