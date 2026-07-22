@@ -1,0 +1,4 @@
+Draw Bridge Puzzle adalah game puzzle fisika satu garis. Gambar satu goresan di atas jurang, dan garis itu langsung mengeras jadi jembatan begitu mobil mulai berjalan.
+Aturannya sederhana: satu garis tanpa putus, tanpa angkat jari.
+Kumpulkan koin, hindari rintangan, dan kejar bintang 3 di 45 level buatan tangan.
+Mudah dicoba, sulit dikuasai — satu lekukan salah saja, jembatan bisa runtuh.

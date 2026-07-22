@@ -12,8 +12,8 @@
 | パブリッシャー表記 | `Tenhoh llc.` | — |
 | Apple Developer Team | **Skyus, Inc. `5JQTL886YT`**（リリース用） | **要変更**（現: 個人 `K3MR27P3G9` = 実機dev用に残す）|
 | Google Play Developer | Skyus, Inc.（共通SA `play-publisher@fastlane-501006.iam.gserviceaccount.com`）| — |
-| サポート/マーケURL | `https://games.tenhoh.net/app/inkbridge` | 未作成（組織側依頼）|
-| プライバシーポリシー | `https://games.tenhoh.net/app/inkbridge/privacy` | 未作成（組織側依頼）|
+| サポート/マーケURL | `https://fumito-notion.notion.site/Draw-Bridge-Puzzle-Support-3a4e84145c6481d38156dc0e76b5e109` | Notion公開ページ（2026-07-22確定・games.tenhoh.net案から変更）|
+| プライバシーポリシー | `https://fumito-notion.notion.site/Draw-Bridge-Puzzle-Privacy-Policy-3a4e84145c648132b15cd4c0c923d713` | 同上 |
 | 連絡先 | `support@tenhoh.net` | — |
 
 ## 2. 共通設計との差分（InkBridge固有）
