@@ -1,10 +1,20 @@
 apply plugin: 'com.android.application'
 
+// Release signing (tenhoh 共通設計, Phase 0): reads android/key.properties when present
+// (see docs/release/DEPLOY.md §3 step 5). Falls back to debug signing so local builds
+// keep working before the upload keystore is generated on this machine.
+def keystorePropertiesFile = rootProject.file('key.properties')
+def keystoreProperties = new Properties()
+def hasReleaseKeystore = keystorePropertiesFile.exists()
+if (hasReleaseKeystore) {
+    keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
+}
+
 android {
-    namespace "com.medicavice.inkbridge"
+    namespace "net.skyapp.inkbridge"
     compileSdk rootProject.ext.compileSdkVersion
     defaultConfig {
-        applicationId "com.medicavice.inkbridge"
+        applicationId "net.skyapp.inkbridge"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1
@@ -16,8 +26,19 @@ android {
             ignoreAssetsPattern '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    signingConfigs {
+        release {
+            if (hasReleaseKeystore) {
+                storeFile file(keystoreProperties['storeFile'])
+                storePassword keystoreProperties['storePassword']
+                keyAlias keystoreProperties['keyAlias']
+                keyPassword keystoreProperties['keyPassword']
+            }
+        }
+    }
     buildTypes {
         release {
+            signingConfig hasReleaseKeystore ? signingConfigs.release : signingConfigs.debug
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }

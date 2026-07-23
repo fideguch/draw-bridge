@@ -1,0 +1,2 @@
+package_name("net.skyapp.inkbridge") # Android applicationId, see docs/release/DEPLOY.md §1
+json_key_file("~/.config/play/skyus-play-sa.json") # Play publisher service account, provisioned in Phase 0

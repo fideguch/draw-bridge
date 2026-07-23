@@ -184,33 +184,35 @@ export const rock = {
 };
 
 /**
+ * Person NPC obstacle half-extents in world metres (round-9 BR-011). A Person is
+ * a static AABB footprint the CAR must route over/around/jump — chassis or wheel
+ * overlap fails the attempt with FailCause 'personContact'. `{x, y}` in the level
+ * JSON `persons[]` is the AABB CENTRE, so the box spans x +/- halfWidth and y +/-
+ * halfHeight: 1.3 m wide x 1.7 m tall (a person-sized silhouette). Tunable, not a
+ * magic number — the Judge derives the person rects from these (level JSON carries
+ * only the centre points). To stand a person on ground y0, author y = y0 + halfHeight.
+ */
+export const person = {
+  /** Half of the person AABB width (m) — full width 1.3 m. */
+  halfWidth: 0.65,
+  /** Half of the person AABB height (m) — full height 1.7 m. */
+  halfHeight: 0.85,
+};
+
+/**
  * Hazard VISUAL LANGUAGE render tunables (DESIGN.md §4.9). Render-ONLY — these
  * never touch physics/Judge (DangerZone `style` is inert metadata), so changing
  * any value cannot move the determinism hash. Centralised here per the
  * no-magic-numbers rule; the RockRenderer / DangerZoneRenderer read them.
+ *
+ * round-9 simplification (designer mandate + hard ban "kill zone = plain red
+ * rectangle only"): the DangerZone teeth/wash/hatch tunables were removed along
+ * with the animated renderer (DangerZoneRenderer is now a single static fill +
+ * `zoneBorderPx` edge). Rock warning/streak tunables are unaffected.
  */
 export const hazardRender = {
-  // ── DangerZone teeth (spike / spikeDown) ──
-  /** Spike teeth per world metre of zone width (density of the saw row). */
-  teethPerMeter: 1.7,
-  /** Tooth height as a fraction of the zone band height (apex reach into the band). */
-  toothHeightFrac: 0.9,
-  /** Red tip fraction of a tooth (upper portion painted hazardRed over the dark base). */
-  toothTipFrac: 0.42,
-  // ── DangerZone wash + hatch ──
-  /** Red wash alpha at the pulse trough / peak (was a pale 0.16 — now unmistakable). */
-  zoneFillAlphaMin: 0.28,
-  zoneFillAlphaMax: 0.42,
-  /** Diagonal hatch stripe alpha. */
-  zoneStripeAlpha: 0.7,
-  /** Hatch spacing / stripe width / border width in design px (ui-scaled). */
-  zoneHatchSpacingPx: 15,
-  zoneHatchWidthPx: 4,
+  /** DangerZone edge-border width in design px (ui-scaled). */
   zoneBorderPx: 3,
-  /** Stripe-scroll speed (design px per second) — the "live danger" barber-pole crawl. */
-  zoneStripeScrollPxPerSec: 22,
-  /** Wash breathing-pulse period (ms). */
-  zonePulsePeriodMs: 1200,
   // ── Rock motion streaks ──
   /** Screen-space speed (px/frame) above which a moving rock grows motion streaks. */
   streakSpeedMinPx: 1.6,
@@ -274,6 +276,39 @@ export const camera = {
   speedZoomOutPct: 15,
   /** Goal celebration zoom-in percentage. Range 15-25. */
   goalZoomInPct: 20,
+};
+
+/**
+ * Stage framing (round-9 CS-3 — portrait-first). The whole level is fit into a
+ * world-viewport RECT at camera scroll(0,0)/zoom 1 (static min-fit, NO live
+ * follow — levelFraming.ts invariant). These numbers size that rect and the
+ * v2 content padding so a tall (up to 15 m × 24 m) authoring box frames entirely.
+ *
+ * SAFE-AREA RULE (2026-07-08 device bug): insets are applied PER-EDGE by the
+ * caller (playViewport.ts), NEVER folded into one uniform margin — that once ate
+ * ~247 px of stage width. `hudBandPx` / `bottomBandPx` reserve the top HUD row
+ * and the bottom restart zone; the world viewport lives strictly between them.
+ */
+export const framing = {
+  /** Screen-space L/R inset of the world viewport rect, design px (ui-scaled). */
+  viewportMarginXPx: 40,
+  /**
+   * Top HUD band height in design px (BELOW safe.top) — the world viewport begins
+   * under it so the pause row + ink gauge never overlap the stage. Sized to clear
+   * the ink gauge (centre safe.top+ui(72) + bar/marker ≈ 91 design px).
+   */
+  hudBandPx: 96,
+  /**
+   * Bottom band height in design px (ABOVE safe.bottom) reserved for the restart
+   * thumb zone — the world viewport ends above it (restart iconL sits here).
+   */
+  bottomBandPx: 80,
+  /** v2 stage: horizontal world padding (m) added on each side of all content. */
+  contentPadXM: 1.5,
+  /** v2 stage: world padding (m) below the lowest content (landing/drop room). */
+  contentPadBelowM: 1.5,
+  /** v2 stage: world padding (m) above the highest content (arc draw headroom). */
+  contentPadAboveM: 2.0,
 };
 
 /** Juice — drawing (game_design §8.3) */
@@ -461,16 +496,6 @@ export const goal = {
   nextPopScale: 0.9,
   /** L13 Next button scale-in duration in ms. Range 140-200. */
   nextPopMs: 160,
-  /** L8 sunburst ray count radiating behind the panel. Range 12-16. */
-  sunburstRayCount: 14,
-  /**
-   * L8 sunburst alpha (static gold rays). Range 0.2-0.5. Own-eyes 2026-07-08:
-   * the rays are drawn STATIC — a large Graphics that is tweened (rotation or an
-   * alpha swell) rendered blank under the software-WebGL path, so rotation/swell
-   * were dropped and this is set directly. 0.28 read as invisible; 0.4 gives a
-   * legible gold radiance behind the title.
-   */
-  sunburstMaxAlpha: 0.4,
   /** L5 center-burst piece count from the flag at impact. Range 20-32. */
   centerBurstCount: 28,
   /** L5 center-burst min speed in px/s. */

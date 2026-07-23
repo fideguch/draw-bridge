@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "id": "ch1-b1",
   "terrain": [
     [
@@ -62,8 +62,8 @@
   "killY": -10.2,
   "inkBudget": 19.24,
   "starThresholds": {
-    "star3": 7.06,
-    "star2": 8.66
+    "star3": 8.66,
+    "star2": 19.24
   },
   "coins": [
     {
@@ -265,7 +265,7 @@
           "y": 0.5903773553222555
         },
         "inkConsumed": 6.414922289289489,
-        "starRating": 3
+        "starRating": 1
       }
     }
   ],
@@ -509,5 +509,8 @@
         ]
       ]
     }
-  ]
+  ],
+  "objective": {
+    "type": "coins"
+  }
 }

@@ -17,3 +17,5 @@ android/build/
 .fable/
 test-results/
 playwright-report/
+/build/
+asc-api-key.json

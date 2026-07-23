@@ -80,9 +80,6 @@ const COLORS = {
   hazardFill: '#e11d0e', // saturated red wash
   hazardStripe: '#8a0f06', // deep-red diagonal hatch
   hazardBorder: '#b00d04', // darker-red band border
-  hazardToothTip: '#e11d0e', // red spike-tip
-  hazardToothMid: '#8a0f06', // deep-red mid
-  hazardToothBase: '#161011', // near-black tooth base
   coin: '#f5b301',
   coinEdge: '#a9760a',
   coinLabel: '#3a2a00',
@@ -296,11 +293,7 @@ function renderDangerZones(
         );
       }
     }
-    // Teeth (redundant shape coding) for spike / spikeDown zones — matches the
-    // in-game DangerZoneRenderer (near-black base -> deep-red -> red tip).
-    if (z.style === 'spike' || z.style === 'spikeDown') {
-      parts.push(renderTeeth(z.style === 'spike', x0, x1, yTop, yBottom, z.width));
-    }
+    // round-9: spike/spikeDown teeth removed game-wide — zones are plain red rects.
     // Darker-red band border.
     parts.push(
       `<rect x="${fmt(x0)}" y="${fmt(yTop)}" width="${w}" height="${h}" fill="none" ` +
@@ -308,39 +301,6 @@ function renderDangerZones(
     );
   }
   return parts.join('\n');
-}
-
-/**
- * A saw row of near-black teeth with a red-tip gradient (fill-only triangles),
- * in projected SVG coords. `up` = floor spikes (apex toward the smaller y / top);
- * else stalactites (apex toward the larger y / bottom).
- */
-function renderTeeth(up: boolean, x0: number, x1: number, yTop: number, yBottom: number, worldWidth: number): string {
-  const count = Math.max(2, Math.round(worldWidth * 1.7));
-  const bandH = yBottom - yTop;
-  const toothH = bandH * 0.9;
-  const baseY = up ? yBottom : yTop;
-  const apexY = up ? baseY - toothH : baseY + toothH;
-  const tris: string[] = [];
-  const tri = (ax: number, ay: number, bx: number, by: number, cx: number, cy: number, fill: string): string =>
-    `<polygon points="${fmt(ax)},${fmt(ay)} ${fmt(bx)},${fmt(by)} ${fmt(cx)},${fmt(cy)}" fill="${fill}"/>`;
-  for (let i = 0; i < count; i++) {
-    const xL = x0 + ((x1 - x0) * i) / count;
-    const xR = x0 + ((x1 - x0) * (i + 1)) / count;
-    const xc = (xL + xR) / 2;
-    const half = (xR - xL) / 2;
-    // Full near-black tooth.
-    tris.push(tri(xL, baseY, xc, apexY, xR, baseY, COLORS.hazardToothBase));
-    // Deep-red upper 55%.
-    const midHalf = half * 0.55;
-    const midY = apexY + (baseY - apexY) * 0.55;
-    tris.push(tri(xc, apexY, xc - midHalf, midY, xc + midHalf, midY, COLORS.hazardToothMid));
-    // Bright-red top 42%.
-    const tipHalf = half * 0.42;
-    const tipY = apexY + (baseY - apexY) * 0.42;
-    tris.push(tri(xc, apexY, xc - tipHalf, tipY, xc + tipHalf, tipY, COLORS.hazardToothTip));
-  }
-  return tris.join('\n');
 }
 
 /** Unit travel direction at the path end (last segment longer than eps), or null. */

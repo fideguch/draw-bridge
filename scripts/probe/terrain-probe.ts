@@ -122,12 +122,18 @@ function probeFromBelow(world: World, mx: number, my: number): number {
   return maxY;
 }
 
+let probeWorld: World | undefined;
+
 export function probeLevel(name: string, level: Level): Finding[] {
   const findings: Finding[] = [];
-  // A fresh world per level (18 levels << 32-slot cap); terrain built once, the
-  // probe box is created & destroyed per segment so the body count stays ~1.
-  const world = new World();
-  try {
+  // ROUND-9 CS-4b: a >30-level slate (33 shipped) exceeds the phaser-box2d 32-slot
+  // cap if we `new World()` per level (slots are never freed — World header). The
+  // probe is a boolean solid/ghost check (a dropped body rests vs falls through), so
+  // it is insensitive to Box2D's <2 mm reset residual — RECYCLE one module world via
+  // reset() (tears down the previous level's terrain + probe bodies) instead.
+  const world = (probeWorld ??= new World());
+  world.reset();
+  {
     // Terrain via the SAME construction the game uses (winding reversal + ghosts).
     new Terrain(world, level);
 
@@ -169,9 +175,9 @@ export function probeLevel(name: string, level: Level): Finding[] {
         });
       }
     });
-  } finally {
-    world.destroy();
   }
+  // The module world is RECYCLED (reset() on next call), never destroyed — destroying
+  // would burn one of the 32 phaser-box2d slots per level and re-hit the cap.
   return findings;
 }
 

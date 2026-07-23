@@ -15,12 +15,13 @@
  *   拍4    Stars — StarBurstView pops the earned stars one at a time, each firing
  *          the C-E-G arpeggio (+ cymbal on the 3rd) and the ascending haptic.
  *   拍5    Reward count-up + a coin burst that flies into the overlay coin
- *          counter (tick pitch 1.0→1.3, semitone chime + counter punch on land).
+ *          counter (tick pitch 1.0→1.3, semitone chime + counter punch on land),
+ *          plus the ★2/★3 condition lines (round-9 BR-014, v2 levels only).
  *   then   the ResultOverlay Replay/Next buttons; Next is DECOUPLED from the
  *          afterglow — it activates goal.nextActivateDelaySec (0.3 s) after the
  *          panel with a scale-in pop + pulse, so it is tappable ~0.9 s from the
  *          clear tick (≤1 s, user directive 2026-07-08) while stars / coins /
- *          confetti / sunburst keep playing behind the active panel.
+ *          confetti keep playing behind the active panel.
  *
  * ── Camera-zoom vs dev-hook constraint (documented choice) ───────────────────
  * The level is framed at camera zoom 1 so world-pixel == screen-pixel and the
@@ -51,10 +52,10 @@ import { setDevResultNextReady } from '@render/devhook';
 import { color } from '@render/ui/theme';
 import { camera as cameraTuning, goal } from '@tuning/TuningConstants';
 import type { AttemptJuice } from '@render/ui/services';
-import type { ResultOverlay } from './ResultOverlay';
+import type { ClearObjectiveInfo, ResultOverlay } from './ResultOverlay';
 
 /**
- * Celebration draw depths (above the overlay scrim/sunburst/content 2000-2003).
+ * Celebration draw depths (above the overlay scrim/content 2000-2003).
  * `flash` (L1) sits above the confetti so the impact reads as a full-screen
  * punch; the skipCatcher stays on top so a tap anywhere still skips.
  */
@@ -72,6 +73,8 @@ export interface GoalCelebrationData {
   readonly onLevels: () => void;
   /** Post-reward 強化 link on the clear panel (DESIGN.md §9). */
   readonly onUpgrade: () => void;
+  /** ★2/★3 condition lines (v2 levels only; round-9 BR-014). */
+  readonly objective?: ClearObjectiveInfo;
 }
 
 export interface GoalSequenceDeps {
@@ -314,6 +317,7 @@ export class GoalSequence {
         data.onUpgrade();
       },
       onSkip: () => this.skip(),
+      ...(data.objective !== undefined ? { objective: data.objective } : {}),
     });
 
     // 拍4: sequential stars with arpeggio + ascending haptic.

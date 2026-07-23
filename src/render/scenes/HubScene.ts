@@ -106,7 +106,7 @@ export class HubScene extends Phaser.Scene {
     topBg.fillStyle(color.sky, 1);
     topBg.fillRect(0, 0, layout.width, topBarBottom);
 
-    new Button(this, {
+    const settingsBtn = new Button(this, {
       x: layout.safe.left + this.ui(margin + 22),
       y: this.topRowY,
       size: 'iconM',
@@ -118,14 +118,31 @@ export class HubScene extends Phaser.Scene {
       onClick: () => this.scene.start('Settings'),
     }).setDepth(DEPTH.bar);
 
-    this.add
+    const title = this.add
       .text(layout.width / 2, this.topRowY, t('title'), makeTextStyle(type.h1, color.textPrimary))
       .setOrigin(0.5)
       .setDepth(DEPTH.bar);
 
-    new CoinCounter(this, layout.width - layout.safe.right - this.ui(margin), this.topRowY, this.services.getBalance()).setDepth(
-      DEPTH.bar,
-    );
+    const coins = new CoinCounter(
+      this,
+      layout.width - layout.safe.right - this.ui(margin),
+      this.topRowY,
+      this.services.getBalance(),
+    ).setDepth(DEPTH.bar);
+
+    // Long localized titles ("Draw Bridge Puzzle") must fit between the gear and
+    // the coin pill: shrink to the exact free span and re-center within it.
+    // (Graphics-based containers have no usable getBounds — compute edges.)
+    void settingsBtn;
+    const titlePad = this.ui(space.space2);
+    const gearRight = layout.safe.left + this.ui(margin + 44); // icon button: centre at margin+22, half width 22
+    const spanLeft = gearRight + titlePad;
+    const spanRight = coins.leftEdgeX() - titlePad;
+    const avail = spanRight - spanLeft;
+    if (avail > 0 && title.width > avail) {
+      title.setScale(avail / title.width);
+    }
+    title.setX((spanLeft + spanRight) / 2);
   }
 
   private buildBottomBar(): void {
@@ -243,7 +260,7 @@ export class HubScene extends Phaser.Scene {
     if (!isUnlocked) {
       this.drawLock(container);
     } else {
-      this.drawStars(container, bestStars);
+      this.drawStars(container, bestStars, tile.isBonus);
     }
 
     container.setSize(tileSize, tileSize);
@@ -281,14 +298,16 @@ export class HubScene extends Phaser.Scene {
     }
   }
 
-  private drawStars(container: Phaser.GameObjects.Container, bestStars: number): void {
+  private drawStars(container: Phaser.GameObjects.Container, bestStars: number, isBonusTile = false): void {
     const starGap = this.ui(18);
+    // Bonus tiles are coin-yellow — color.star vanishes on them; use the dark coin stroke instead.
+    const earnedColor = isBonusTile ? color.coinStroke : color.star;
     for (let i = 0; i < MAX_STARS; i += 1) {
       const isEarned = i < bestStars;
       const glyph = isEarned ? '★' : '☆';
       container.add(
         this.add
-          .text((i - 1) * starGap, this.ui(24), glyph, makeTextStyle({ size: 16, bold: false }, isEarned ? color.star : color.starEmpty))
+          .text((i - 1) * starGap, this.ui(24), glyph, makeTextStyle({ size: 16, bold: false }, isEarned ? earnedColor : color.starEmpty))
           .setOrigin(0.5),
       );
     }

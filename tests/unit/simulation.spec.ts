@@ -254,6 +254,18 @@ describe('GameSimulation — phase guards (one stroke per attempt)', () => {
     expect(() => simulation.commitStroke(SCRIPTED_STROKE)).toThrow(/stroke|phase/i);
     simulation.destroy();
   });
+
+  it('a second commitStroke DURING the run (running phase) is rejected — one stroke per attempt', () => {
+    const simulation = new GameSimulation(fixtureLevel());
+    simulation.commitStroke(SCRIPTED_STROKE);
+    // advance past the anticipation countdown into the running phase
+    while (simulation.phase !== 'running' && simulation.outcome === null) {
+      simulation.step();
+    }
+    expect(simulation.phase).toBe('running');
+    expect(() => simulation.commitStroke(SCRIPTED_STROKE)).toThrow(/stroke|phase/i);
+    simulation.destroy();
+  });
 });
 
 describe('GameSimulation — fail path (FR-008)', () => {

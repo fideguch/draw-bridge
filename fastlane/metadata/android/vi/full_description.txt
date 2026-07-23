@@ -1,0 +1,4 @@
+Draw Bridge Puzzle là game giải đố vật lý vẽ một nét. Vẽ một đường qua khoảng trống, đường vẽ sẽ cứng lại thành cầu ngay khi xe bắt đầu lăn bánh.
+Luật chơi rất đơn giản: vẽ liền một nét, không nhấc tay giữa chừng.
+Thu thập xu, né chướng ngại vật, và chinh phục 3 sao ở cả 45 màn chơi thủ công.
+Dễ chơi nhưng khó tinh thông — chỉ một đường cong sai, cây cầu sẽ sập.

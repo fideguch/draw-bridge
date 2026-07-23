@@ -16,6 +16,11 @@
  *   BEATS clear (game_plan_v5 §2.1: a same-tick goal-tie resolves hazard-wins;
  *   authoring never places a hazard on the goal line, so the tie is a
  *   deterministic edge only). causeLocation = the car∩hazard contact point.
+ * - personContact (round-9 NEW, BR-011): the CAR (chassis or a wheel AABB) touches
+ *   a Person's static AABB (derived from the person center + TuningConstants dims).
+ *   Same priority TIER as hazardContact — it also BEATS clear on a same-tick tie —
+ *   but a DEDICATED cause so Render can show a person-specific fail message. The
+ *   drawn BridgeChain is unaffected by persons (only the car is tested).
  * - clear: VehicleReferencePoint (chassis AABB center) inside the goalFlag AABB.
  *   Still beats fall / tipOver / timeout (BR-009), only NOT hazardContact.
  * - tipOver: vehicle.roofContactActive sustained for fail.tipOverTimeSec
@@ -34,18 +39,20 @@
  */
 
 import { b2Body_GetLinearVelocity, b2Body_GetPosition } from 'phaser-box2d';
-import type { DangerZone, Point, Rect } from '../level/LevelSchema';
+import type { DangerZone, Person, Point, Rect } from '../level/LevelSchema';
 import type { BridgeChain } from '../physics/BridgeChainBuilder';
 import type { Vehicle } from '../physics/Vehicle';
-import { fail, physics } from '@tuning/TuningConstants';
+import { fail, person as personDims, physics } from '@tuning/TuningConstants';
 
 /**
  * `hazardContact` (round-7 F1) unifies the rock and DangerZone/spike contact
  * losses under ONE cause: the CAR touching any hazard body is an immediate game
- * over (game_plan_v5 §2.1). `fall` is the DEMOTED out-of-world killY failsafe
- * (F3) — kept in the union for the internal reset path, never a user-facing cause.
+ * over (game_plan_v5 §2.1). `personContact` (round-9 BR-011) is the same-tier but
+ * DEDICATED cause for touching a Person NPC (own Render message). `fall` is the
+ * DEMOTED out-of-world killY failsafe (F3) — kept in the union for the internal
+ * reset path, never a user-facing cause.
  */
-export type FailCause = 'fall' | 'tipOver' | 'timeout' | 'divergence' | 'hazardContact';
+export type FailCause = 'fall' | 'tipOver' | 'timeout' | 'divergence' | 'hazardContact' | 'personContact';
 
 export type JudgeOutcome =
   | { readonly outcome: 'clear'; readonly ticks: number }
@@ -94,6 +101,18 @@ export interface JudgeLevelParams {
   readonly maxTicks?: number;
   /** DangerZone hazard bands (car overlap => hazardContact). Absent == none. */
   readonly dangerZones?: readonly DangerZone[];
+  /** Person NPC centres (round-9 BR-011; car overlap => personContact). Absent == none. */
+  readonly persons?: readonly Person[];
+}
+
+/** The static AABB a Person occupies: its centre point +/- the TuningConstants dims. */
+function personToRect(centre: Person): Rect {
+  return {
+    x: centre.x - personDims.halfWidth,
+    y: centre.y - personDims.halfHeight,
+    width: 2 * personDims.halfWidth,
+    height: 2 * personDims.halfHeight,
+  };
 }
 
 function isInsideRect(point: Point, rect: Rect): boolean {
@@ -130,6 +149,8 @@ export class Judge {
   private readonly maxTicks: number;
   private readonly tipOverTicks: number;
   private readonly dangerZones: readonly DangerZone[];
+  /** Static person AABBs derived once from the level's person centres (BR-011). */
+  private readonly personRects: readonly Rect[];
   private roofDownTicks = 0;
 
   constructor(level: JudgeLevelParams) {
@@ -138,6 +159,7 @@ export class Judge {
     this.maxTicks = level.maxTicks ?? fail.maxTicksDefault;
     this.tipOverTicks = Math.round(fail.tipOverTimeSec / physics.fixedDt);
     this.dangerZones = level.dangerZones ?? [];
+    this.personRects = (level.persons ?? []).map(personToRect);
   }
 
   /**
@@ -164,6 +186,11 @@ export class Judge {
     const hazard = this.checkHazardContact(tick, vehicle, rocks);
     if (hazard !== null) {
       return hazard;
+    }
+    // personContact (round-9 BR-011): same tier as hazardContact — also beats clear.
+    const person = this.checkPersonContact(tick, vehicle);
+    if (person !== null) {
+      return person;
     }
     if (isInsideRect(referencePoint, this.goalFlag)) {
       return { outcome: 'clear', ticks: tick };
@@ -215,6 +242,31 @@ export class Judge {
           if (Math.hypot(rock.x - near.x, rock.y - near.y) <= rock.radius) {
             return { outcome: 'fail', cause: 'hazardContact', causeLocation: near, ticks: tick };
           }
+        }
+      }
+    }
+    return null;
+  }
+
+  /**
+   * personContact (round-9 BR-011): the CAR (chassis or either wheel AABB) touches
+   * a Person's static AABB. Contact IS the loss — the run ends this tick with the
+   * DEDICATED cause 'personContact' (same tier as hazardContact: called before
+   * clear, so it wins a same-tick goal tie). Only the car is tested — the drawn
+   * BridgeChain passes through persons UNAFFECTED. causeLocation = the centre of
+   * the car∩person overlap so the fail marker sits on the contact.
+   */
+  private checkPersonContact(tick: number, vehicle: Vehicle): JudgeOutcome | null {
+    if (this.personRects.length === 0) {
+      return null;
+    }
+    const boxes = vehicle.occupiedAABBs();
+    for (const rect of this.personRects) {
+      for (const box of boxes) {
+        if (aabbOverlapsRect(box, rect)) {
+          const cx = (Math.max(box.minX, rect.x) + Math.min(box.maxX, rect.x + rect.width)) / 2;
+          const cy = (Math.max(box.minY, rect.y) + Math.min(box.maxY, rect.y + rect.height)) / 2;
+          return { outcome: 'fail', cause: 'personContact', causeLocation: { x: cx, y: cy }, ticks: tick };
         }
       }
     }

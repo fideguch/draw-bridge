@@ -9,12 +9,12 @@
  * unsynchronised places (levelCatalog interval math, campaign LEVEL_ORDER array,
  * atlas CH1_SOURCES declaration order); they are now all DERIVED from here.
  *
- * SLATE (designs/game_plan_v5.md §5 — F4 28面スレート): 23 numbered levels
- * (L1-L23) + 5 bonus levels (B1-B5). Bonuses sit at the sawtooth "valleys",
- * inserted AFTER a numbered level: L4→B1 / L7→B2 / L11→B3 / L15→B4 / L23→B5
- * (§5.1). Campaign order therefore interleaves them:
+ * SLATE (round-9 designs/levels_round9.md — 45 slots): 40 numbered levels
+ * (L1-L40) + 5 bonus levels (B1-B5). Bonuses sit at the sawtooth "valleys",
+ * inserted AFTER a numbered level: L4→B1 / L7→B2 / L11→B3 / L15→B4 / L23→B5.
+ * Campaign order interleaves them, then l24-l40 trail (authored in CS-4b/4c):
  *   l01 l02 l03 l04 B1 l05 l06 l07 B2 l08 l09 l10 l11 B3 l12 l13 l14 l15 B4
- *   l16 l17 l18 l19 l20 l21 l22 l23 B5   (28 slots)
+ *   l16 l17 l18 l19 l20 l21 l22 l23 B5 l24 … l40   (45 slots)
  *
  * UNLOCK CHAIN (game_plan_v5 §5.1 / SC-002): the NUMBERED spine is strictly
  * sequential — level N unlocks when N-1 is cleared — and each bonus unlocks with
@@ -33,8 +33,16 @@
  * consume it identically.
  */
 
-/** Total numbered levels in the Chapter-1 slate (L1-L23). */
-export const CHAPTER1_NUMBERED_COUNT = 23;
+/**
+ * Total numbered levels in the Chapter-1 slate (L1-L40, round-9 designs/levels_round9.md).
+ * ROUND-9 CS-4a: raised 23→40 so the full designer slate is DECLARED and the Hub
+ * grid can reach all 40 main + 5 bonus tiles (T3). Level CONTENT lands incrementally
+ * (l01-l12 v2 shipped this wave; l13-l23 kept v1; l24-l40 author in CS-4b/4c) — every
+ * consumer filters the slate to the ids whose JSON exists, so undeclared-content slots
+ * simply don't render yet. Bonus insertion points are UNCHANGED (after L4/L7/L11/L15/
+ * L23) so all five bonuses stay reachable with the currently-shipped 23 numbered levels.
+ */
+export const CHAPTER1_NUMBERED_COUNT = 40;
 
 /**
  * Bonus insertion points: `numberedLevel → bonusIndex`. A bonus tile is placed

@@ -1,0 +1,31 @@
+# InkBridge fastlane (tenhoh 共通設計 準拠). See docs/release/DEPLOY.md §4-5 for the
+# full submission flow and docs/release/DEPLOY.md §3 for the one-time Phase 0 setup
+# (Play service-account key, upload keystore) this Fastfile depends on.
+
+default_platform(:android)
+
+platform :android do
+  desc "Build the release AAB and upload it to the Play internal track (with store listing metadata)"
+  lane :internal do
+    gradle(
+      task: "bundle",
+      build_type: "Release",
+      project_dir: "../android",
+    )
+    supply(
+      track: "internal",
+      aab: "../android/app/build/outputs/bundle/release/app-release.aab",
+      release_status: "draft",
+      skip_upload_apk: true,
+    )
+  end
+
+  desc "Promote the current internal-track release to production (staged rollout)"
+  lane :promote_production do
+    supply(
+      track: "internal",
+      track_promote_to: "production",
+      rollout: "0.1",
+    )
+  end
+end

@@ -15,18 +15,14 @@ import {
 } from '../../scripts/gates/lazyLine';
 
 /**
- * Gate 7 — lazy-line bot (round-8). The user complaint 「横一本線で全クリア」
- * mechanised: the bot draws the lazy horizontal patterns through the EXACT
- * player commit path; any clear fails the level (tutorial allowlist sanctioned).
+ * Gate 7 — lazy-line bot. ROUND-9 (BR-015): ADVISORY telemetry only. The bot still
+ * plays the lazy horizontal patterns through the EXACT player commit path and
+ * still correctly IDENTIFIES which ones clear, but a clear no longer FAILS the
+ * level — it is surfaced as a `warnings` entry the designer reads. `errors[]` is
+ * always empty (the gate always exits 0).
  *
- * NEGATIVE CONTROLS, both directions (learnings T4 — every pass-check carries a
- * fail case, and every fail-check carries a pass case):
- *   • DETECTION: a flat-gap board a lazy line clears must FAIL the gate.
- *     (The live 28-level run is the current-slate evidence; this synthetic
- *     fixture pins the behaviour against future slate redesigns.)
- *   • PASS: a board whose geometry defeats every pattern must PASS — the frozen
- *     ch1-l08 gate fixture (+2 m rise; also Gate 3's anti-dominant control).
- * All attempts recycle ONE World (phaser-box2d 32-slot cap).
+ * DETECTION still works (runLazyLineBot reports clears); only the CONSEQUENCE
+ * changed from fail -> advisory warning. All attempts recycle ONE World.
  */
 
 const world = new World();
@@ -126,30 +122,30 @@ describe('runLazyLineBot (player-faithful pattern sweep)', () => {
   });
 });
 
-describe('lazyLineCheck', () => {
-  it('DETECTION CONTROL: a flat gap a lazy line clears FAILS the gate', () => {
-    const { errors } = lazyLineCheck({ json: lazyClearableLevel('ch1-l05') }, world);
-    expect(errors.length).toBeGreaterThan(0);
-    expect(errors[0]).toContain('lazy-line bot CLEARED');
+describe('lazyLineCheck (round-9 BR-015: advisory only)', () => {
+  it('ADVISORY: a flat gap a lazy line clears PASSES (errors empty) but is REPORTED in warnings', () => {
+    const { errors, warnings } = lazyLineCheck({ json: lazyClearableLevel('ch1-l05') }, world);
+    expect(errors).toEqual([]); // no longer a failure
+    expect((warnings ?? []).some((w) => w.includes('a straight line clears'))).toBe(true);
   });
 
-  it('PASS CONTROL: geometry that defeats every pattern PASSES (ch1-l08 fixture, +2 m rise)', () => {
+  it('geometry that defeats every pattern PASSES, dispositions still reported (ch1-l08 fixture, +2 m rise)', () => {
     const { errors, warnings } = lazyLineCheck({ json: lazyProofLevel() }, world);
     expect(errors).toEqual([]);
-    // The dispositions are still reported (the redesign worklist), all non-clear.
+    // The dispositions are still reported (designer telemetry), all non-clear.
     expect((warnings ?? []).some((w) => w.includes('-> fail') || w.includes('no-commit'))).toBe(true);
   });
 
-  it('tutorial allowlist: the SAME lazy-clearable geometry passes as ch1-l01 with a sanctioned warning', () => {
+  it('tutorial allowlist: a lazy-clearable ch1-l01 passes and tags the clear as sanctioned', () => {
     const { errors, warnings } = lazyLineCheck({ json: lazyClearableLevel('ch1-l01') }, world);
     expect(errors).toEqual([]);
     expect((warnings ?? []).some((w) => w.includes('sanctioned'))).toBe(true);
   });
 
-  it('rejects an invalid level with a gate0 pointer instead of crashing', () => {
-    const { errors } = lazyLineCheck({ json: { schemaVersion: 999 } }, world);
-    expect(errors.length).toBeGreaterThan(0);
-    expect(errors[0]).toContain('gate0-invalid');
+  it('an invalid level surfaces a gate0 pointer as an advisory warning (Gate 0 owns the hard error)', () => {
+    const { errors, warnings } = lazyLineCheck({ json: { schemaVersion: 999 } }, world);
+    expect(errors).toEqual([]);
+    expect((warnings ?? []).some((w) => w.includes('gate0-invalid'))).toBe(true);
   });
 });
 

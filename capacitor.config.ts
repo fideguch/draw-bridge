@@ -1,8 +1,8 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'com.medicavice.inkbridge',
-  appName: 'InkBridge',
+  appId: 'net.skyapp.inkbridge',
+  appName: 'Draw Bridge Puzzle',
   webDir: 'dist',
   // Portrait-only orientation is enforced natively:
   // - ios/App/App/Info.plist  (UISupportedInterfaceOrientations = portrait)

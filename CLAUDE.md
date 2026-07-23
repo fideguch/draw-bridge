@@ -64,4 +64,14 @@ TypeScript 5.x strict. Classes/types PascalCase (no I-prefix), variables camelCa
 <!-- specs-evals: load distilled eval learnings (Reflexion). File is .gitignore'd (session-local). -->
 @.evals/feedback/learnings.md
 
+## Release (tenhoh 共通設計準拠)
+
+- Bundle ID / applicationId: `net.skyapp.inkbridge` (Publisher: Tenhoh llc.). Reinstalling from a store build after this rename is a **new app** on-device — old local installs of `com.medicavice.inkbridge` do not upgrade in place.
+- Apple Developer Team: Debug = personal `K3MR27P3G9` (device dev builds); Release = Skyus, Inc. `5JQTL886YT`. iOS min target 15.0, iPhone-only (`TARGETED_DEVICE_FAMILY=1`).
+- Google Play Developer: Skyus, Inc. (shared SA `play-publisher@fastlane-501006.iam.gserviceaccount.com`).
+- Build: `npm run build && npx cap sync` (regenerates `ios/`/`android/` web assets; does not bump `CFBundleVersion`/`versionCode` — bump those per release).
+- iOS upload: `xcodebuild ... archive` → `.ipa` → `altool --upload-app` using an ASC API key at `~/.appstoreconnect/private_keys/AuthKey_<keyId>.p8` (keyId/issuerId noted in Obsidian, key contents never committed).
+- Android upload: `cd android && ./gradlew bundleRelease` (reads `android/key.properties`, gitignored) → `bundle exec fastlane android internal` (see `fastlane/Fastfile`).
+- Full flow, Phase 0 machine setup, and the outstanding decisions: `docs/release/DEPLOY.md` + Obsidian `CasualGames/InkBridge/`.
+
 <!-- MANUAL ADDITIONS END -->

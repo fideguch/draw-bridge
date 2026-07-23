@@ -43,9 +43,20 @@
  */
 import { validateLevel, type Level, type Point } from '../../src/engine/level/LevelSchema';
 import { GameSimulation } from '../../src/engine/GameSimulation';
+import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
+import { join } from 'node:path';
 import type { Aabb } from '../../src/engine/physics/Vehicle';
 import { World } from '../../src/engine/physics/World';
-import { parseCliOptions, resolveLevelFiles, runGate } from './lib';
+import { EXIT_CONFIG, EXIT_FAIL, EXIT_PASS, parseCliOptions, resolveLevelFiles, runGate } from './lib';
+
+/**
+ * Max levels measured per PROCESS. Each level burns one phaser-box2d world slot
+ * (never freed — 32/process cap, World header), so a >30-level slate is measured
+ * in CHILD-PROCESS CHUNKS of this size with FRESH worlds (drift-free). 24 leaves
+ * ample headroom under 32 for the sim's incidental worlds.
+ */
+export const DISPLACEMENT_CHUNK_MAX = 24;
 
 /** Max settled→driven chain node displacement (m) UNDER THE CAR before it reads as "pushed" (§9.2). */
 export const LINE_DISPLACEMENT_MAX_M = 0.3;
@@ -204,30 +215,46 @@ export function lineDisplacementCheck(
   if (!parsed.ok) {
     return { errors: [`gate0-invalid level (run gate0 first): ${parsed.errors[0] ?? 'unknown'}`] };
   }
-  const result = measureLineDisplacement(parsed.level, world);
-  if (!result.committed || result.maxDisplacement === null) {
+  // ROUND-9 (CS-4a): measure each level on a FRESH world. Displacement is compared
+  // to a FIXED bound (0.3 m), so — unlike Gate 2, which compares to recorded
+  // samples taken in the SAME shared-world sequence and is therefore self-cancelling
+  // — this gate must be DRIFT-FREE (a recycled slot's Box2D residual swung a
+  // high-bridge sag 0.06 → 0.38 m, measured CS-4b). CS-4b (>30-level slate) keeps
+  // fresh-world accuracy and instead dodges the 32-slot cap by CHUNKING the CLI
+  // across child processes (runLineDisplacementGate) — each child measures ≤ the
+  // cap with fresh worlds.
+  const ownWorld = world ?? new World();
+  try {
+    const result = measureLineDisplacement(parsed.level, ownWorld);
+    if (!result.committed || result.maxDisplacement === null) {
+      return {
+        errors: [`line-displacement: primary ghost did not build a bridge to measure (${result.reason ?? 'unknown'})`],
+      };
+    }
+    // Pure-shield level: the car never rides the drawn line (it drives the ground
+    // under a roof / catch), so there is no car-path shove to bound — auto-pass.
+    if (!result.carRodeChain) {
+      return { errors: [], warnings: ['line-displacement: car never rides the line (pure shield) — car-path shove n/a'] };
+    }
+    if (result.maxDisplacement > LINE_DISPLACEMENT_MAX_M) {
+      return {
+        errors: [
+          `line-displacement: chain shove UNDER THE CAR ${round2(result.maxDisplacement)}m > limit ` +
+            `${LINE_DISPLACEMENT_MAX_M}m (game_plan_v5 §9.2 F5) — anchor the ridden span (rim / mid-pillar / ledge). ` +
+            `(rock deflection away from the car is sanctioned and NOT measured.)`,
+        ],
+      };
+    }
     return {
-      errors: [`line-displacement: primary ghost did not build a bridge to measure (${result.reason ?? 'unknown'})`],
+      errors: [],
+      warnings: [`line-displacement (car-path) ${round2(result.maxDisplacement)}m <= ${LINE_DISPLACEMENT_MAX_M}m`],
     };
+  } finally {
+    // Only destroy a world WE created (a caller-supplied recycled world is theirs).
+    if (world === undefined) {
+      ownWorld.destroy();
+    }
   }
-  // Pure-shield level: the car never rides the drawn line (it drives the ground
-  // under a roof / catch), so there is no car-path shove to bound — auto-pass.
-  if (!result.carRodeChain) {
-    return { errors: [], warnings: ['line-displacement: car never rides the line (pure shield) — car-path shove n/a'] };
-  }
-  if (result.maxDisplacement > LINE_DISPLACEMENT_MAX_M) {
-    return {
-      errors: [
-        `line-displacement: chain shove UNDER THE CAR ${round2(result.maxDisplacement)}m > limit ` +
-          `${LINE_DISPLACEMENT_MAX_M}m (game_plan_v5 §9.2 F5) — anchor the ridden span (rim / mid-pillar / ledge). ` +
-          `(rock deflection away from the car is sanctioned and NOT measured.)`,
-      ],
-    };
-  }
-  return {
-    errors: [],
-    warnings: [`line-displacement (car-path) ${round2(result.maxDisplacement)}m <= ${LINE_DISPLACEMENT_MAX_M}m`],
-  };
 }
 
 // Round-7 rollout COMPLETE: the 28-slate passes this gate strictly, so it no
@@ -236,7 +263,57 @@ export function lineDisplacementCheck(
 // through CI as a warning).
 export function runLineDisplacementGate(argv: string[]): number {
   const { levelsGlob, isQuiet } = parseCliOptions(argv);
-  return runGate(6, resolveLevelFiles(levelsGlob), isQuiet, (loaded) => lineDisplacementCheck(loaded));
+
+  // CHILD mode: the parent handed us an explicit, cap-safe file list. Measure
+  // exactly those with fresh worlds (the normal runGate path).
+  const filesArg = argv.find((a) => a.startsWith('--files='));
+  if (filesArg !== undefined) {
+    const files = filesArg.slice('--files='.length).split(',').filter((f) => f.length > 0);
+    return runGate(6, files, isQuiet, (loaded) => lineDisplacementCheck(loaded));
+  }
+
+  // PARENT mode: a fresh world per level overruns the 32-slot cap on a >30-level
+  // slate, so CHUNK the files across child processes (each ≤ DISPLACEMENT_CHUNK_MAX,
+  // fresh worlds → drift-free). Aggregate: pass iff every child passed. Small
+  // slates run inline (no fork).
+  const files = resolveLevelFiles(levelsGlob);
+  if (files.length <= DISPLACEMENT_CHUNK_MAX) {
+    return runGate(6, files, isQuiet, (loaded) => lineDisplacementCheck(loaded));
+  }
+  const scriptPath = fileURLToPath(import.meta.url);
+  const viteNode = join(process.cwd(), 'node_modules', '.bin', 'vite-node');
+  const started = Date.now();
+  let worst = EXIT_PASS;
+  let passed = 0;
+  let failed = 0;
+  for (let i = 0; i < files.length; i += DISPLACEMENT_CHUNK_MAX) {
+    const chunk = files.slice(i, i + DISPLACEMENT_CHUNK_MAX);
+    const childArgs = [scriptPath, '--', `--files=${chunk.join(',')}`, ...(isQuiet ? ['--quiet'] : [])];
+    const res = spawnSync(viteNode, childArgs, { encoding: 'utf-8' });
+    // Forward every per-level line; fold the child's chunk summary into ours.
+    for (const line of (res.stdout ?? '').split('\n')) {
+      if (line.trim().length === 0) continue;
+      try {
+        const obj = JSON.parse(line) as { summary?: boolean; passed?: number; failed?: number };
+        if (obj.summary === true) {
+          passed += obj.passed ?? 0;
+          failed += obj.failed ?? 0;
+          continue; // suppress the per-chunk summary; the parent emits one combined
+        }
+      } catch {
+        /* not JSON — fall through and forward verbatim */
+      }
+      process.stdout.write(line + '\n');
+    }
+    if (res.stderr) process.stderr.write(res.stderr);
+    const code = res.status ?? EXIT_CONFIG;
+    if (code === EXIT_CONFIG) worst = EXIT_CONFIG;
+    else if (code === EXIT_FAIL && worst !== EXIT_CONFIG) worst = EXIT_FAIL;
+  }
+  process.stdout.write(
+    JSON.stringify({ gate: 6, summary: true, total: files.length, passed, failed, durationMs: Date.now() - started }) + '\n',
+  );
+  return failed > 0 ? EXIT_FAIL : worst;
 }
 
 // CLI execution — skipped under vitest so tests can import the check function.

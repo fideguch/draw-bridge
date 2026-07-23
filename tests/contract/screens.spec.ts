@@ -69,16 +69,14 @@ describe('Chapter 1 catalog + sequential unlock (SC-002, FR-016)', () => {
     return tile;
   };
 
-  // The catalog is the v5 28-slot slate (scripts/levels/manifest.ts §5) filtered to the
-  // levels whose JSON currently ships. WAVE 2 shipped the 7 hazard-free tiles; WAVE 3 added
-  // the 6 spike/DangerZone levels (l04, l08, l09, l10, l12, l17); WAVE 4 added the 7 rock /
-  // ceiling-spike levels (l05, l06, l07, l11, l13, l14, l15); WAVE 5 adds the FINAL 8 —
-  // the XL tier + boss (l16, l18, l19, l20, l21, l22, l23, b5) — completing the full
-  // 28-slate (23 main + 5 bonus) in campaign order. The bonuses sit at their sawtooth
-  // valleys (L4→B1 / L7→B2 / L11→B3 / L15→B4 / L23→B5); manifestForAuthored keeps the
-  // full set in campaign order.
-  it('has 28 shipped tiles (23 main + 5 bonus) in v5 slate campaign order', () => {
-    expect(CHAPTER1_TILES).toHaveLength(28);
+  // The catalog is the round-9 slate (scripts/levels/manifest.ts) filtered to the levels
+  // whose JSON currently ships. ROUND-9 CS-4a authored l01-l12 as v2; CS-4b authored
+  // l13-l28 as v2; CS-4c authored l29-l40 (the finale wave) + regenerated the 5 bonuses
+  // as v2 — completing the full 45-slate (40 main + 5 bonus) in campaign order. The
+  // bonuses sit at their sawtooth valleys (L4→B1 / L7→B2 / L11→B3 / L15→B4 / L23→B5);
+  // manifestForAuthored keeps the full set in campaign order.
+  it('has 45 shipped tiles (40 main + 5 bonus) in round-9 slate campaign order', () => {
+    expect(CHAPTER1_TILES).toHaveLength(45);
     expect(CHAPTER1_TILES.filter((tile) => tile.isBonus)).toHaveLength(5);
     expect(CHAPTER1_TILES.map((tile) => tile.id)).toEqual([
       'ch1-l01',
@@ -109,6 +107,23 @@ describe('Chapter 1 catalog + sequential unlock (SC-002, FR-016)', () => {
       'ch1-l22',
       'ch1-l23',
       'ch1-b5',
+      'ch1-l24',
+      'ch1-l25',
+      'ch1-l26',
+      'ch1-l27',
+      'ch1-l28',
+      'ch1-l29',
+      'ch1-l30',
+      'ch1-l31',
+      'ch1-l32',
+      'ch1-l33',
+      'ch1-l34',
+      'ch1-l35',
+      'ch1-l36',
+      'ch1-l37',
+      'ch1-l38',
+      'ch1-l39',
+      'ch1-l40',
     ]);
   });
 

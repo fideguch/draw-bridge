@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { InkBudget } from '@engine/rules/InkBudget';
-import { rateStars } from '@engine/rules/StarRating';
+import { rateStars, rateStarsV2 } from '@engine/rules/StarRating';
 import { economy, ink } from '@tuning/TuningConstants';
 
 /**
@@ -171,5 +171,29 @@ describe('rateStars (FR-007, data-model §1.6)', () => {
   it('rejects negative or non-finite consumption', () => {
     expect(() => rateStars(-1, THRESHOLDS)).toThrow();
     expect(() => rateStars(Number.NaN, THRESHOLDS)).toThrow();
+  });
+});
+
+describe('rateStarsV2 — objective-based stars (round-9 BR-014)', () => {
+  const STAR3 = 8;
+
+  it('★1 = cleared but objective NOT met (any ink)', () => {
+    expect(rateStarsV2(false, 1, STAR3)).toBe(1);
+    expect(rateStarsV2(false, 100, STAR3)).toBe(1);
+  });
+
+  it('★2 = objective met but over the ink margin', () => {
+    expect(rateStarsV2(true, STAR3 + 0.001, STAR3)).toBe(2);
+    expect(rateStarsV2(true, 50, STAR3)).toBe(2);
+  });
+
+  it('★3 = objective met AND within the ink margin (inclusive at star3)', () => {
+    expect(rateStarsV2(true, STAR3, STAR3)).toBe(3);
+    expect(rateStarsV2(true, 2, STAR3)).toBe(3);
+  });
+
+  it('rejects negative or non-finite consumption', () => {
+    expect(() => rateStarsV2(true, -1, STAR3)).toThrow();
+    expect(() => rateStarsV2(true, Number.NaN, STAR3)).toThrow();
   });
 });

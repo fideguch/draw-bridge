@@ -41,13 +41,27 @@ export class CoinCounter extends Phaser.GameObjects.Container {
     return this;
   }
 
+  /**
+   * Screen x of the pill's LEFT edge (the container is right-anchored and drawn
+   * with Graphics, so Phaser getBounds() is useless — compute it exactly).
+   */
+  leftEdgeX(): number {
+    return this.x - this.contentWidth();
+  }
+
+  private contentWidth(): number {
+    const pad = layout.ui(space.space3);
+    const gap = layout.ui(space.space2);
+    const coinRadius = layout.ui(COIN_RADIUS_DESIGN);
+    return pad + coinRadius * 2 + gap + this.label.width + pad;
+  }
+
   private redraw(): void {
     const pad = layout.ui(space.space3);
     const gap = layout.ui(space.space2);
     const coinRadius = layout.ui(COIN_RADIUS_DESIGN);
     const pillHeight = layout.ui(PILL_HEIGHT_DESIGN);
-    const textWidth = this.label.width;
-    const contentWidth = pad + coinRadius * 2 + gap + textWidth + pad;
+    const contentWidth = this.contentWidth();
     const left = -contentWidth;
     // Clamp the pill radius to half the height (radius.full is ui-scaled huge).
     const pill = clampRadius(radius.full, contentWidth, pillHeight);

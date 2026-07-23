@@ -1,11 +1,22 @@
 /**
- * Gate 7 — LAZY-LINE BOT (round-8). The user's complaint VERBATIM, mechanised:
+ * Gate 7 — LAZY-LINE BOT.
+ *
+ * ROUND-9 RECALIBRATION (BR-015, fun decision 2 + designer comment 3): this gate
+ * is now **ADVISORY telemetry only** — it ALWAYS exits 0 and NEVER fails a level.
+ * A physically valid one-stroke clear (including a horizontal line) is a
+ * legitimate win; level difficulty must come from terrain/hazard GEOMETRY, never
+ * from a gate that outlaws the straight line. The round-8 pass/fail semantics
+ * (below) are retired. The bot is KEPT because the per-level, per-pattern
+ * dispositions it logs are exactly the telemetry the designer reads to decide
+ * whether a level's concept is holding (e.g. an elevation/climb level should NOT
+ * be clearable by a flat line — that is a geometry bug the designer fixes by
+ * raising terrain, not a gate the code enforces).
+ *
+ * ROUND-8 ORIGIN (retained for context): the user's complaint VERBATIM,
  * 「全28面が横一本線でクリアできる」— every board fell to ONE lazy horizontal
- * stroke (proved with real-device screenshots), and gates 0-6 never noticed
- * because none of them tested the complaint itself (Goodhart failure of the
- * proxy metrics). This gate PLAYS the lazy strategy on EVERY level: it draws
- * the LAZY_LINE_PATTERNS horizontal-line candidates and requires that the
- * level DEFEATS every one of them. A single clearing pattern fails the level.
+ * stroke, and gates 0-6 never noticed (Goodhart failure of the proxy metrics).
+ * Round-8 made a clearing pattern a hard FAIL; round-9 (BR-015) demotes that to
+ * advisory logging after the fun overhaul reframed free solutions as legitimate.
  *
  * PATTERNS (the round-8 mandated four + two surface-anchored, see the T4
  * calibration note below): rim-exact / rim-overlap / high / low anchor on the
@@ -37,32 +48,25 @@
  * gate loudly instead of silently coloring the verdict.
  *
  * TUTORIAL ALLOWLIST: L1-L2 teach "draw a line, release, drive" — a lazy line
- * clearing THERE is the intended lesson, so LAZY_LINE_ALLOWLIST levels report
- * their lazy clears as warnings (sanctioned) instead of errors.
+ * clearing THERE is the intended lesson. Under the round-9 advisory model every
+ * level passes regardless, so the allowlist now only TAGS its clears as
+ * `sanctioned` in the telemetry (vs a plain advisory note elsewhere).
  *
- * ROLLOUT (round-8, lib.WARN_NEW_GATES_FLAG): STRICT by default. The CURRENT
- * 28 levels are expected to fail near-totally — that is the honest state the
- * user proved by hand. CI passes `--warn-new-gates` until the round-8 level
- * redesign lands boards that genuinely defeat the lazy line; the per-level,
- * per-pattern dispositions this gate emits (warnings + stderr) are the
- * redesign's worklist.
+ * ROUND-9 SEMANTICS (BR-015): every level PASSES. `lazyLineCheck` returns an
+ * empty `errors[]` unconditionally; every finding (a clearing pattern, the
+ * per-pattern dispositions, a bot-integrity note) is surfaced as a `warnings`
+ * entry + stderr line the designer reads. Nothing here can fail the build.
  *
- * NEGATIVE CONTROLS (learnings T4, both directions, lazy-line.spec.ts):
- *   • a flat-gap level a lazy line clears  -> the gate FAILS it (detection).
- *   • a level whose geometry defeats every pattern -> the gate PASSES it.
+ * BOT COVERAGE (lazy-line.spec.ts): the bot still PLAYS every pattern through the
+ * exact player commit path and correctly identifies which ones clear — that
+ * detection capability is unchanged; only its CONSEQUENCE (advisory, not fail) is.
  */
 import { validateLevel, type Level, type Point } from '../../src/engine/level/LevelSchema';
 import { runScriptedAttempt } from '../../src/engine/replay/GhostPlayer';
 import { World } from '../../src/engine/physics/World';
 import { economy } from '@tuning/TuningConstants';
 import { detectRims, lerpPoint, straightCandidateStroke, topSolidSurfaceAt } from './rims';
-import {
-  applyWarnMode,
-  hasWarnNewGatesFlag,
-  parseCliOptions,
-  resolveLevelFiles,
-  runGate,
-} from './lib';
+import { parseCliOptions, resolveLevelFiles, runGate } from './lib';
 
 /** Gate number in the pipeline report (gates 0-6 are taken). */
 export const LAZY_LINE_GATE_NUMBER = 7;
@@ -270,28 +274,35 @@ export function runLazyLineBot(level: Level, world: World = getLazyWorld()): Laz
   });
 }
 
+/**
+ * ROUND-9 (BR-015): ADVISORY ONLY. Always returns an empty `errors[]` (the level
+ * always passes); every finding is a `warnings` entry the designer reads. The bot
+ * still plays every pattern and reports which ones clear — it is telemetry, not a
+ * gate. A flat line clearing a FLAT bridge level is fine; a flat line clearing an
+ * elevation/climb level is a GEOMETRY note for the designer (fix by raising the
+ * goal terrain), surfaced here but never failing the build.
+ */
 export function lazyLineCheck(
   loaded: { json: unknown },
   world?: World,
 ): { errors: string[]; warnings?: string[] } {
   const parsed = validateLevel(loaded.json);
   if (!parsed.ok) {
-    return { errors: [`gate0-invalid level (run gate0 first): ${parsed.errors[0] ?? 'unknown'}`] };
+    // A malformed level is Gate 0's failure, not this advisory gate's — surface a
+    // pointer as a warning so the pipeline's blocking gates own the hard error.
+    return { errors: [], warnings: [`gate0-invalid level (run gate0 first): ${parsed.errors[0] ?? 'unknown'}`] };
   }
   const level = parsed.level;
   const results = runLazyLineBot(level, world);
 
-  const errors: string[] = [];
   const warnings: string[] = [];
   const isAllowlisted = LAZY_LINE_ALLOWLIST.has(level.id);
   for (const r of results) {
     logDisposition(level.id, r, warnings);
     if (r.usedFallback) {
-      // INTEGRITY: a fallback commit is a line no player could draw (the render
-      // layer stops live strokes at the terrain surface) — Gate 3 precedent.
-      errors.push(
-        `lazy-line bot committed UNCLIPPED THROUGH terrain (F1 fallback) at "${r.pattern.name}" — candidate is not player-faithful`,
-      );
+      // Bot-integrity note (a fallback commit is a line no player could draw) —
+      // advisory: it colours the bot's own verdict, not the level's validity.
+      warnings.push(`lazy-line ADVISORY: bot committed UNCLIPPED THROUGH terrain (F1 fallback) at "${r.pattern.name}"`);
     }
     if (!r.isCleared) {
       continue;
@@ -299,15 +310,13 @@ export function lazyLineCheck(
     const clearTag =
       `"${r.pattern.name}" (overlap ${r.pattern.overlapM}m, offset ${r.pattern.offsetM >= 0 ? '+' : ''}${r.pattern.offsetM}m, ` +
       `ticks ${r.ticks ?? '?'}, needs inkLv>=${r.minInkLv ?? '?'})`;
-    if (isAllowlisted) {
-      warnings.push(`lazy-line: tutorial allowlist ${level.id} — cleared at ${clearTag} (sanctioned lesson)`);
-    } else {
-      errors.push(
-        `lazy-line bot CLEARED at ${clearTag} — one horizontal stroke beats this level (round-8 complaint: 横一本線でクリア可能)`,
-      );
-    }
+    warnings.push(
+      isAllowlisted
+        ? `lazy-line: tutorial allowlist ${level.id} — a straight line clears at ${clearTag} (sanctioned lesson)`
+        : `lazy-line ADVISORY: a straight line clears ${level.id} at ${clearTag} — acceptable for a flat bridge level; a GEOMETRY bug only if this level's concept needs elevation (BR-015: fix by terrain, never by a blocker)`,
+    );
   }
-  return { errors, warnings };
+  return { errors: [], warnings };
 }
 
 /**
@@ -325,9 +334,10 @@ function logDisposition(levelId: string, r: LazyPatternResult, warnings: string[
 
 export function runLazyLineGate(argv: string[]): number {
   const { levelsGlob, isQuiet } = parseCliOptions(argv);
-  const isWarnMode = hasWarnNewGatesFlag(argv);
+  // ROUND-9 (BR-015): advisory only — lazyLineCheck never returns errors, so this
+  // gate always exits 0. The --warn-new-gates flag is no longer consulted here.
   return runGate(LAZY_LINE_GATE_NUMBER, resolveLevelFiles(levelsGlob), isQuiet, (loaded) =>
-    applyWarnMode(lazyLineCheck(loaded), isWarnMode),
+    lazyLineCheck(loaded),
   );
 }
 
